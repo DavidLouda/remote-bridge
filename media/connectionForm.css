@@ -1,0 +1,308 @@
+/* ─── Connection Form – VS Code Native Theme ───────────────────── */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+    padding: 20px 24px 40px;
+    line-height: 1.5;
+}
+
+/* ─── Headings ───────────────────────────────────────────────────── */
+
+h1 {
+    font-size: 1.4em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--vscode-foreground);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+h1 .codicon {
+    font-size: 1.2em;
+}
+
+h2 {
+    font-size: 1.05em;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
+}
+
+/* ─── Sections ───────────────────────────────────────────────────── */
+
+.form-section {
+    margin-bottom: 24px;
+}
+
+/* ─── Form Grid ──────────────────────────────────────────────────── */
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 20px;
+}
+
+.form-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+/* ─── Form Group ─────────────────────────────────────────────────── */
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form-group label {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    user-select: none;
+}
+
+.form-group label .required {
+    color: var(--vscode-errorForeground, #f44);
+    margin-left: 2px;
+}
+
+.form-group .hint {
+    font-size: 0.82em;
+    color: var(--vscode-descriptionForeground);
+    margin-top: 2px;
+}
+
+/* ─── Inputs ─────────────────────────────────────────────────────── */
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+select,
+textarea {
+    width: 100%;
+    padding: 5px 8px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+input::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+input:invalid:not(:placeholder-shown) {
+    border-color: var(--vscode-inputValidation-errorBorder, #f44);
+}
+
+select {
+    cursor: pointer;
+    appearance: auto;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* ─── File Input Group ───────────────────────────────────────────── */
+
+.file-input-group {
+    display: flex;
+    gap: 6px;
+}
+
+.file-input-group input {
+    flex: 1;
+}
+
+.file-input-group button {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    white-space: nowrap;
+}
+
+/* ─── Checkbox ───────────────────────────────────────────────────── */
+
+.checkbox-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--vscode-checkbox-background, var(--vscode-focusBorder));
+    cursor: pointer;
+}
+
+.checkbox-group label {
+    cursor: pointer;
+    font-weight: 400;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────── */
+
+button {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    cursor: pointer;
+    border: none;
+    border-radius: 2px;
+    padding: 6px 14px;
+    transition: opacity 0.15s;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+button:active {
+    opacity: 0.8;
+}
+
+button.primary {
+    color: var(--vscode-button-foreground);
+    background-color: var(--vscode-button-background);
+}
+
+button.primary:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+button.secondary {
+    color: var(--vscode-button-secondaryForeground);
+    background-color: var(--vscode-button-secondaryBackground);
+}
+
+button.secondary:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ─── Action Bar ─────────────────────────────────────────────────── */
+
+.action-bar {
+    display: flex;
+    gap: 10px;
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
+}
+
+.action-bar .spacer {
+    flex: 1;
+}
+
+/* ─── Status Banner ──────────────────────────────────────────────── */
+
+.status-banner {
+    padding: 8px 12px;
+    border-radius: 3px;
+    margin-top: 12px;
+    font-size: 0.9em;
+    display: none;
+}
+
+.status-banner.success {
+    display: block;
+    background-color: var(--vscode-testing-iconPassed, #28a745);
+    color: #fff;
+}
+
+.status-banner.error {
+    display: block;
+    background-color: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+    border: 1px solid var(--vscode-inputValidation-errorBorder, #f44);
+    color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+}
+
+.status-banner.info {
+    display: block;
+    background-color: var(--vscode-inputValidation-infoBackground, #063b49);
+    border: 1px solid var(--vscode-inputValidation-infoBorder, #007acc);
+    color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
+}
+
+/* ─── Validation ─────────────────────────────────────────────────── */
+
+.validation-error {
+    font-size: 0.82em;
+    color: var(--vscode-errorForeground, #f44);
+    margin-top: 2px;
+    display: none;
+}
+
+.form-group.has-error .validation-error {
+    display: block;
+}
+
+.form-group.has-error input,
+.form-group.has-error select {
+    border-color: var(--vscode-inputValidation-errorBorder, #f44);
+}
+
+/* ─── Spinner ────────────────────────────────────────────────────── */
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--vscode-button-foreground);
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Conditional Visibility ─────────────────────────────────────── */
+
+.hidden {
+    display: none !important;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-bar {
+        flex-wrap: wrap;
+    }
+}

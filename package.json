@@ -1,0 +1,899 @@
+{
+  "name": "remote-bridge",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "DavidLouda",
+  "author": {
+    "name": "David Louda"
+  },
+  "license": "MIT",
+  "icon": "resources/Logo.png",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "ssh",
+    "sftp",
+    "ftp",
+    "remote",
+    "file system",
+    "remote development",
+    "copilot"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DavidLouda/VS-Remote-Bridge"
+  },
+  "pricing": "Free",
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [
+    "onFileSystem:remote-bridge"
+  ],
+  "contributes": {
+    "resourceLabelFormatters": [
+      {
+        "scheme": "remote-bridge",
+        "formatting": {
+          "label": "${path}",
+          "separator": "/",
+          "workspaceSuffix": "Remote Bridge"
+        }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "remote-bridge",
+          "title": "%viewContainer.title%",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "remote-bridge": [
+        {
+          "id": "remoteBridge.connections",
+          "name": "%view.connections.name%",
+          "icon": "$(server)"
+        },
+        {
+          "id": "remoteBridge.activeSessions",
+          "name": "%view.activeSessions.name%",
+          "icon": "$(plug)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "remoteBridge.connections",
+        "contents": "%welcome.noConnections%"
+      }
+    ],
+    "commands": [
+      {
+        "command": "remoteBridge.addConnection",
+        "title": "%command.addConnection.title%",
+        "icon": "$(add)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.editConnection",
+        "title": "%command.editConnection.title%",
+        "icon": "$(edit)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.deleteConnection",
+        "title": "%command.deleteConnection.title%",
+        "icon": "$(trash)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.connect",
+        "title": "%command.connect.title%",
+        "icon": "$(plug)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.disconnect",
+        "title": "%command.disconnect.title%",
+        "icon": "$(debug-disconnect)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.openWorkspace",
+        "title": "%command.openWorkspace.title%",
+        "icon": "$(folder-opened)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.openTerminal",
+        "title": "%command.openTerminal.title%",
+        "icon": "$(terminal)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.addFolder",
+        "title": "%command.addFolder.title%",
+        "icon": "$(new-folder)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.renameFolder",
+        "title": "%command.renameFolder.title%",
+        "icon": "$(edit)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.deleteFolder",
+        "title": "%command.deleteFolder.title%",
+        "icon": "$(trash)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.importSSH",
+        "title": "%command.importSSH.title%",
+        "icon": "$(key)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.importWinSCP",
+        "title": "%command.importWinSCP.title%",
+        "icon": "$(desktop-download)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.importSSHFS",
+        "title": "%command.importSSHFS.title%",
+        "icon": "$(extensions)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.setMasterPassword",
+        "title": "%command.setMasterPassword.title%",
+        "icon": "$(lock)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.removeMasterPassword",
+        "title": "%command.removeMasterPassword.title%",
+        "icon": "$(unlock)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.refresh",
+        "title": "%command.refresh.title%",
+        "icon": "$(refresh)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.duplicateConnection",
+        "title": "%command.duplicateConnection.title%",
+        "icon": "$(copy)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.moveToFolder",
+        "title": "%command.moveToFolder.title%",
+        "icon": "$(folder-opened)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.import",
+        "title": "%command.import.title%",
+        "icon": "$(cloud-download)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.showConnections",
+        "title": "%command.showConnections.title%",
+        "icon": "$(plug)",
+        "category": "Remote Bridge"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "remoteBridge.addConnection",
+          "when": "view == remoteBridge.connections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "remoteBridge.addFolder",
+          "when": "view == remoteBridge.connections",
+          "group": "navigation@2"
+        },
+        {
+          "command": "remoteBridge.refresh",
+          "when": "view == remoteBridge.connections",
+          "group": "navigation@3"
+        },
+        {
+          "command": "remoteBridge.import",
+          "when": "view == remoteBridge.connections",
+          "group": "overflow@1"
+        },
+        {
+          "command": "remoteBridge.setMasterPassword",
+          "when": "view == remoteBridge.connections",
+          "group": "overflow@2"
+        },
+        {
+          "command": "remoteBridge.removeMasterPassword",
+          "when": "view == remoteBridge.connections",
+          "group": "overflow@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "remoteBridge.connect",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+\\.disconnected$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "remoteBridge.disconnect",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+\\.connected$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "remoteBridge.openTerminal",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\.(ssh|sftp)\\.connected$/ && !listMultiSelection",
+          "group": "inline@2"
+        },
+        {
+          "command": "remoteBridge.editConnection",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/ && !listMultiSelection",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "remoteBridge.duplicateConnection",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/ && !listMultiSelection",
+          "group": "1_manage@2"
+        },
+        {
+          "command": "remoteBridge.moveToFolder",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/",
+          "group": "1_manage@3"
+        },
+        {
+          "command": "remoteBridge.deleteConnection",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/",
+          "group": "1_manage@4"
+        },
+        {
+          "command": "remoteBridge.renameFolder",
+          "when": "view == remoteBridge.connections && viewItem == folder",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "remoteBridge.deleteFolder",
+          "when": "view == remoteBridge.connections && viewItem == folder",
+          "group": "1_manage@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "remoteBridge.openTerminal",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.connect",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.disconnect",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.editConnection",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.deleteConnection",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.duplicateConnection",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.moveToFolder",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.openWorkspace",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.renameFolder",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.deleteFolder",
+          "when": "false"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "remoteBridge.importSubmenu",
+        "label": "%submenu.import.label%"
+      }
+    ],
+    "configuration": {
+      "title": "Remote Bridge",
+      "properties": {
+        "remoteBridge.cache.ttl": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 600,
+          "description": "%config.cache.ttl.description%"
+        },
+        "remoteBridge.cache.maxSize": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "%config.cache.maxSize.description%"
+        },
+        "remoteBridge.pool.idleTimeout": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 120,
+          "description": "%config.pool.idleTimeout.description%"
+        },
+        "remoteBridge.pool.maxConnections": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "%config.pool.maxConnections.description%"
+        },
+        "remoteBridge.security.useMasterPassword": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.security.useMasterPassword.description%"
+        },
+        "remoteBridge.security.masterPasswordTimeout": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 1440,
+          "description": "%config.security.masterPasswordTimeout.description%"
+        },
+        "remoteBridge.watch.pollInterval": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "%config.watch.pollInterval.description%"
+        }
+      }
+    },
+    "chatParticipants": [
+      {
+        "id": "remote",
+        "name": "remote",
+        "fullName": "Remote Bridge",
+        "description": "%chat.participant.description%",
+        "isSticky": false,
+        "commands": [
+          {
+            "name": "connect",
+            "description": "%chat.command.connect.description%"
+          },
+          {
+            "name": "ls",
+            "description": "%chat.command.ls.description%"
+          },
+          {
+            "name": "status",
+            "description": "%chat.command.status.description%"
+          }
+        ],
+        "disambiguation": [
+          {
+            "category": "remote-files",
+            "description": "The user wants to access or manage remote files via SSH, FTP, or SFTP. All file operations (list, read, write, delete, mkdir, search) work on all protocols.",
+            "examples": [
+              "Show me the files on my remote server",
+              "Connect to my SSH server and list files",
+              "Read a file from the SFTP server",
+              "Upload a file to my FTP server",
+              "Delete files and folders on my server",
+              "Create a new directory on the remote server"
+            ]
+          }
+        ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "remote-bridge_listFiles",
+        "displayName": "%tool.listFiles.displayName%",
+        "modelDescription": "Lists files and directories on a remote server connected via SSH, SFTP, or FTP. Returns file/directory names, types (file/directory/symlink), sizes in bytes, and modification timestamps. Use this to explore the remote file system structure.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteFiles",
+        "icon": "$(folder-opened)",
+        "userDescription": "%tool.listFiles.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote directory path to list. Defaults to the connection's root path."
+            }
+          },
+          "required": [
+            "connectionName"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_readFile",
+        "displayName": "%tool.readFile.displayName%",
+        "modelDescription": "Reads the content of a file on a remote server. This tool replaces using runCommand with sed/head/tail/cat for file reads. Supports efficient partial reading by specifying startLine and endLine — on SSH only the requested lines are transferred, not the whole file. Always prefer partial reads for large files. Returns line numbers and total line count to help you plan further reads or writes.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteRead",
+        "icon": "$(file-code)",
+        "userDescription": "%tool.readFile.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote file path to read."
+            },
+            "startLine": {
+              "type": "number",
+              "description": "Optional 1-based start line for partial reading."
+            },
+            "endLine": {
+              "type": "number",
+              "description": "Optional 1-based end line for partial reading (inclusive)."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_writeFile",
+        "displayName": "%tool.writeFile.displayName%",
+        "modelDescription": "Writes content to a file on a remote server. This tool replaces using runCommand with sed/python/heredoc/echo redirection for file edits. Supports three modes: (1) Full write — provide only content to create or overwrite the file. (2) Partial replace — provide content with startLine and endLine to replace only that line range. (3) Insert — provide content with startLine and mode='insert' to insert new lines AFTER startLine without removing anything. Partial writes over SSH are very efficient because only the changed lines travel over the wire. ALWAYS prefer partial writes when editing existing files: first read the relevant lines, then write back only the changed range. Use insert mode when adding new code blocks. Creates parent directories automatically.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteWrite",
+        "icon": "$(file-add)",
+        "userDescription": "%tool.writeFile.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote file path to write to."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write. For partial writes this replaces the specified line range. For full writes this becomes the entire file."
+            },
+            "startLine": {
+              "type": "number",
+              "description": "Optional 1-based start line for partial write. When provided together with endLine, only lines startLine through endLine are replaced with the new content."
+            },
+            "endLine": {
+              "type": "number",
+              "description": "Optional 1-based end line (inclusive) for partial write. Must be used together with startLine."
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["replace", "insert"],
+              "description": "Write mode. 'replace' (default) replaces the line range. 'insert' inserts the content AFTER startLine without removing any lines. Use insert mode to add new code without replacing existing lines."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path",
+            "content"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_searchFiles",
+        "displayName": "%tool.searchFiles.displayName%",
+        "modelDescription": "Searches for text patterns in files on a remote server. This tool replaces using runCommand with grep for content search. Uses grep over SSH for fast searching (skips binary files automatically), or recursively scans file contents for FTP. Works with ALL protocols: SSH, SFTP, and FTP. Returns matching lines with file paths and line numbers. Supports regex patterns and file type filtering via fileGlob.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteSearch",
+        "icon": "$(search)",
+        "userDescription": "%tool.searchFiles.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The remote directory path to search in."
+            },
+            "pattern": {
+              "type": "string",
+              "description": "The text or regex pattern to search for."
+            },
+            "fileGlob": {
+              "type": "string",
+              "description": "Optional glob pattern to filter files (e.g., '*.ts', '*.py')."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path",
+            "pattern"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_runCommand",
+        "displayName": "%tool.runCommand.displayName%",
+        "modelDescription": "Executes a shell command on a remote server via SSH. Returns stdout and stderr. Only available for SSH/SFTP connections — does NOT work with FTP. Use this ONLY for tasks that have no dedicated tool (for example running build/test/lint commands, service control, package manager commands, or custom scripts). Do NOT use this tool for file operations when dedicated tools exist: readFile (instead of sed/head/tail/cat), writeFile (instead of sed/python/heredoc/echo redirects), searchFiles (instead of grep), findFiles (instead of find for name search), copyFile (instead of cp), renameFile (instead of mv), deleteFile (instead of rm), createDirectory (instead of mkdir).",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteRun",
+        "icon": "$(terminal)",
+        "userDescription": "%tool.runCommand.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+            },
+            "command": {
+              "type": "string",
+              "description": "The shell command to execute on the remote server."
+            }
+          },
+          "required": [
+            "connectionName",
+            "command"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_deleteFile",
+        "displayName": "%tool.deleteFile.displayName%",
+        "modelDescription": "Deletes a file or directory on a remote server. Works with ALL protocols: SSH, SFTP, and FTP. Supports recursive deletion for directories. ALWAYS use this tool to delete files or directories — do NOT use runCommand with rm. This is the only way to delete files on FTP connections.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteDelete",
+        "icon": "$(trash)",
+        "userDescription": "%tool.deleteFile.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote path of the file or directory to delete."
+            },
+            "recursive": {
+              "type": "boolean",
+              "description": "Whether to recursively delete directory contents. Defaults to true."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_createDirectory",
+        "displayName": "%tool.createDirectory.displayName%",
+        "modelDescription": "Creates a directory on a remote server. Works with ALL protocols: SSH, SFTP, and FTP. Automatically creates parent directories if they do not exist. ALWAYS use this tool to create directories — do NOT use runCommand with mkdir. This is the only way to create directories on FTP connections.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteMkdir",
+        "icon": "$(new-folder)",
+        "userDescription": "%tool.createDirectory.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote directory path to create."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_mysqlQuery",
+        "displayName": "%tool.mysqlQuery.displayName%",
+        "modelDescription": "Executes a read-only SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) on a MySQL/MariaDB database on a remote server via SSH. Returns results as a formatted table with column headers and row count. Use this for reading data. Only works on SSH/SFTP connections where the mysql CLI client is installed on the server.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteSql",
+        "icon": "$(database)",
+        "userDescription": "%tool.mysqlQuery.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+            },
+            "query": {
+              "type": "string",
+              "description": "The SQL query to execute (SELECT, SHOW, DESCRIBE, EXPLAIN)."
+            },
+            "database": {
+              "type": "string",
+              "description": "Optional database name to use. If omitted, no database is selected by default."
+            }
+          },
+          "required": [
+            "connectionName",
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_mysqlExecute",
+        "displayName": "%tool.mysqlExecute.displayName%",
+        "modelDescription": "Executes a data-modifying SQL statement (INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP, etc.) on a MySQL/MariaDB database via SSH. Requires user confirmation before execution. SQL is piped via stdin to avoid shell escaping issues. Use this for any write operations on the database. Only works on SSH/SFTP connections.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteSqlExec",
+        "icon": "$(database)",
+        "userDescription": "%tool.mysqlExecute.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+            },
+            "sql": {
+              "type": "string",
+              "description": "The SQL statement(s) to execute. Can contain multiple statements separated by semicolons."
+            },
+            "database": {
+              "type": "string",
+              "description": "Optional database name to use."
+            }
+          },
+          "required": [
+            "connectionName",
+            "sql"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_mysqlSchema",
+        "displayName": "%tool.mysqlSchema.displayName%",
+        "modelDescription": "Inspects MySQL/MariaDB database schema on a remote server via SSH. Three modes: (1) No database/table — lists all databases. (2) Database only — lists all tables with engine, row count, size, and comments. (3) Database + table — shows full table structure: columns with types, CREATE TABLE statement, indexes, and row count. ALWAYS use this before writing SQL queries to understand the schema. Only works on SSH/SFTP connections.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteDbSchema",
+        "icon": "$(symbol-structure)",
+        "userDescription": "%tool.mysqlSchema.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+            },
+            "database": {
+              "type": "string",
+              "description": "Optional database name. If omitted, lists all databases. If provided without table, lists tables in this database."
+            },
+            "table": {
+              "type": "string",
+              "description": "Optional table name. When provided together with database, shows full table structure (columns, types, indexes, CREATE TABLE)."
+            }
+          },
+          "required": [
+            "connectionName"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_renameFile",
+        "displayName": "%tool.renameFile.displayName%",
+        "modelDescription": "Renames or moves a file or directory on a remote server. Works with ALL protocols (SSH, SFTP, FTP). ALWAYS use this tool instead of runCommand with mv. This is a zero-data-transfer operation — no file content travels over the wire.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteRename",
+        "icon": "$(file-symlink-file)",
+        "userDescription": "%tool.renameFile.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "oldPath": {
+              "type": "string",
+              "description": "The current absolute path of the file or directory."
+            },
+            "newPath": {
+              "type": "string",
+              "description": "The new absolute path (rename or move destination)."
+            },
+            "overwrite": {
+              "type": "boolean",
+              "description": "Whether to overwrite the destination if it exists. Default: false."
+            }
+          },
+          "required": [
+            "connectionName",
+            "oldPath",
+            "newPath"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_statFile",
+        "displayName": "%tool.statFile.displayName%",
+        "modelDescription": "Gets metadata about a file or directory on a remote server: type (file/directory/symlink), size, modification time, creation time, permissions, and whether it exists. Use this to check if a file exists before reading or writing, or to get file size without downloading. Returns exists:false instead of an error when the file does not exist. Works with all protocols.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteStat",
+        "icon": "$(info)",
+        "userDescription": "%tool.statFile.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote path to get info about."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_copyFile",
+        "displayName": "%tool.copyFile.displayName%",
+        "modelDescription": "Copies a file or directory on a remote server. On SSH the copy happens entirely server-side via 'cp -a' without transferring any data over the network — extremely efficient for large files. On FTP falls back to download+upload. ALWAYS use this tool instead of runCommand with cp or reading and re-writing a file to duplicate it.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteCopy",
+        "icon": "$(files)",
+        "userDescription": "%tool.copyFile.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "sourcePath": {
+              "type": "string",
+              "description": "The absolute path of the source file or directory."
+            },
+            "destinationPath": {
+              "type": "string",
+              "description": "The absolute path for the copy destination."
+            },
+            "recursive": {
+              "type": "boolean",
+              "description": "Whether to copy directories recursively. Default: true."
+            }
+          },
+          "required": [
+            "connectionName",
+            "sourcePath",
+            "destinationPath"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_findFiles",
+        "displayName": "%tool.findFiles.displayName%",
+        "modelDescription": "Finds files and directories by name pattern (glob) on a remote server. Use this to locate files when you know part of the filename but not the full path. Much faster than listing directories manually. On SSH uses the 'find' command server-side. Supports glob patterns like *.php, config*, [abc].txt. Use this instead of runCommand with find when the goal is file name discovery. Different from searchFiles which searches file CONTENTS — this searches file NAMES.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteFind",
+        "icon": "$(search)",
+        "userDescription": "%tool.findFiles.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+            },
+            "path": {
+              "type": "string",
+              "description": "The absolute remote directory to search in."
+            },
+            "namePattern": {
+              "type": "string",
+              "description": "Glob pattern for file names (e.g. '*.php', 'config*', '*.ts')."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results to return. Default: 50."
+            }
+          },
+          "required": [
+            "connectionName",
+            "path",
+            "namePattern"
+          ]
+        }
+      },
+      {
+        "name": "remote-bridge_listConnections",
+        "displayName": "%tool.listConnections.displayName%",
+        "modelDescription": "Lists all saved remote connections with their name, protocol, host, port, root path, and connection status (connected/disconnected). Use this to discover available connections before performing any file operations. No connectionName parameter needed — this lists ALL connections.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteConnections",
+        "icon": "$(plug)",
+        "userDescription": "%tool.listConnections.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "l10n:export": "npx @vscode/l10n-dev export -o ./l10n ./src",
+    "l10n:pseudo": "npx @vscode/l10n-dev generate-pseudo -o ./l10n ./l10n/bundle.l10n.json ./package.nls.json",
+    "compile": "tsc -p ./",
+    "prepackage": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ssh2": "^1.15.0",
+    "@types/vscode": "^1.93.0",
+    "@vscode/l10n-dev": "^0.0.35",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.0.5",
+    "ssh-config": "^5.0.0",
+    "ssh2": "^1.16.0"
+  }
+}
