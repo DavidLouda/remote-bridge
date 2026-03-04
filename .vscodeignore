@@ -9,4 +9,7 @@ esbuild.mjs
 .github/**
 **/*.map
 **/*.ts
+**/*.vsix
+.playwright-mcp/**
+resources/Info.jpg
 !dist/**

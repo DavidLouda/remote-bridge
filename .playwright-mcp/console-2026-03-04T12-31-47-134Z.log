@@ -1,0 +1,3 @@
+[    2186ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.github.com/repos/DavidLouda/VS-Remote-Bridge/pulls:0
+[    2189ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.github.com/repos/DavidLouda/VS-Remote-Bridge/commits:0
+[    2344ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://marketplace.visualstudio.com/_public/_Bundling/Content?bundle=vss-bundle-view-vXoDWBFDQWSnPpTMha3gKW-mtM69mkuoyKRWpVu00fXY=:2691

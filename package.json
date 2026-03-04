@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
@@ -26,7 +26,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/DavidLouda/VS-Remote-Bridge"
+    "url": "https://github.com/DavidLouda/remote-bridge"
   },
   "pricing": "Free",
   "main": "./dist/extension.js",

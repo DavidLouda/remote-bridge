@@ -5,7 +5,7 @@
 
 Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** directly in VS Code — as if they were local.
 
-![Remote Bridge](resources/Logo.png)
+![Remote Bridge](resources/Info.jpg)
 
 ## Overview
 
