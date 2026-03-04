@@ -37,6 +37,9 @@
     // Status
     const statusBanner = /** @type {HTMLElement} */ (document.getElementById('statusBanner'));
 
+    // Localized label for the testing state
+    let testingLabel = 'Testing\u2026';
+
     // Track whether we're editing an existing connection
     let editingId = /** @type {string | null} */ (null);
     let portManuallyChanged = false;
@@ -146,7 +149,7 @@
         });
 
         testBtn.disabled = true;
-        testBtn.innerHTML = '<span class="spinner"></span>Testing…';
+        testBtn.innerHTML = '<span class="spinner"></span>' + testingLabel;
         hideStatus();
     });
 
@@ -192,6 +195,9 @@
 
             case 'setLabels':
                 applyLabels(msg.labels);
+                if (msg.labels?.testingBtn) {
+                    testingLabel = msg.labels.testingBtn;
+                }
                 break;
         }
     });

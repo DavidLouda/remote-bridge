@@ -17,6 +17,7 @@
   "Cannot move files between different connections": "Súbory nie je možné presúvať medzi rôznymi pripojeniami",
   "Connection not found: {0}": "Pripojenie sa nenašlo: {0}",
   "Connection failed: {0}": "Pripojenie zlyhalo: {0}",
+  "Testing\u2026": "Testovanie\u2026",
 
   "Connected": "Pripojené",
   "Connected: {0}": "Pripojené: {0}",

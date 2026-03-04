@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS } from '../types/connection';
+import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase } from '../types/connection';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
 import { SshAdapter } from '../adapters/sshAdapter';
@@ -20,6 +20,9 @@ export class ConnectionFormPanel {
 
     // Data to prefill when the webview signals "ready"
     private _pendingPrefill: Record<string, unknown> | null = null;
+
+    // ID of the connection being edited (null when creating new)
+    private _editingId: string | null = null;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -67,6 +70,7 @@ export class ConnectionFormPanel {
             vscode.l10n.t('New Connection')
         );
 
+        panel._editingId = null;
         panel._pendingPrefill = {
             protocol: 'ssh',
             port: DEFAULT_PORTS.ssh,
@@ -97,6 +101,7 @@ export class ConnectionFormPanel {
             vscode.l10n.t('Edit Connection — {0}', connection.name)
         );
 
+        panel._editingId = connection.id;
         panel._pendingPrefill = { ...connection };
         panel._trySendPrefill();
     }
@@ -247,8 +252,20 @@ export class ConnectionFormPanel {
     private async _handleTest(data: Record<string, unknown>): Promise<void> {
         try {
             const protocol = data.protocol as ConnectionProtocol;
-            const password = (data.password as string) || '';
-            const passphrase = (data.passphrase as string) || '';
+            let password = (data.password as string) || '';
+            let passphrase = (data.passphrase as string) || '';
+
+            // When editing an existing connection, the password/passphrase fields
+            // in the form are intentionally left empty (credentials live in
+            // SecretStorage). Fall back to stored secrets so the test can succeed.
+            if (this._editingId) {
+                if (!password) {
+                    password = (await this._secrets.get(secretKeyForPassword(this._editingId))) ?? '';
+                }
+                if (!passphrase) {
+                    passphrase = (await this._secrets.get(secretKeyForPassphrase(this._editingId))) ?? '';
+                }
+            }
 
             const tempConfig: ConnectionConfig = {
                 id: `test-${generateId()}`,
@@ -390,6 +407,7 @@ export class ConnectionFormPanel {
             formTitle: this._panel.title,
             saveBtn: vscode.l10n.t('Save'),
             testBtn: vscode.l10n.t('Test Connection'),
+            testingBtn: vscode.l10n.t('Testing…'),
             cancelBtn: vscode.l10n.t('Cancel'),
             browseKeyBtn: vscode.l10n.t('Browse…'),
 

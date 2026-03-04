@@ -17,6 +17,7 @@
   "Cannot move files between different connections": "異なる接続間でファイルを移動できません",
   "Connection not found: {0}": "接続が見つかりません: {0}",
   "Connection failed: {0}": "接続に失敗しました: {0}",
+  "Testing\u2026": "テスト中\u2026",
 
   "Connected": "接続済み",
   "Connected: {0}": "接続中: {0}",

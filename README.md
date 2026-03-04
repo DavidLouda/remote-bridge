@@ -7,6 +7,21 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 
 ![Remote Bridge](resources/Logo.png)
 
+## Overview
+
+| | |
+|---|---|
+| **Protocols** | SSH, SFTP, FTP, FTPS |
+| **Auth** | Password, private key (PPK/PEM), SSH agent, FTPS/TLS |
+| **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
+| **Terminal** | Interactive SSH shell with full PTY and window resize support |
+| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS |
+| **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password with auto-lock |
+| **MySQL / MariaDB** | Query, modify, and inspect remote databases via SSH — no local drivers needed |
+| **AI (Copilot)** | `@remote` chat participant + 15 LM tools for file operations, shell commands, and SQL |
+| **Multi-OS** | Per-connection OS setting — Linux, macOS, Windows (PowerShell) |
+| **Localization** | 12 languages: EN, CS, DE, FR, ES, PL, HU, SK, UK, ZH-CN, KO, JA |
+
 ## Features
 
 ### 🔌 Multi-Protocol Support

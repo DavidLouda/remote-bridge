@@ -17,6 +17,7 @@
   "Cannot move files between different connections": "Nelze přesouvat soubory mezi různými připojeními",
   "Connection not found: {0}": "Připojení nebylo nalezeno: {0}",
   "Connection failed: {0}": "Připojení selhalo: {0}",
+  "Testing\u2026": "Testování\u2026",
 
   "Connecting...": "Připojování...",
   "Error": "Chyba",

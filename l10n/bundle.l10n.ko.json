@@ -17,6 +17,7 @@
   "Cannot move files between different connections": "다른 연결 간에 파일을 이동할 수 없습니다",
   "Connection not found: {0}": "연결을 찾을 수 없음: {0}",
   "Connection failed: {0}": "연결 실패: {0}",
+  "Testing\u2026": "테스트 중\u2026",
 
   "Connected": "연결됨",
   "Connected: {0}": "연결됨: {0}",

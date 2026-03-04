@@ -17,6 +17,7 @@
   "Cannot move files between different connections": "No se pueden mover archivos entre diferentes conexiones",
   "Connection not found: {0}": "Conexión no encontrada: {0}",
   "Connection failed: {0}": "Error de conexión: {0}",
+  "Testing\u2026": "Probando\u2026",
 
   "Connected": "Conectado",
   "Connected: {0}": "Conectado: {0}",

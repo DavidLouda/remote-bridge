@@ -17,6 +17,7 @@
   "Cannot move files between different connections": "Fájlok nem mozgathatók különböző kapcsolatok között",
   "Connection not found: {0}": "Kapcsolat nem található: {0}",
   "Connection failed: {0}": "Csatlakozás sikertelen: {0}",
+  "Testing\u2026": "Tesztelés\u2026",
 
   "Connected": "Csatlakozva",
   "Connected: {0}": "Csatlakozva: {0}",
