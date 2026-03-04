@@ -1,8 +1,14 @@
+// SPDX-License-Identifier: MIT
+
 /**
  * WinSCP password decryption utilities.
  *
  * WinSCP uses a simple XOR-based obfuscation when no master password is set.
  * When a master password is set, AES-256-CBC encryption is used.
+ *
+ * This is an independent reimplementation based on WinSCP's publicly
+ * documented credential storage format. No source code from WinSCP
+ * (which is GPL-licensed) was used or derived from.
  *
  * Reference: https://winscp.net/eng/docs/security_credentials
  */

@@ -326,3 +326,7 @@ I'm building this mainly for myself, because apparently that's how side projects
 ## License
 
 [MIT](LICENSE) © David Louda
+
+## Third-Party Licenses
+
+See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for production dependency licenses.
