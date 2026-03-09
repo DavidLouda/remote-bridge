@@ -5,6 +5,11 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-03-09
+
+### Fixed
+- **Auto-port on protocol change** — switching the protocol in the connection form now automatically updates the port to its default value (SSH/SFTP → 22, FTP → 21, FTPS → 990) when adding a new connection. Manually entered ports are still preserved. Editing an existing connection also keeps the saved port unchanged.
+
 ## [1.1.0] - 2026-03-09
 
 In practice, the dedicated AI tools (readFile, writeFile, searchFiles…) turned out to complicate the agent's work more than they helped — the agent would get stuck trying to use them even when a simple SSH command would be faster and more reliable. Starting with this version, AI tools are **disabled by default**. The agent still has full access via `runCommand` and `listConnections` and can call `cat`, `grep`, `sed`, `find`, `mysql`, and anything else over SSH — and it does so surprisingly well. If you prefer the dedicated tool approach, you can re-enable them in settings (`remoteBridge.ai.enabled`).

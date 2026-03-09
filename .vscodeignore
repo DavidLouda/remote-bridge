@@ -12,4 +12,5 @@ esbuild.mjs
 **/*.vsix
 .playwright-mcp/**
 resources/Info.jpg
+resources/screen_*.png
 !dist/**

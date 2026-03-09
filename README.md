@@ -5,7 +5,7 @@
 
 Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** directly in VS Code — as if they were local.
 
-![Remote Bridge](resources/Info.jpg)
+![Remote Bridge](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/Info.jpg)
 
 ## Overview
 
@@ -172,13 +172,15 @@ code --install-extension remote-bridge-<version>.vsix
 
 When adding or editing a connection, you'll see a form with these sections:
 
+![New Connection Form](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/screen_new_connection.png)
+
 **Basic Settings:**
 | Field | Description |
 |-------|-------------|
 | Connection Name | A friendly name for your connection |
 | Protocol | `SSH`, `SFTP`, `FTP`, or `FTPS` |
 | Host | Hostname or IP address of the server |
-| Port | Port number (auto-filled: SSH/SFTP → 22, FTP/FTPS → 21) |
+| Port | Port number (auto-filled when switching protocol: SSH/SFTP → 22, FTP → 21, FTPS → 990) |
 | Username | Your login username |
 | Remote Path | Starting directory on the server (default: `/`) |
 | Operating System | Target OS — `Linux`, `macOS`, or `Windows` (affects shell commands) |
@@ -201,6 +203,8 @@ The Remote Bridge sidebar has two sections:
 
 - **Connections** — All your saved connections, optionally organized in folders
 - **Active Sessions** — Currently open connections with transfer statistics
+
+![Connection Manager](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/screen_connections.png)
 
 **Toolbar buttons** (top of the Connections view):
 | Button | Action |
@@ -227,6 +231,8 @@ The Remote Bridge sidebar has two sections:
 > **Tip:** Hold `Ctrl`/`Cmd` or `Shift` to select multiple connections, then right-click for bulk **Delete** or **Move to Folder**.
 
 ### Browsing Remote Files
+
+![Remote Workspace](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/screen_window.png)
 
 After clicking **Connect**, VS Code creates a named `.code-workspace` file for the server (stored in the extension's global storage directory) and reloads the window. The workspace title shows the hostname, e.g. `example.com (Workspace)`. When you reopen VS Code with this workspace, the extension automatically reconnects.
 

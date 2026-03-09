@@ -275,7 +275,7 @@
             setVal('proxyUsername', data.proxy.username || '');
         }
 
-        portManuallyChanged = true; // Don't override prefilled port
+        portManuallyChanged = !!data.id; // Preserve port only when editing an existing connection
 
         // Trigger UI updates
         const isFtp = data.protocol === 'ftp' || data.protocol === 'ftps';

@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
