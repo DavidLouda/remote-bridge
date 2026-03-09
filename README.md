@@ -5,7 +5,7 @@
 
 Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** directly in VS Code — as if they were local.
 
-![Remote Bridge](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/Info.jpg)
+![Remote Bridge](https://raw.githubusercontent.com/DavidLouda/remote-bridge/master/resources/Info.jpg)
 
 ## Overview
 
@@ -172,7 +172,7 @@ code --install-extension remote-bridge-<version>.vsix
 
 When adding or editing a connection, you'll see a form with these sections:
 
-![New Connection Form](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/screen_new_connection.png)
+![New Connection Form](https://raw.githubusercontent.com/DavidLouda/remote-bridge/master/resources/screen_new_connection.png)
 
 **Basic Settings:**
 | Field | Description |
@@ -204,7 +204,7 @@ The Remote Bridge sidebar has two sections:
 - **Connections** — All your saved connections, optionally organized in folders
 - **Active Sessions** — Currently open connections with transfer statistics
 
-![Connection Manager](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/screen_connections.png)
+![Connection Manager](https://raw.githubusercontent.com/DavidLouda/remote-bridge/master/resources/screen_connections.png)
 
 **Toolbar buttons** (top of the Connections view):
 | Button | Action |
@@ -232,7 +232,7 @@ The Remote Bridge sidebar has two sections:
 
 ### Browsing Remote Files
 
-![Remote Workspace](https://raw.githubusercontent.com/DavidLouda/remote-bridge/main/resources/screen_window.png)
+![Remote Workspace](https://raw.githubusercontent.com/DavidLouda/remote-bridge/master/resources/screen_window.png)
 
 After clicking **Connect**, VS Code creates a named `.code-workspace` file for the server (stored in the extension's global storage directory) and reloads the window. The workspace title shows the hostname, e.g. `example.com (Workspace)`. When you reopen VS Code with this workspace, the extension automatically reconnects.
 
