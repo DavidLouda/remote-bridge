@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Delete Connection",
   "command.connect.title": "Connect",
   "command.disconnect.title": "Disconnect",
+  "command.clearDecorations.title": "Clear Change Decorations",
   "command.openWorkspace.title": "Open as Workspace",
   "command.openTerminal.title": "Open SSH Terminal",
   "command.addFolder.title": "Add Folder",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Import from SSH Config",
   "command.importWinSCP.title": "Import from WinSCP",
   "command.importSSHFS.title": "Import from SSH FS",
+  "command.importFileZilla.title": "Import from FileZilla",
+  "command.importPuTTY.title": "Import from PuTTY",
+  "command.importTotalCmd.title": "Import from Total Commander",
   "command.setMasterPassword.title": "Set Master Password",
   "command.removeMasterPassword.title": "Remove Master Password",
   "command.refresh.title": "Refresh",
@@ -38,6 +42,7 @@
   "config.security.useMasterPassword.description": "Encrypt stored connections with a master password",
   "config.security.masterPasswordTimeout.description": "Time in minutes before the master password must be re-entered (0 = never)",
   "config.watch.pollInterval.description": "Polling interval for file system watchers (in milliseconds)",
+  "config.ai.enabled.description": "Enable AI tools (beta). Provides dedicated file, database, and search tools for the AI agent. Disabled by default — without these tools the agent uses SSH commands directly via runCommand, which often produces better results. Requires reload.",
 
   "chat.participant.description": "Work with remote servers — list, read, write, delete files, create directories, search, and run commands (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Connect to a remote server by name",
@@ -69,6 +74,11 @@
   "tool.findFiles.userDescription": "Find files by name pattern on a remote server connected via Remote Bridge",
   "tool.listConnections.displayName": "List Connections",
   "tool.listConnections.userDescription": "List all saved remote connections with their status",
+
+  "tool.getChangedFiles.displayName": "Get Changed Files",
+  "tool.getChangedFiles.userDescription": "Get a summary of all remote files modified during this session",
+  "tool.clearDecorations.displayName": "Clear Change Decorations",
+  "tool.clearDecorations.userDescription": "Reset session file change tracking and remove all badges from Explorer",
 
   "tool.mysqlQuery.displayName": "MySQL Query",
   "tool.mysqlQuery.userDescription": "Execute a read-only SQL query on a MySQL/MariaDB database via Remote Bridge SSH connection",

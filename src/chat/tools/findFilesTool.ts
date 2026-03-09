@@ -5,10 +5,12 @@ import { BaseTool } from './baseTool';
 import * as shell from '../../utils/shellCommands';
 
 interface FindFilesInput {
-    connectionName: string;
+    connectionName?: string;
     path: string;
     namePattern: string;
     maxResults?: number;
+    type?: 'file' | 'directory' | 'any';
+    excludePattern?: string;
 }
 
 /**
@@ -45,8 +47,9 @@ export class FindFilesTool extends BaseTool implements vscode.LanguageModelTool<
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, path: searchPath, namePattern, maxResults } = options.input;
+        const { connectionName, path: searchPath, namePattern, maxResults, type, excludePattern } = options.input;
         const limit = maxResults ?? 50;
+        const typeFilter = type === 'file' || type === 'directory' ? type : undefined;
 
         const config = this._resolveConnection(connectionName);
         const adapter = await this._pool.getAdapter(config);
@@ -56,7 +59,7 @@ export class FindFilesTool extends BaseTool implements vscode.LanguageModelTool<
         if (adapter.supportsExec && adapter.exec) {
             // SSH: use find command server-side — fast, no data transfer
             const os = config.os ?? 'linux';
-            const cmd = shell.findCmd(searchPath, namePattern, limit, os);
+            const cmd = shell.findCmd(searchPath, namePattern, limit, os, typeFilter, excludePattern);
             const result = await adapter.exec(cmd);
 
             if (result.exitCode !== 0 && !result.stdout.trim()) {
@@ -71,7 +74,8 @@ export class FindFilesTool extends BaseTool implements vscode.LanguageModelTool<
         } else {
             // FTP fallback: recursive readDirectory with glob matching
             const matches: string[] = [];
-            await this._findRecursive(adapter, searchPath, namePattern, matches, limit, 0, 10);
+            const excludeRegex = excludePattern ? this._globToRegex(excludePattern) : null;
+            await this._findRecursive(adapter, searchPath, namePattern, matches, limit, 0, 10, typeFilter, excludeRegex);
             output = matches.join('\n');
         }
 
@@ -101,7 +105,9 @@ export class FindFilesTool extends BaseTool implements vscode.LanguageModelTool<
         matches: string[],
         limit: number,
         depth: number,
-        maxDepth: number
+        maxDepth: number,
+        typeFilter?: 'file' | 'directory',
+        excludeRegex?: RegExp | null
     ): Promise<void> {
         if (depth > maxDepth || matches.length >= limit) {
             return;
@@ -123,12 +129,22 @@ export class FindFilesTool extends BaseTool implements vscode.LanguageModelTool<
 
             const fullPath = dir === '/' ? `/${entry.name}` : `${dir}/${entry.name}`;
 
+            // Apply exclude filter
+            if (excludeRegex && excludeRegex.test(fullPath)) {
+                continue;
+            }
+
             if (regex.test(entry.name)) {
-                matches.push(fullPath);
+                // Apply type filter
+                const isFile = entry.type === vscode.FileType.File;
+                const isDir = entry.type === vscode.FileType.Directory;
+                if (!typeFilter || (typeFilter === 'file' && isFile) || (typeFilter === 'directory' && isDir)) {
+                    matches.push(fullPath);
+                }
             }
 
             if (entry.type === vscode.FileType.Directory) {
-                await this._findRecursive(adapter, fullPath, pattern, matches, limit, depth + 1, maxDepth);
+                await this._findRecursive(adapter, fullPath, pattern, matches, limit, depth + 1, maxDepth, typeFilter, excludeRegex);
             }
         }
     }

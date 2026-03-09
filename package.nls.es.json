@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Eliminar conexión",
   "command.connect.title": "Conectar",
   "command.disconnect.title": "Desconectar",
+  "command.clearDecorations.title": "Borrar decoraciones de cambios",
   "command.openWorkspace.title": "Abrir como espacio de trabajo",
   "command.openTerminal.title": "Abrir terminal SSH",
   "command.addFolder.title": "Añadir carpeta",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Importar desde SSH Config",
   "command.importWinSCP.title": "Importar desde WinSCP",
   "command.importSSHFS.title": "Importar desde SSH FS",
+  "command.importFileZilla.title": "Importar desde FileZilla",
+  "command.importPuTTY.title": "Importar desde PuTTY",
+  "command.importTotalCmd.title": "Importar desde Total Commander",
   "command.setMasterPassword.title": "Establecer contraseña maestra",
   "command.removeMasterPassword.title": "Eliminar contraseña maestra",
   "command.refresh.title": "Actualizar",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "Cifrar las conexiones guardadas con una contraseña maestra",
   "config.security.masterPasswordTimeout.description": "Tiempo en minutos antes de volver a solicitar la contraseña maestra (0 = nunca)",
   "config.watch.pollInterval.description": "Intervalo de sondeo para los observadores del sistema de archivos (en milisegundos)",
+  "config.ai.enabled.description": "Habilitar herramientas de IA (beta). Proporciona al agente de IA herramientas dedicadas para archivos, bases de datos y búsqueda. Deshabilitado por defecto — sin estas herramientas el agente usa comandos SSH directamente a través de runCommand, lo que a menudo produce mejores resultados. Requiere recarga.",
 
   "chat.participant.description": "Trabajar con servidores remotos — listar, leer, escribir, eliminar archivos, crear directorios, buscar y ejecutar comandos (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Conectarse a un servidor remoto por nombre",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Busca archivos por patrón de nombre en un servidor remoto conectado vía Remote Bridge",
   "tool.listConnections.displayName": "Lista de conexiones",
   "tool.listConnections.userDescription": "Muestra todas las conexiones remotas guardadas con su estado",
+
+  "tool.getChangedFiles.displayName": "Ver archivos modificados",
+  "tool.getChangedFiles.userDescription": "Resumen de archivos remotos modificados durante la sesión actual",
+  "tool.clearDecorations.displayName": "Borrar decoraciones de cambios",
+  "tool.clearDecorations.userDescription": "Restablece el seguimiento de cambios de la sesión y elimina todas las insignias del Explorador",
 
   "tool.mysqlQuery.displayName": "Consulta MySQL",
   "tool.mysqlQuery.userDescription": "Ejecuta una consulta SQL de solo lectura en una base de datos MySQL/MariaDB vía la conexión SSH de Remote Bridge",

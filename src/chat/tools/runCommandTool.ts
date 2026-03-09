@@ -4,7 +4,7 @@ import { ConnectionPool } from '../../services/connectionPool';
 import { BaseTool } from './baseTool';
 
 interface RunCommandInput {
-    connectionName: string;
+    connectionName?: string;
     command: string;
 }
 
@@ -44,6 +44,11 @@ function detectDedicatedToolAlternative(command: string): { blocked: boolean; gu
             guidance: 'Use `remote-bridge_createDirectory` for directory creation instead of mkdir.',
         },
     ];
+
+    const aiEnabled = vscode.workspace.getConfiguration('remoteBridge').get<boolean>('ai.enabled', true);
+    if (!aiEnabled) {
+        return { blocked: false };
+    }
 
     const matchedGuidance = rules
         .filter((rule) => rule.pattern.test(normalized))

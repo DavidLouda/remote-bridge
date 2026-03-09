@@ -14,6 +14,7 @@ import {
     mapWinSCPProtocol,
     hasMasterPassword,
 } from '../utils/winscpCrypto';
+import { parseIni } from '../utils/iniParser';
 
 /**
  * Imports connections from WinSCP configuration (INI file or registry).
@@ -88,7 +89,7 @@ export class WinSCPImporter {
         }
 
         // Parse INI file
-        const sections = this._parseIni(content);
+        const sections = parseIni(content);
 
         // Check for master password
         const usesMasterPassword = hasMasterPassword(sections);
@@ -306,37 +307,6 @@ export class WinSCPImporter {
         ).proxyPasswords = proxyPasswords;
 
         return result;
-    }
-
-    // ─── INI Parser ──────────────────────────────────────────────
-
-    private _parseIni(content: string): Record<string, Record<string, string>> {
-        const sections: Record<string, Record<string, string>> = {};
-        let currentSection = '';
-
-        for (const line of content.split(/\r?\n/)) {
-            const trimmed = line.trim();
-
-            if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('#')) {
-                continue;
-            }
-
-            const sectionMatch = trimmed.match(/^\[(.+)\]$/);
-            if (sectionMatch) {
-                currentSection = sectionMatch[1];
-                if (!sections[currentSection]) {
-                    sections[currentSection] = {};
-                }
-                continue;
-            }
-
-            const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
-            if (kvMatch && currentSection) {
-                sections[currentSection][kvMatch[1].trim()] = kvMatch[2].trim();
-            }
-        }
-
-        return sections;
     }
 
     /**

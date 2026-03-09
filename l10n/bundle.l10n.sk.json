@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "Chyba MySQL (návratový kód {0}):\n{1}",
   "No schema information returned.": "Neboli vrátené žiadne informácie o schéme.",
 
+  "Replace text in {0} on {1}": "Nahradiť text v {0} na {1}",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "Hľadaný text sa nenašiel v {0} ({1} riadkov). Použite readFile na kontrolu obsahu súboru pred ďalším pokusom.",
+  "Successfully replaced text at line {0} in {1}": "Text úspešne nahradený na riadku {0} v {1}",
   "Replace lines {0}-{1} in {2} on {3}": "Nahradiť riadky {0}–{1} v {2} na {3}",
   "Write {0} bytes to {1} on {2}": "Zapísať {0} bajtov do {1} na {2}",
   "Failed to write file": "Nepodarilo sa zapísať súbor",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "Pripojené",
-  "disconnected": "odpojené"
+  "disconnected": "odpojené",
+
+  "Select FileZilla Site Manager file": "Vybrať súbor Site Managera FileZilly",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "Konfiguračný súbor FileZilly sa nenašiel: {0}",
+  "Failed to read FileZilla config: {0}": "Nepodarilo sa prečítať konfigúráciu FileZilly: {0}",
+  "Failed to parse FileZilla XML: {0}": "Nepodarilo sa spracovať XML FileZilly: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "Neplatné XML FileZilly: chýba koreňový element <FileZilla3>",
+  "FileZilla Site Manager is empty — no connections to import": "Site Manager FileZilly je prázdny — žiadne spojenía na import",
+  "Unnamed Folder": "Nepomenovaný priečinok",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "Preskočené „{0}“: nepodporovaný protokol (typ {1})",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "Spojenie „{0}“: interaktívne prihlásenie — heslo nie je uložené",
+  "Connection \"{0}\": failed to decode Base64 password": "Spojenie „{0}“: nepodarilo sa dekódovať heslo Base64",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "Spojenie „{0}“: heslo je zašifrované hlavným heslom FileZilly — heslo sa nedá importovať",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "V registri sa nenašli žiadne relácie PuTTY. Uistite sa, že PuTTY je nainštalovaný a má uložené relácie.",
+  "No PuTTY sessions found in the registry.": "V registri sa nenašli žiadne relácie PuTTY.",
+  "Failed to read PuTTY session \"{0}\": {1}": "Nepodarilo sa prečítať reláciu PuTTY „{0}“: {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "Adresár relácií PuTTY sa nenašiel na {0}. Uistite sa, že PuTTY pre Linux je nainštalovaný a má uložené relácie.",
+  "Failed to read PuTTY sessions directory: {0}": "Nepodarilo sa prečítať adresár relácií PuTTY: {0}",
+  "No PuTTY sessions found in {0}.": "V adresári {0} sa nenašli žiadne relácie PuTTY.",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "Relácia PuTTY „{0}“ preskočená: protokol „{1}“ nie je SSH",
+
+  "Select Total Commander FTP configuration file": "Vybrať konfiguračný súbor FTP pre Total Commander",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Konfigúrácia FTP Total Commandera sa nenašla: {0}",
+  "Failed to read Total Commander FTP config: {0}": "Nepodarilo sa prečítať konfigúráciu FTP Total Commandera: {0}",
+  "No connections found in Total Commander FTP config.": "V konfigúrácii FTP Total Commandera sa nenašli žiadne spojenía.",
+
+  "Registry / ~/.putty/sessions": "Register / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "V tejto relácii neboli zmenené žiadne súbory.",
+  "Retrieving session change summary...": "Načítávam prehľad zmien relácie...",
+  "Clearing session change decorations...": "Mažem označenia zmien relácie...",
+  "Session change tracking has been reset. All file decorations cleared.": "Sledovanie zmien relácie bolo obnovené. Všetky označenia súborov boli odstránené.",
+
+  "Modified by AI agent": "Upravené AI agentom",
+  "Created by AI agent": "Vytvorené AI agentom",
+  "Renamed by AI agent": "Premenované AI agentom",
+  "Deleted by AI agent": "Zmazané AI agentom",
+  "searching for \"{0}\"": "hľadanie \u201E{0}\u201C",
+  "last {0} lines": "posledných {0} riadkov",
+  "No matches for \"{0}\" in {1} ({2} lines)": "Žiadne zhody pre \u201E{0}\u201C v {1} ({2} riadkov)",
+  "Failed to search file": "Nepodarilo sa prehľadať súbor",
+  "Append {0} bytes to {1} on {2}": "Pripojiť {0} bajtov k {1} na {2}",
+  "Insert content {0} \"{1}\" in {2} on {3}": "Vložiť obsah {0} \u201E{1}\u201C v {2} na {3}",
+  "Successfully appended {0} bytes to {1}": "Úspešne pripojených {0} bajtov k {1}",
+  "Successfully inserted content {0} line {1} in {2}": "Obsah úspešne vložený {0} riadok {1} v {2}",
+  "Successfully replaced {0} occurrence(s) in {1}": "Úspešne nahradených {0} výskytov v {1}"
 }

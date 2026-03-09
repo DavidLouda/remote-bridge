@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "MySQL-hiba (kilépési kód {0}):\n{1}",
   "No schema information returned.": "Nem érkezett séma-információ.",
 
+  "Replace text in {0} on {1}": "Szöveg cseréje itt: {0} ezen: {1}",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "A keresett szöveg nem található a következőben: {0} ({1} sor). Használja a readFile eszközt a fájl tartalmának ellenőrzéséhez, majd próbálkozzon újra.",
+  "Successfully replaced text at line {0} in {1}": "Szöveg sikeresen cserélve a {0}. sorban itt: {1}",
   "Replace lines {0}-{1} in {2} on {3}": "Sorok cseréje ({0}–{1}) itt: {2} ezen: {3}",
   "Write {0} bytes to {1} on {2}": "{0} bájt írása ide: {1} ezen: {2}",
   "Failed to write file": "Nem sikerült írni a fájlt",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "Csatlakozva",
-  "disconnected": "leválasztva"
+  "disconnected": "leválasztva",
+
+  "Select FileZilla Site Manager file": "FileZilla Site Manager fájl kiválasztása",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "FileZilla konfigurációs fájl nem található: {0}",
+  "Failed to read FileZilla config: {0}": "A FileZilla konfigáació olvasása sikertelen: {0}",
+  "Failed to parse FileZilla XML: {0}": "A FileZilla XML elemzése sikertelen: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "Érvénytelen FileZilla XML: hiányzó <FileZilla3> gyökérelem",
+  "FileZilla Site Manager is empty — no connections to import": "A FileZilla Site Manager üres — nincsenek importálandó kapcsolatok",
+  "Unnamed Folder": "Névtelen mappa",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "Kihagyva: \"{0}\": nem támogatott protokoll ({1}. típus)",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "\"{0}\" kapcsolat: interaktív bejelentkezés — jelszó nincs tárolva",
+  "Connection \"{0}\": failed to decode Base64 password": "\"{0}\" kapcsolat: Base64 jelszó dekódolása sikertelen",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "\"{0}\" kapcsolat: a jelszó FileZilla mesterjelsszóval van titkosítva — a jelszó nem importálható",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "Nem találhatók PuTTY munkamenetek a rendszerleíró adatbázisban. Győződjön meg arról, hogy a PuTTY telepítve van, és vannak mentett munkamenetek.",
+  "No PuTTY sessions found in the registry.": "Nem találhatók PuTTY munkamenetek a rendszerleíró adatbázisban.",
+  "Failed to read PuTTY session \"{0}\": {1}": "A PuTTY munkamenet olvasása sikertelen: \"{0}\": {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "A PuTTY munkamenetek könyvtára nem található itt: {0}. Győződjön meg arról, hogy a Linux PuTTY telepítve van, és vannak mentett munkamenetek.",
+  "Failed to read PuTTY sessions directory: {0}": "A PuTTY munkamenetek könyvtárának olvasása sikertelen: {0}",
+  "No PuTTY sessions found in {0}.": "Nem találhatók PuTTY munkamenetek a következő helyen: {0}.",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "PuTTY munkamenet kihagyva: \"{0}\": a(z) \"{1}\" protokoll nem SSH",
+
+  "Select Total Commander FTP configuration file": "Total Commander FTP konfigurációs fájl kiválasztása",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Total Commander FTP konfigáció nem található: {0}",
+  "Failed to read Total Commander FTP config: {0}": "A Total Commander FTP konfigáció olvasása sikertelen: {0}",
+  "No connections found in Total Commander FTP config.": "Nem találhatók kapcsolatok a Total Commander FTP konfigurációban.",
+
+  "Registry / ~/.putty/sessions": "Rendszerleíró adatbázis / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "A munkamenetben nem módosítottak fájlokat.",
+  "Retrieving session change summary...": "Munkamenet-változási összefoglaló lekérése...",
+  "Clearing session change decorations...": "Munkamenet-változásjelzők törlése...",
+  "Session change tracking has been reset. All file decorations cleared.": "A munkamenet-változáskövetés visszaállítva. Minden fájldekoráció eltávolítva.",
+
+  "Modified by AI agent": "Módosítva AI-ügynök által",
+  "Created by AI agent": "Létrehozva AI-ügynök által",
+  "Renamed by AI agent": "Átnevezve AI-ügynök által",
+  "Deleted by AI agent": "Törölve AI-ügynök által",
+  "searching for \"{0}\"": "keresés: \u201E{0}\u201C",
+  "last {0} lines": "utolsó {0} sor",
+  "No matches for \"{0}\" in {1} ({2} lines)": "Nincs találat a(z) \u201E{0}\u201C kifejezésre a(z) {1} fájlban ({2} sor)",
+  "Failed to search file": "Nem sikerült keresni a fájlban",
+  "Append {0} bytes to {1} on {2}": "{0} bájt hozzáfűzése a(z) {1} fájlhoz a(z) {2} szerveren",
+  "Insert content {0} \"{1}\" in {2} on {3}": "Tartalom beszúrása {0} \u201E{1}\u201C a(z) {2} fájlban a(z) {3} szerveren",
+  "Successfully appended {0} bytes to {1}": "{0} bájt sikeresen hozzáfűzve a(z) {1} fájlhoz",
+  "Successfully inserted content {0} line {1} in {2}": "Tartalom sikeresen beszúrva {0} {1}. sor a(z) {2} fájlban",
+  "Successfully replaced {0} occurrence(s) in {1}": "{0} előfordulás sikeresen lecserélve a(z) {1} fájlban"
 }

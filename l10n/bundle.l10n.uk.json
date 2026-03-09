@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "Помилка MySQL (код завершення {0}):\n{1}",
   "No schema information returned.": "Інформація про схему не повернута.",
 
+  "Replace text in {0} on {1}": "Замінити текст у {0} на {1}",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "Текст для пошуку не знайдено в {0} ({1} рядків). Використовуйте readFile для перевірки вмісту файлу перед повторною спробою.",
+  "Successfully replaced text at line {0} in {1}": "Текст успішно замінено на рядку {0} в {1}",
   "Replace lines {0}-{1} in {2} on {3}": "Замінити рядки {0}–{1} у {2} на {3}",
   "Write {0} bytes to {1} on {2}": "Записати {0} байтів до {1} на {2}",
   "Failed to write file": "Не вдалося записати файл",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "Підключено",
-  "disconnected": "від'єднано"
+  "disconnected": "від'єднано",
+
+  "Select FileZilla Site Manager file": "Вибрати файл Site Manager FileZilla",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "Файл конфігурації FileZilla не знайдено: {0}",
+  "Failed to read FileZilla config: {0}": "Помилка читання конфігурації FileZilla: {0}",
+  "Failed to parse FileZilla XML: {0}": "Помилка розбору XML FileZilla: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "Недійсний XML FileZilla: відсутній кореневий елемент <FileZilla3>",
+  "FileZilla Site Manager is empty — no connections to import": "Site Manager FileZilla порожній — немає з'єднань для імпорту",
+  "Unnamed Folder": "Безіменна папка",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "Пропущено „{0}“: непідтримуваний протокол (тип {1})",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "З'єднання „{0}“: інтерактивний вхід — пароль не збережено",
+  "Connection \"{0}\": failed to decode Base64 password": "З'єднання „{0}“: помилка декодування паролю Base64",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "З'єднання „{0}“: пароль зашифровано головним паролем FileZilla — імпорт паролю неможливий",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "У реєстрі не знайдено сеансів PuTTY. Переконайтеся, що PuTTY встановлено та має збережені сеанси.",
+  "No PuTTY sessions found in the registry.": "У реєстрі не знайдено сеансів PuTTY.",
+  "Failed to read PuTTY session \"{0}\": {1}": "Помилка читання сеансу PuTTY „{0}“: {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "Директорію сеансів PuTTY не знайдено за адресою {0}. Переконайтеся, що PuTTY для Linux встановлено та має збережені сеанси.",
+  "Failed to read PuTTY sessions directory: {0}": "Помилка читання директорії сеансів PuTTY: {0}",
+  "No PuTTY sessions found in {0}.": "Сеанси PuTTY не знайдено у {0}.",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "Сеанс PuTTY „{0}“ пропущено: протокол „{1}“ не є SSH",
+
+  "Select Total Commander FTP configuration file": "Вибрати файл конфігурації FTP Total Commander",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Конфігурацію FTP Total Commander не знайдено: {0}",
+  "Failed to read Total Commander FTP config: {0}": "Помилка читання конфігурації FTP Total Commander: {0}",
+  "No connections found in Total Commander FTP config.": "З'єднань у конфігурації FTP Total Commander не знайдено.",
+
+  "Registry / ~/.putty/sessions": "Реєстр / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "У цьому сеансі файли не змінювалися.",
+  "Retrieving session change summary...": "Отримання зведення змін сеансу...",
+  "Clearing session change decorations...": "Очищення позначень змін сеансу...",
+  "Session change tracking has been reset. All file decorations cleared.": "Відстеження змін сеансу скинуто. Усі позначення файлів видалено.",
+
+  "Modified by AI agent": "Змінено AI-агентом",
+  "Created by AI agent": "Створено AI-агентом",
+  "Renamed by AI agent": "Перейменовано AI-агентом",
+  "Deleted by AI agent": "Видалено AI-агентом",
+  "searching for \"{0}\"": "пошук \u201E{0}\u201C",
+  "last {0} lines": "останніх {0} рядків",
+  "No matches for \"{0}\" in {1} ({2} lines)": "Немає збігів для \u201E{0}\u201C у {1} ({2} рядків)",
+  "Failed to search file": "Не вдалося виконати пошук у файлі",
+  "Append {0} bytes to {1} on {2}": "Додати {0} байтів до {1} на {2}",
+  "Insert content {0} \"{1}\" in {2} on {3}": "Вставити вміст {0} \u201E{1}\u201C у {2} на {3}",
+  "Successfully appended {0} bytes to {1}": "Успішно додано {0} байтів до {1}",
+  "Successfully inserted content {0} line {1} in {2}": "Вміст успішно вставлено {0} рядок {1} у {2}",
+  "Successfully replaced {0} occurrence(s) in {1}": "Успішно замінено {0} входжень у {1}"
 }

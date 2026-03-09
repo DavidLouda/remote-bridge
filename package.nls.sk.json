@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Odstrániť pripojenie",
   "command.connect.title": "Pripojiť",
   "command.disconnect.title": "Odpojiť",
+  "command.clearDecorations.title": "Vymazať označenia zmien",
   "command.openWorkspace.title": "Otvoriť ako pracovný priestor",
   "command.openTerminal.title": "Otvoriť terminál SSH",
   "command.addFolder.title": "Pridať priečinok",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Importovať z SSH Config",
   "command.importWinSCP.title": "Importovať z WinSCP",
   "command.importSSHFS.title": "Importovať z SSH FS",
+  "command.importFileZilla.title": "Importovať z FileZilly",
+  "command.importPuTTY.title": "Importovať z PuTTY",
+  "command.importTotalCmd.title": "Importovať z Total Commanderu",
   "command.setMasterPassword.title": "Nastaviť hlavné heslo",
   "command.removeMasterPassword.title": "Odstrániť hlavné heslo",
   "command.refresh.title": "Obnoviť",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "Šifrovať uložené pripojenia hlavným heslom",
   "config.security.masterPasswordTimeout.description": "Čas v minútach pred opätovným vyžiadaním hlavného hesla (0 = nikdy)",
   "config.watch.pollInterval.description": "Interval dotazovania pre sledovače súborového systému (v milisekundách)",
+  "config.ai.enabled.description": "Povoliť nástroje AI (beta). Poskytuje AI agentovi špecializované nástroje pre súbory, databázy a vyhľadávanie. Predvolene vypnuté — bez týchto nástrojov agent používa SSH príkazy priamo cez runCommand, čo často prináša lepšie výsledky. Vyžaduje opätovné načítanie.",
 
   "chat.participant.description": "Práca so vzdialenými servermi — listovanie, čítanie, zápis, mazanie súborov, vytváranie adresárov, vyhľadávanie a spúšťanie príkazov (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Pripojiť sa k vzdialenému serveru podľa názvu",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Vyhľadá súbory podľa vzoru názvu na vzdialenom serveri pripojenom cez Remote Bridge",
   "tool.listConnections.displayName": "Zoznam pripojení",
   "tool.listConnections.userDescription": "Zobrazí všetky uložené vzdialené pripojenia s ich stavom",
+
+  "tool.getChangedFiles.displayName": "Zmenené súbory",
+  "tool.getChangedFiles.userDescription": "Prehľad vzdialených súborov zmenených v aktuálnej relácii",
+  "tool.clearDecorations.displayName": "Vymazať označenia zmien",
+  "tool.clearDecorations.userDescription": "Obnoví sledovanie zmien relácie a odstráni všetky odznaky z Prieskumníka",
 
   "tool.mysqlQuery.displayName": "MySQL dotaz",
   "tool.mysqlQuery.userDescription": "Vykoná SQL dotaz len na čítanie na databáze MySQL/MariaDB cez SSH pripojenie Remote Bridge",

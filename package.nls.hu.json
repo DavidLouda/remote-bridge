@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Kapcsolat törlése",
   "command.connect.title": "Csatlakozás",
   "command.disconnect.title": "Leválasztás",
+  "command.clearDecorations.title": "Változásjelzők törlése",
   "command.openWorkspace.title": "Megnyitás munkaterületként",
   "command.openTerminal.title": "SSH terminál megnyitása",
   "command.addFolder.title": "Mappa hozzáadása",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Importálás SSH Config-ból",
   "command.importWinSCP.title": "Importálás WinSCP-ből",
   "command.importSSHFS.title": "Importálás SSH FS-ből",
+  "command.importFileZilla.title": "Importálás FileZillából",
+  "command.importPuTTY.title": "Importálás PuTTY-ból",
+  "command.importTotalCmd.title": "Importálás Total Commanderből",
   "command.setMasterPassword.title": "Mesterjelszó beállítása",
   "command.removeMasterPassword.title": "Mesterjelszó eltávolítása",
   "command.refresh.title": "Frissítés",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "Mentett kapcsolatok titkosítása mesterjelszóval",
   "config.security.masterPasswordTimeout.description": "Mesterjelszó újbóli kérése ennyi perc elteltével (0 = soha)",
   "config.watch.pollInterval.description": "Fájlrendszer-figyelők lekérdezési időköze (milliszekundumban)",
+  "config.ai.enabled.description": "AI-eszközök engedélyezése (béta). Dedikált fájl-, adatbázis- és keresőeszközöket biztosít az AI-ügynöknek. Alapértelmezés szerint letiltva — e nélkül az ügynök SSH-parancsokat használ közvetlenül a runCommand-on keresztül, ami gyakran jobb eredményeket ad. Újraindítást igényel.",
 
   "chat.participant.description": "Munka távoli szerverekkel — fájlok listázása, olvasása, írása, törlése, könyvtárak létrehozása, keresés és parancsok futtatása (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Csatlakozás távoli szerverhez név alapján",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Fájlok keresése névminta alapján a Remote Bridge-en keresztül csatlakoztatott távoli szerveren",
   "tool.listConnections.displayName": "Kapcsolatok listázása",
   "tool.listConnections.userDescription": "Az összes mentett távoli kapcsolat listázása állapotukkal együtt",
+
+  "tool.getChangedFiles.displayName": "Módosított fájlok",
+  "tool.getChangedFiles.userDescription": "Az aktuális munkamenetben módosított távoli fájlok összegzése",
+  "tool.clearDecorations.displayName": "Változásjelzők törlése",
+  "tool.clearDecorations.userDescription": "Visszaállítja a munkamenet-változáskövetést és eltávolítja az összes jelet a Felfedezőből",
 
   "tool.mysqlQuery.displayName": "MySQL lekérdezés",
   "tool.mysqlQuery.userDescription": "Csak olvasási SQL-lekérdezés végrehajtása MySQL/MariaDB adatbázison SSH Remote Bridge kapcsolaton keresztül",

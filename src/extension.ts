@@ -6,9 +6,13 @@ import { ConnectionPool } from './services/connectionPool';
 import { RemoteBridgeFileSystemProvider } from './providers/fileSystemProvider';
 import { ConnectionTreeProvider } from './providers/connectionTreeProvider';
 import { ActiveSessionsProvider } from './providers/activeSessionsProvider';
+import { RemoteBridgeFileDecorationProvider } from './providers/fileDecorationProvider';
 import { SshConfigImporter } from './importers/sshConfigImporter';
 import { WinSCPImporter } from './importers/winscpImporter';
 import { SshFsImporter } from './importers/sshFsImporter';
+import { FileZillaImporter } from './importers/fileZillaImporter';
+import { PuTTYImporter } from './importers/puttyImporter';
+import { TotalCmdImporter } from './importers/totalCmdImporter';
 import { openSshTerminal } from './terminal/sshTerminalProvider';
 import { registerChatParticipant } from './chat/chatParticipant';
 import { ListFilesTool } from './chat/tools/listFilesTool';
@@ -26,6 +30,8 @@ import { StatFileTool } from './chat/tools/statFileTool';
 import { CopyFileTool } from './chat/tools/copyFileTool';
 import { FindFilesTool } from './chat/tools/findFilesTool';
 import { ListConnectionsTool } from './chat/tools/listConnectionsTool';
+import { GetChangedFilesTool } from './chat/tools/getChangedFilesTool';
+import { ClearDecorationsTool } from './chat/tools/clearDecorationsTool';
 import { StatusBarService } from './statusBar/statusBarService';
 import { TransferTracker } from './services/transferTracker';
 import { buildRemoteUri } from './utils/uriParser';
@@ -230,97 +236,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // ─── Register Commands ──────────────────────────────────────
     registerCommands(context, treeProvider);
 
-    // ─── Chat Participant ───────────────────────────────────────
-    const chatDisposable = registerChatParticipant(
-        context,
-        connectionManager,
-        connectionPool
-    );
-    context.subscriptions.push(chatDisposable);
-
-    // ─── Language Model Tools ───────────────────────────────────
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_listFiles',
-            new ListFilesTool(connectionManager, connectionPool, cacheService)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_readFile',
-            new ReadFileTool(connectionManager, connectionPool, cacheService)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_writeFile',
-            new WriteFileTool(connectionManager, connectionPool, cacheService, fsProvider)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_searchFiles',
-            new SearchFilesTool(connectionManager, connectionPool)
-        )
-    );
+    // ─── Always-on LM Tools (available even when AI features are disabled) ─
     context.subscriptions.push(
         vscode.lm.registerTool(
             'remote-bridge_runCommand',
             new RunCommandTool(connectionManager, connectionPool)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_deleteFile',
-            new DeleteFileTool(connectionManager, connectionPool, cacheService, fsProvider)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_createDirectory',
-            new CreateDirectoryTool(connectionManager, connectionPool, cacheService, fsProvider)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_mysqlQuery',
-            new MysqlQueryTool(connectionManager, connectionPool)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_mysqlExecute',
-            new MysqlExecuteTool(connectionManager, connectionPool)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_mysqlSchema',
-            new MysqlSchemaTool(connectionManager, connectionPool)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_renameFile',
-            new RenameFileTool(connectionManager, connectionPool, cacheService, fsProvider)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_statFile',
-            new StatFileTool(connectionManager, connectionPool, cacheService)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_copyFile',
-            new CopyFileTool(connectionManager, connectionPool, cacheService, fsProvider)
-        )
-    );
-    context.subscriptions.push(
-        vscode.lm.registerTool(
-            'remote-bridge_findFiles',
-            new FindFilesTool(connectionManager, connectionPool)
         )
     );
     context.subscriptions.push(
@@ -330,9 +250,129 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         )
     );
 
+    // ─── AI Features (chat participant + full tool suite) ───────
+    const aiEnabled = vscode.workspace.getConfiguration('remoteBridge').get<boolean>('ai.enabled', false);
+    if (aiEnabled) {
+        // ─── File Decoration Provider ───────────────────────────
+        const decorationProvider = new RemoteBridgeFileDecorationProvider();
+        context.subscriptions.push(vscode.window.registerFileDecorationProvider(decorationProvider));
+        context.subscriptions.push(decorationProvider);
+
+        const chatDisposable = registerChatParticipant(
+            context,
+            connectionManager,
+            connectionPool
+        );
+        context.subscriptions.push(chatDisposable);
+
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_listFiles',
+                new ListFilesTool(connectionManager, connectionPool, cacheService)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_readFile',
+                new ReadFileTool(connectionManager, connectionPool, cacheService)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_writeFile',
+                new WriteFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_searchFiles',
+                new SearchFilesTool(connectionManager, connectionPool)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_deleteFile',
+                new DeleteFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_createDirectory',
+                new CreateDirectoryTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_mysqlQuery',
+                new MysqlQueryTool(connectionManager, connectionPool)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_mysqlExecute',
+                new MysqlExecuteTool(connectionManager, connectionPool)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_mysqlSchema',
+                new MysqlSchemaTool(connectionManager, connectionPool)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_renameFile',
+                new RenameFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_statFile',
+                new StatFileTool(connectionManager, connectionPool, cacheService)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_copyFile',
+                new CopyFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_findFiles',
+                new FindFilesTool(connectionManager, connectionPool)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_getChangedFiles',
+                new GetChangedFilesTool(decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.lm.registerTool(
+                'remote-bridge_clearDecorations',
+                new ClearDecorationsTool(decorationProvider)
+            )
+        );
+        context.subscriptions.push(
+            vscode.commands.registerCommand('remoteBridge.clearDecorations', () => {
+                decorationProvider.clearAll();
+            })
+        );
+    }
+
     // ─── Configuration Change Listener ──────────────────────────
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('remoteBridge.ai')) {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Reload VS Code to apply AI features setting change.'),
+                    vscode.l10n.t('Reload')
+                ).then((choice) => {
+                    if (choice) { vscode.commands.executeCommand('workbench.action.reloadWindow'); }
+                });
+            }
             if (e.affectsConfiguration('remoteBridge.cache')) {
                 const cfg = vscode.workspace.getConfiguration('remoteBridge');
                 cacheService.updateConfig(
@@ -666,6 +706,9 @@ function registerCommands(
                     { label: vscode.l10n.t('SSH Config'), description: '~/.ssh/config', value: 'ssh' as const },
                     { label: 'WinSCP', description: 'WinSCP.ini', value: 'winscp' as const },
                     { label: 'SSH FS', description: vscode.l10n.t('VS Code Extension'), value: 'sshfs' as const },
+                    { label: 'FileZilla', description: 'sitemanager.xml', value: 'filezilla' as const },
+                    { label: 'PuTTY', description: vscode.l10n.t('Registry / ~/.putty/sessions'), value: 'putty' as const },
+                    { label: 'Total Commander', description: 'wcx_ftp.ini', value: 'totalcmd' as const },
                 ],
                 { title: vscode.l10n.t('Import connections from') }
             );
@@ -682,6 +725,15 @@ function registerCommands(
                     break;
                 case 'sshfs':
                     await vscode.commands.executeCommand('remoteBridge.importSSHFS');
+                    break;
+                case 'filezilla':
+                    await vscode.commands.executeCommand('remoteBridge.importFileZilla');
+                    break;
+                case 'putty':
+                    await vscode.commands.executeCommand('remoteBridge.importPuTTY');
+                    break;
+                case 'totalcmd':
+                    await vscode.commands.executeCommand('remoteBridge.importTotalCmd');
                     break;
             }
         })
@@ -707,6 +759,30 @@ function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.importSSHFS', async () => {
             const importer = new SshFsImporter();
+            await handleImportResult(importer.import());
+        })
+    );
+
+    // Import from FileZilla
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.importFileZilla', async () => {
+            const importer = new FileZillaImporter();
+            await handleImportResult(importer.import());
+        })
+    );
+
+    // Import from PuTTY
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.importPuTTY', async () => {
+            const importer = new PuTTYImporter();
+            await handleImportResult(importer.import());
+        })
+    );
+
+    // Import from Total Commander
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.importTotalCmd', async () => {
+            const importer = new TotalCmdImporter();
             await handleImportResult(importer.import());
         })
     );

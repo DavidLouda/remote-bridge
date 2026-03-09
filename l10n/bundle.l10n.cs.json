@@ -255,6 +255,9 @@
   "MySQL error (exit code {0}):\n{1}": "Chyba MySQL (kód {0}):\n{1}",
   "No schema information returned.": "Nebyly vráceny žádné informace o schématu.",
 
+  "Replace text in {0} on {1}": "Nahradit text v {0} na {1}",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "Hledaný text nebyl nalezen v {0} ({1} řádků). Použijte readFile ke kontrole obsahu souboru a zkuste to znovu.",
+  "Successfully replaced text at line {0} in {1}": "Text úspěšně nahrazen na řádku {0} v {1}",
   "Replace lines {0}-{1} in {2} on {3}": "Nahradit řádky {0}–{1} v {2} na {3}",
   "Write {0} bytes to {1} on {2}": "Zapsat {0} bajtů do {1} na {2}",
   "Failed to write file": "Nepodařilo se zapsat soubor",
@@ -265,5 +268,54 @@
   "WinSCP INI": "WinSCP INI",
   "Connected": "Připojeno",
   "disconnected": "odpojeno",
-  "All files": "Všechny soubory"
+  "All files": "Všechny soubory",
+
+  "Select FileZilla Site Manager file": "Vyberte soubor Site Manageru FileZilly",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "Konfigurační soubor FileZilly nebyl nalezen: {0}",
+  "Failed to read FileZilla config: {0}": "Nepodařilo se přečíst konfiguraci FileZilly: {0}",
+  "Failed to parse FileZilla XML: {0}": "Nepodařilo se zpracovat XML FileZilly: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "Neplatné XML FileZilly: chybí kořenový element <FileZilla3>",
+  "FileZilla Site Manager is empty \u2014 no connections to import": "Site Manager FileZilly je prázdný \u2014 žádná připojení k importu",
+  "Unnamed Folder": "Nepojmenovaná složka",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "Přeskočeno \u201e{0}\u201c: nepodporovaný protokol (typ {1})",
+  "Connection \"{0}\": interactive/ask logon \u2014 password not stored": "Připojení \u201e{0}\u201c: interaktivní přihlášení \u2014 heslo není uloženo",
+  "Connection \"{0}\": failed to decode Base64 password": "Připojení \u201e{0}\u201c: nepodařilo se dekódovat heslo Base64",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password \u2014 cannot import password": "Připojení \u201e{0}\u201c: heslo je zašifrováno hlavním heslem FileZilly \u2014 heslo nelze importovat",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "V registru nebyly nalezeny žádné relace PuTTY. Ujistěte se, že PuTTY je nainstalováno a má uložené relace.",
+  "No PuTTY sessions found in the registry.": "V registru nebyly nalezeny žádné relace PuTTY.",
+  "Failed to read PuTTY session \"{0}\": {1}": "Nepodařilo se přečíst relaci PuTTY \u201e{0}\u201c: {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "Adresář relací PuTTY nebyl nalezen na {0}. Ujistěte se, že PuTTY pro Linux je nainstalováno a má uložené relace.",
+  "Failed to read PuTTY sessions directory: {0}": "Nepodařilo se přečíst adresář relací PuTTY: {0}",
+  "No PuTTY sessions found in {0}.": "V adresáři {0} nebyly nalezeny žádné relace PuTTY.",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "Přeskočena relace PuTTY \u201e{0}\u201c: protokol \u201e{1}\u201c není SSH",
+
+  "Select Total Commander FTP configuration file": "Vyberte konfigurační soubor FTP Total Commanderu",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Konfigurační soubor FTP Total Commanderu nebyl nalezen: {0}",
+  "Failed to read Total Commander FTP config: {0}": "Nepodařilo se přečíst konfiguraci FTP Total Commanderu: {0}",
+  "No connections found in Total Commander FTP config.": "V konfiguraci FTP Total Commanderu nebyla nalezena žádná připojení.",
+
+  "Registry / ~/.putty/sessions": "Registr / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "V této relaci nebyly změněny žádné soubory.",
+  "Retrieving session change summary...": "Načítání přehledu změn relace...",
+  "Clearing session change decorations...": "Mazání označení změn relace...",
+  "Session change tracking has been reset. All file decorations cleared.": "Sledování změn relace bylo resetováno. Všechna označení souborů byla odstraněna.",
+
+  "Modified by AI agent": "Upraveno AI agentem",
+  "Created by AI agent": "Vytvořeno AI agentem",
+  "Renamed by AI agent": "Přejmenováno AI agentem",
+  "Deleted by AI agent": "Smazáno AI agentem",
+
+  "searching for \"{0}\"": "hledání „{0}“",
+  "last {0} lines": "posledních {0} řádků",
+  "No matches for \"{0}\" in {1} ({2} lines)": "Žádné shody pro „{0}“ v {1} ({2} řádků)",
+  "Failed to search file": "Nepodařilo se prohledat soubor",
+  "Append {0} bytes to {1} on {2}": "Připojit {0} bajtů k {1} na {2}",
+  "Insert content {0} \"{1}\" in {2} on {3}": "Vložit obsah {0} „{1}“ v {2} na {3}",
+  "Successfully appended {0} bytes to {1}": "Úspěšně připojeno {0} bajtů k {1}",
+  "Successfully inserted content {0} line {1} in {2}": "Obsah úspěšně vložen {0} řádek {1} v {2}",
+  "Successfully replaced {0} occurrence(s) in {1}": "Úspěšně nahrazeno {0} výskytů v {1}"
 }

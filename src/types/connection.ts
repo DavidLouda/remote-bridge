@@ -129,7 +129,7 @@ export interface ConnectionTreeNode {
 
 // ─── Import Source Types ────────────────────────────────────────────
 
-export type ImportSource = 'ssh-config' | 'winscp' | 'sshfs';
+export type ImportSource = 'ssh-config' | 'winscp' | 'sshfs' | 'filezilla' | 'putty' | 'totalcmd';
 
 export interface ImportFolder {
     /** Slash-separated folder path, e.g. "Production/DB" */

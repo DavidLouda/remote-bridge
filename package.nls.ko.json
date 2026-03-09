@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "연결 삭제",
   "command.connect.title": "연결",
   "command.disconnect.title": "연결 끊기",
+  "command.clearDecorations.title": "변경 표시 지우기",
   "command.openWorkspace.title": "작업 영역으로 열기",
   "command.openTerminal.title": "SSH 터미널 열기",
   "command.addFolder.title": "폴더 추가",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "SSH Config에서 가져오기",
   "command.importWinSCP.title": "WinSCP에서 가져오기",
   "command.importSSHFS.title": "SSH FS에서 가져오기",
+  "command.importFileZilla.title": "FileZilla에서 가져오기",
+  "command.importPuTTY.title": "PuTTY에서 가져오기",
+  "command.importTotalCmd.title": "Total Commander에서 가져오기",
   "command.setMasterPassword.title": "마스터 비밀번호 설정",
   "command.removeMasterPassword.title": "마스터 비밀번호 제거",
   "command.refresh.title": "새로 고침",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "마스터 비밀번호로 저장된 연결 암호화",
   "config.security.masterPasswordTimeout.description": "마스터 비밀번호 재입력까지의 시간(분, 0 = 사용 안 함)",
   "config.watch.pollInterval.description": "파일 시스템 감시기의 폴링 간격(밀리초)",
+  "config.ai.enabled.description": "AI 도구 활성화(베타). AI 에이전트에 전용 파일, 데이터베이스 및 검색 도구를 제공합니다. 기본적으로 비활성화 — 이 도구 없이 에이전트는 runCommand를 통해 SSH 명령을 직접 사용하며, 이 방법이 종종 더 나은 결과를 제공합니다. 다시 로드가 필요합니다.",
 
   "chat.participant.description": "원격 서버 작업 — 파일 나열, 읽기, 쓰기, 삭제, 디렉터리 생성, 검색 및 명령 실행(SSH/SFTP/FTP)",
   "chat.command.connect.description": "이름으로 원격 서버에 연결",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Remote Bridge를 통해 연결된 원격 서버에서 이름 패턴으로 파일을 찾습니다",
   "tool.listConnections.displayName": "연결 나열",
   "tool.listConnections.userDescription": "저장된 모든 원격 연결과 상태를 나열합니다",
+
+  "tool.getChangedFiles.displayName": "변경된 파일 보기",
+  "tool.getChangedFiles.userDescription": "현재 세션에서 변경된 원격 파일 요약",
+  "tool.clearDecorations.displayName": "변경 표시 지우기",
+  "tool.clearDecorations.userDescription": "세션 변경 추적을 초기화하고 탐색기에서 모든 배지를 제거합니다",
 
   "tool.mysqlQuery.displayName": "MySQL 쿼리",
   "tool.mysqlQuery.userDescription": "Remote Bridge SSH 연결을 통해 MySQL/MariaDB 데이터베이스에서 읽기 전용 SQL 쿼리를 실행합니다",

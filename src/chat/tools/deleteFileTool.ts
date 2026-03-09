@@ -3,10 +3,11 @@ import { ConnectionManager } from '../../services/connectionManager';
 import { ConnectionPool } from '../../services/connectionPool';
 import { CacheService } from '../../services/cacheService';
 import { RemoteBridgeFileSystemProvider } from '../../providers/fileSystemProvider';
+import { RemoteBridgeFileDecorationProvider } from '../../providers/fileDecorationProvider';
 import { BaseTool } from './baseTool';
 
 interface DeleteFileInput {
-    connectionName: string;
+    connectionName?: string;
     path: string;
     recursive?: boolean;
 }
@@ -19,7 +20,8 @@ export class DeleteFileTool extends BaseTool implements vscode.LanguageModelTool
         _connectionManager: ConnectionManager,
         _pool: ConnectionPool,
         private readonly _cache: CacheService,
-        private readonly _fsProvider: RemoteBridgeFileSystemProvider
+        private readonly _fsProvider: RemoteBridgeFileSystemProvider,
+        private readonly _decorations: RemoteBridgeFileDecorationProvider
     ) {
         super(_connectionManager, _pool);
     }
@@ -67,6 +69,7 @@ export class DeleteFileTool extends BaseTool implements vscode.LanguageModelTool
 
         // Notify Explorer
         this._fsProvider.notifyExternalChange(config.id, remotePath, vscode.FileChangeType.Deleted);
+        this._decorations.markDeleted(config.id, remotePath);
 
         return new vscode.LanguageModelToolResult([
             new vscode.LanguageModelTextPart(

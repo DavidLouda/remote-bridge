@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
@@ -106,6 +106,12 @@
         "category": "Remote Bridge"
       },
       {
+        "command": "remoteBridge.clearDecorations",
+        "title": "%command.clearDecorations.title%",
+        "icon": "$(clear-all)",
+        "category": "Remote Bridge"
+      },
+      {
         "command": "remoteBridge.openWorkspace",
         "title": "%command.openWorkspace.title%",
         "icon": "$(folder-opened)",
@@ -151,6 +157,24 @@
         "command": "remoteBridge.importSSHFS",
         "title": "%command.importSSHFS.title%",
         "icon": "$(extensions)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.importFileZilla",
+        "title": "%command.importFileZilla.title%",
+        "icon": "$(cloud-download)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.importPuTTY",
+        "title": "%command.importPuTTY.title%",
+        "icon": "$(terminal)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.importTotalCmd",
+        "title": "%command.importTotalCmd.title%",
+        "icon": "$(folder)",
         "category": "Remote Bridge"
       },
       {
@@ -316,6 +340,18 @@
         {
           "command": "remoteBridge.deleteFolder",
           "when": "false"
+        },
+        {
+          "command": "remoteBridge.importFileZilla",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.importPuTTY",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.importTotalCmd",
+          "when": "false"
         }
       ]
     },
@@ -374,6 +410,11 @@
           "minimum": 1,
           "maximum": 60,
           "description": "%config.watch.pollInterval.description%"
+        },
+        "remoteBridge.ai.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.ai.enabled.description%"
         }
       }
     },
@@ -417,6 +458,7 @@
     "languageModelTools": [
       {
         "name": "remote-bridge_listFiles",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.listFiles.displayName%",
         "modelDescription": "Lists files and directories on a remote server connected via SSH, SFTP, or FTP. Returns file/directory names, types (file/directory/symlink), sizes in bytes, and modification timestamps. Use this to explore the remote file system structure.",
         "canBeReferencedInPrompt": true,
@@ -428,22 +470,21 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
               "description": "The absolute remote directory path to list. Defaults to the connection's root path."
             }
           },
-          "required": [
-            "connectionName"
-          ]
+          "required": []
         }
       },
       {
         "name": "remote-bridge_readFile",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.readFile.displayName%",
-        "modelDescription": "Reads the content of a file on a remote server. This tool replaces using runCommand with sed/head/tail/cat for file reads. Supports efficient partial reading by specifying startLine and endLine — on SSH only the requested lines are transferred, not the whole file. Always prefer partial reads for large files. Returns line numbers and total line count to help you plan further reads or writes.",
+        "modelDescription": "Reads the content of a file on a remote server. Supports four modes:\n\n**Search within file (PREFERRED for large files):** Provide `search` to find all occurrences of a text/regex pattern within the file. Returns matching lines with line numbers and optional context lines around each match. Use this instead of reading entire large files when looking for specific code. On SSH, runs grep server-side — only matches are transferred, not the whole file.\n\n**Line range:** Provide `startLine` and/or `endLine` for partial reading. On SSH only the requested lines are transferred.\n\n**Tail (last N lines):** Provide `tail` to read the last N lines. Useful for logs, appending context, or seeing end of file. On SSH uses tail server-side.\n\n**Full read:** Provide only `path` to read the entire file. Avoid for files over 500 lines — use search or line range instead.\n\nAll modes return line numbers and total line count to help plan further reads or writes.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteRead",
         "icon": "$(file-code)",
@@ -453,7 +494,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -461,23 +502,35 @@
             },
             "startLine": {
               "type": "number",
-              "description": "Optional 1-based start line for partial reading."
+              "description": "Optional 1-based start line for partial reading. Cannot be combined with search or tail."
             },
             "endLine": {
               "type": "number",
-              "description": "Optional 1-based end line for partial reading (inclusive)."
+              "description": "Optional 1-based end line for partial reading (inclusive). Cannot be combined with search or tail."
+            },
+            "search": {
+              "type": "string",
+              "description": "Text or regex pattern to search for within the file. Returns only matching lines with line numbers and context. Use this to navigate large files efficiently instead of multiple small reads. Cannot be combined with startLine/endLine or tail."
+            },
+            "contextLines": {
+              "type": "number",
+              "description": "Number of context lines to show around each search match. Default: 3. Only used with search."
+            },
+            "tail": {
+              "type": "number",
+              "description": "Read the last N lines of the file. Useful for logs or seeing end of file. Cannot be combined with startLine/endLine or search."
             }
           },
           "required": [
-            "connectionName",
             "path"
           ]
         }
       },
       {
         "name": "remote-bridge_writeFile",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.writeFile.displayName%",
-        "modelDescription": "Writes content to a file on a remote server. This tool replaces using runCommand with sed/python/heredoc/echo redirection for file edits. Supports three modes: (1) Full write — provide only content to create or overwrite the file. (2) Partial replace — provide content with startLine and endLine to replace only that line range. (3) Insert — provide content with startLine and mode='insert' to insert new lines AFTER startLine without removing anything. Partial writes over SSH are very efficient because only the changed lines travel over the wire. ALWAYS prefer partial writes when editing existing files: first read the relevant lines, then write back only the changed range. Use insert mode when adding new code blocks. Creates parent directories automatically.",
+        "modelDescription": "Writes content to a file on a remote server. Supports seven modes:\n\n**PREFERRED — Search/replace (use this when editing existing files):** Provide `search` and `content` to replace the first occurrence of the search text with `content`. No need to know line numbers. Supports multi-line search strings. Returns the lines around the edit so you can verify the result — no need to call readFile afterwards.\n\n**Replace all occurrences:** Provide `search`, `content`, and `replaceAll: true` to replace ALL occurrences of the search text in the file at once. Returns count of replacements made.\n\n**Insert before/after text:** Provide `search`, `content`, and `insertPosition` ('before' or 'after') to insert content before or after the search text WITHOUT removing it. The original text is preserved. Use this to add imports, new CSS rules, or code blocks relative to existing content.\n\n**Append to end of file:** Use `mode='append'` to add content at the end of the file without reading it first. On SSH, appends server-side without transferring the existing content. Ideal for adding new entries, CSS rules at the end, log entries, or configuration blocks.\n\n**Partial replace:** Provide `content` with `startLine` and `endLine` to replace only that line range.\n\n**Insert at line:** Provide `content` with `startLine` and `mode='insert'` to insert new lines AFTER startLine.\n\n**Full write:** Provide only `content` to create or overwrite the entire file.\n\nWorks with all protocols: SSH, SFTP, and FTP. Creates parent directories automatically.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteWrite",
         "icon": "$(file-add)",
@@ -487,7 +540,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -495,24 +548,43 @@
             },
             "content": {
               "type": "string",
-              "description": "The content to write. For partial writes this replaces the specified line range. For full writes this becomes the entire file."
+              "description": "The content to write. For search/replace this is the replacement text. For append this is added at the end. For insert position this is inserted before/after the search text. For full writes this becomes the entire file."
+            },
+            "search": {
+              "type": "string",
+              "description": "Text to find in the file. When provided with content, performs find/replace. When combined with insertPosition, inserts content before/after this text without removing it. Supports multi-line strings. This is the preferred way to edit existing files — no line numbers needed."
             },
             "startLine": {
               "type": "number",
-              "description": "Optional 1-based start line for partial write. When provided together with endLine, only lines startLine through endLine are replaced with the new content."
+              "description": "Optional 1-based start line for partial write or insert."
             },
             "endLine": {
               "type": "number",
-              "description": "Optional 1-based end line (inclusive) for partial write. Must be used together with startLine."
+              "description": "Optional 1-based end line (inclusive) for partial write."
             },
             "mode": {
               "type": "string",
-              "enum": ["replace", "insert"],
-              "description": "Write mode. 'replace' (default) replaces the line range. 'insert' inserts the content AFTER startLine without removing any lines. Use insert mode to add new code without replacing existing lines."
+              "enum": [
+                "replace",
+                "insert",
+                "append"
+              ],
+              "description": "Write mode. 'replace' (default) replaces matched text or line range. 'insert' inserts content AFTER startLine. 'append' adds content at the end of the file without reading it first."
+            },
+            "insertPosition": {
+              "type": "string",
+              "enum": [
+                "before",
+                "after"
+              ],
+              "description": "When used with search, inserts content BEFORE or AFTER the search text without removing it. The original search text is preserved. Use this to add new code relative to existing content."
+            },
+            "replaceAll": {
+              "type": "boolean",
+              "description": "When true and search is provided, replaces ALL occurrences of search text in the file, not just the first one. Returns count of replacements made."
             }
           },
           "required": [
-            "connectionName",
             "path",
             "content"
           ]
@@ -520,8 +592,9 @@
       },
       {
         "name": "remote-bridge_searchFiles",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.searchFiles.displayName%",
-        "modelDescription": "Searches for text patterns in files on a remote server. This tool replaces using runCommand with grep for content search. Uses grep over SSH for fast searching (skips binary files automatically), or recursively scans file contents for FTP. Works with ALL protocols: SSH, SFTP, and FTP. Returns matching lines with file paths and line numbers. Supports regex patterns and file type filtering via fileGlob.",
+        "modelDescription": "Searches for text patterns across multiple files on a remote server. Uses grep over SSH (skips binary files), or scans file contents for FTP. Returns matching lines with file paths and line numbers. Supports regex, fileGlob filtering, contextLines, case-sensitivity, and maxResults.\n\nTo search within a SINGLE file, use readFile with `search` instead.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteSearch",
         "icon": "$(search)",
@@ -531,7 +604,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -544,10 +617,21 @@
             "fileGlob": {
               "type": "string",
               "description": "Optional glob pattern to filter files (e.g., '*.ts', '*.py')."
+            },
+            "contextLines": {
+              "type": "number",
+              "description": "Number of context lines to show before and after each match. Default: 0 (no context). Use this when you need to understand the surrounding code of each match."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of matching lines to return. Default: 100."
+            },
+            "caseSensitive": {
+              "type": "boolean",
+              "description": "Whether the search is case-sensitive. Default: false (case-insensitive)."
             }
           },
           "required": [
-            "connectionName",
             "path",
             "pattern"
           ]
@@ -556,7 +640,7 @@
       {
         "name": "remote-bridge_runCommand",
         "displayName": "%tool.runCommand.displayName%",
-        "modelDescription": "Executes a shell command on a remote server via SSH. Returns stdout and stderr. Only available for SSH/SFTP connections — does NOT work with FTP. Use this ONLY for tasks that have no dedicated tool (for example running build/test/lint commands, service control, package manager commands, or custom scripts). Do NOT use this tool for file operations when dedicated tools exist: readFile (instead of sed/head/tail/cat), writeFile (instead of sed/python/heredoc/echo redirects), searchFiles (instead of grep), findFiles (instead of find for name search), copyFile (instead of cp), renameFile (instead of mv), deleteFile (instead of rm), createDirectory (instead of mkdir).",
+        "modelDescription": "Executes a shell command on a remote server via SSH. Returns stdout and stderr. Only for SSH/SFTP connections. Use only for tasks without a dedicated tool (builds, tests, service control, package management, custom scripts).",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteRun",
         "icon": "$(terminal)",
@@ -566,7 +650,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "command": {
               "type": "string",
@@ -574,15 +658,15 @@
             }
           },
           "required": [
-            "connectionName",
             "command"
           ]
         }
       },
       {
         "name": "remote-bridge_deleteFile",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.deleteFile.displayName%",
-        "modelDescription": "Deletes a file or directory on a remote server. Works with ALL protocols: SSH, SFTP, and FTP. Supports recursive deletion for directories. ALWAYS use this tool to delete files or directories — do NOT use runCommand with rm. This is the only way to delete files on FTP connections.",
+        "modelDescription": "Deletes a file or directory on a remote server. Works with all protocols. Supports recursive deletion for directories.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteDelete",
         "icon": "$(trash)",
@@ -592,7 +676,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -604,15 +688,15 @@
             }
           },
           "required": [
-            "connectionName",
             "path"
           ]
         }
       },
       {
         "name": "remote-bridge_createDirectory",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.createDirectory.displayName%",
-        "modelDescription": "Creates a directory on a remote server. Works with ALL protocols: SSH, SFTP, and FTP. Automatically creates parent directories if they do not exist. ALWAYS use this tool to create directories — do NOT use runCommand with mkdir. This is the only way to create directories on FTP connections.",
+        "modelDescription": "Creates a directory on a remote server. Works with all protocols. Automatically creates parent directories.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteMkdir",
         "icon": "$(new-folder)",
@@ -622,7 +706,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -630,15 +714,15 @@
             }
           },
           "required": [
-            "connectionName",
             "path"
           ]
         }
       },
       {
         "name": "remote-bridge_mysqlQuery",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.mysqlQuery.displayName%",
-        "modelDescription": "Executes a read-only SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) on a MySQL/MariaDB database on a remote server via SSH. Returns results as a formatted table with column headers and row count. Use this for reading data. Only works on SSH/SFTP connections where the mysql CLI client is installed on the server.",
+        "modelDescription": "Executes a read-only SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) on a MySQL/MariaDB database via SSH. Returns formatted table with column headers and row count. Auto-adds LIMIT to prevent excessive output. Only works on SSH/SFTP connections.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteSql",
         "icon": "$(database)",
@@ -648,7 +732,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "query": {
               "type": "string",
@@ -657,18 +741,34 @@
             "database": {
               "type": "string",
               "description": "Optional database name to use. If omitted, no database is selected by default."
+            },
+            "maxRows": {
+              "type": "number",
+              "description": "Maximum number of rows to return. Default: 200. Automatically adds LIMIT to SELECT queries that don't already have one."
+            },
+            "user": {
+              "type": "string",
+              "description": "MySQL username."
+            },
+            "password": {
+              "type": "string",
+              "description": "MySQL password. Passed securely via MYSQL_PWD env var (hidden from process list)."
+            },
+            "host": {
+              "type": "string",
+              "description": "MySQL host. Default: localhost."
             }
           },
           "required": [
-            "connectionName",
             "query"
           ]
         }
       },
       {
         "name": "remote-bridge_mysqlExecute",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.mysqlExecute.displayName%",
-        "modelDescription": "Executes a data-modifying SQL statement (INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP, etc.) on a MySQL/MariaDB database via SSH. Requires user confirmation before execution. SQL is piped via stdin to avoid shell escaping issues. Use this for any write operations on the database. Only works on SSH/SFTP connections.",
+        "modelDescription": "Executes a data-modifying SQL statement (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP) on a MySQL/MariaDB database via SSH. Requires user confirmation. SQL is piped via stdin. Only works on SSH/SFTP connections.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteSqlExec",
         "icon": "$(database)",
@@ -678,7 +778,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "sql": {
               "type": "string",
@@ -687,18 +787,30 @@
             "database": {
               "type": "string",
               "description": "Optional database name to use."
+            },
+            "user": {
+              "type": "string",
+              "description": "MySQL username."
+            },
+            "password": {
+              "type": "string",
+              "description": "MySQL password. Passed securely via MYSQL_PWD env var (hidden from process list)."
+            },
+            "host": {
+              "type": "string",
+              "description": "MySQL host. Default: localhost."
             }
           },
           "required": [
-            "connectionName",
             "sql"
           ]
         }
       },
       {
         "name": "remote-bridge_mysqlSchema",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.mysqlSchema.displayName%",
-        "modelDescription": "Inspects MySQL/MariaDB database schema on a remote server via SSH. Three modes: (1) No database/table — lists all databases. (2) Database only — lists all tables with engine, row count, size, and comments. (3) Database + table — shows full table structure: columns with types, CREATE TABLE statement, indexes, and row count. ALWAYS use this before writing SQL queries to understand the schema. Only works on SSH/SFTP connections.",
+        "modelDescription": "Inspects MySQL/MariaDB database schema via SSH. Three modes: (1) No database/table — lists all databases. (2) Database only — lists tables with engine, row count, size. (3) Database + table — shows columns, CREATE TABLE, indexes. Only works on SSH/SFTP connections.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteDbSchema",
         "icon": "$(symbol-structure)",
@@ -708,7 +820,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the SSH/SFTP connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "database": {
               "type": "string",
@@ -717,17 +829,28 @@
             "table": {
               "type": "string",
               "description": "Optional table name. When provided together with database, shows full table structure (columns, types, indexes, CREATE TABLE)."
+            },
+            "user": {
+              "type": "string",
+              "description": "MySQL username."
+            },
+            "password": {
+              "type": "string",
+              "description": "MySQL password. Passed securely via MYSQL_PWD env var (hidden from process list)."
+            },
+            "host": {
+              "type": "string",
+              "description": "MySQL host. Default: localhost."
             }
           },
-          "required": [
-            "connectionName"
-          ]
+          "required": []
         }
       },
       {
         "name": "remote-bridge_renameFile",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.renameFile.displayName%",
-        "modelDescription": "Renames or moves a file or directory on a remote server. Works with ALL protocols (SSH, SFTP, FTP). ALWAYS use this tool instead of runCommand with mv. This is a zero-data-transfer operation — no file content travels over the wire.",
+        "modelDescription": "Renames or moves a file or directory on a remote server. Works with all protocols. Zero-data-transfer operation.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteRename",
         "icon": "$(file-symlink-file)",
@@ -737,7 +860,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "oldPath": {
               "type": "string",
@@ -753,7 +876,6 @@
             }
           },
           "required": [
-            "connectionName",
             "oldPath",
             "newPath"
           ]
@@ -761,8 +883,9 @@
       },
       {
         "name": "remote-bridge_statFile",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.statFile.displayName%",
-        "modelDescription": "Gets metadata about a file or directory on a remote server: type (file/directory/symlink), size, modification time, creation time, permissions, and whether it exists. Use this to check if a file exists before reading or writing, or to get file size without downloading. Returns exists:false instead of an error when the file does not exist. Works with all protocols.",
+        "modelDescription": "Gets metadata about a file or directory on a remote server: type, size, modification time, permissions, and existence. Returns exists:false when the file does not exist. Works with all protocols.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteStat",
         "icon": "$(info)",
@@ -772,7 +895,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -780,15 +903,15 @@
             }
           },
           "required": [
-            "connectionName",
             "path"
           ]
         }
       },
       {
         "name": "remote-bridge_copyFile",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.copyFile.displayName%",
-        "modelDescription": "Copies a file or directory on a remote server. On SSH the copy happens entirely server-side via 'cp -a' without transferring any data over the network — extremely efficient for large files. On FTP falls back to download+upload. ALWAYS use this tool instead of runCommand with cp or reading and re-writing a file to duplicate it.",
+        "modelDescription": "Copies a file or directory on a remote server. On SSH copies server-side via 'cp -a' without network transfer. On FTP falls back to download+upload.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteCopy",
         "icon": "$(files)",
@@ -798,7 +921,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "sourcePath": {
               "type": "string",
@@ -814,7 +937,6 @@
             }
           },
           "required": [
-            "connectionName",
             "sourcePath",
             "destinationPath"
           ]
@@ -822,8 +944,9 @@
       },
       {
         "name": "remote-bridge_findFiles",
+        "when": "config.remoteBridge.ai.enabled",
         "displayName": "%tool.findFiles.displayName%",
-        "modelDescription": "Finds files and directories by name pattern (glob) on a remote server. Use this to locate files when you know part of the filename but not the full path. Much faster than listing directories manually. On SSH uses the 'find' command server-side. Supports glob patterns like *.php, config*, [abc].txt. Use this instead of runCommand with find when the goal is file name discovery. Different from searchFiles which searches file CONTENTS — this searches file NAMES.",
+        "modelDescription": "Finds files and directories by name pattern (glob) on a remote server. On SSH uses 'find' server-side. Supports glob patterns (*.php, config*). Different from searchFiles which searches file CONTENTS — this searches file NAMES.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteFind",
         "icon": "$(search)",
@@ -833,7 +956,7 @@
           "properties": {
             "connectionName": {
               "type": "string",
-              "description": "The human-readable name of the remote connection. Always use the connection name, never use a UUID."
+              "description": "Connection name. Auto-detected when only one connection is active."
             },
             "path": {
               "type": "string",
@@ -846,10 +969,22 @@
             "maxResults": {
               "type": "number",
               "description": "Maximum number of results to return. Default: 50."
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "file",
+                "directory",
+                "any"
+              ],
+              "description": "Filter results by type. 'file' returns only files, 'directory' returns only directories, 'any' (default) returns both."
+            },
+            "excludePattern": {
+              "type": "string",
+              "description": "Glob pattern to exclude from results (e.g. 'node_modules', '.git', 'vendor'). Matches against the full path."
             }
           },
           "required": [
-            "connectionName",
             "path",
             "namePattern"
           ]
@@ -858,11 +993,40 @@
       {
         "name": "remote-bridge_listConnections",
         "displayName": "%tool.listConnections.displayName%",
-        "modelDescription": "Lists all saved remote connections with their name, protocol, host, port, root path, and connection status (connected/disconnected). Use this to discover available connections before performing any file operations. No connectionName parameter needed — this lists ALL connections.",
+        "modelDescription": "Lists all saved remote connections with name, protocol, host, port, root path, and connection status.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "remoteConnections",
         "icon": "$(plug)",
         "userDescription": "%tool.listConnections.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "remote-bridge_getChangedFiles",
+        "when": "config.remoteBridge.ai.enabled",
+        "displayName": "%tool.getChangedFiles.displayName%",
+        "modelDescription": "Returns a summary of all remote files changed during the current session with badges: [M] modified, [A] added, [R] renamed, [D] deleted. Use after completing a task to review changes.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "remoteChanges",
+        "icon": "$(list-unordered)",
+        "userDescription": "%tool.getChangedFiles.userDescription%",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "remote-bridge_clearDecorations",
+        "when": "config.remoteBridge.ai.enabled",
+        "displayName": "%tool.clearDecorations.displayName%",
+        "modelDescription": "Clears session file change tracking and removes M/A/R/D badges from the Explorer.",
+        "canBeReferencedInPrompt": false,
+        "icon": "$(clear-all)",
+        "userDescription": "%tool.clearDecorations.userDescription%",
         "inputSchema": {
           "type": "object",
           "properties": {},
@@ -889,6 +1053,7 @@
     "@vscode/l10n-dev": "^0.0.35",
     "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.24.0",
+    "fast-xml-parser": "^5.4.2",
     "typescript": "^5.5.0"
   },
   "dependencies": {

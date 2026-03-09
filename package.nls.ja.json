@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "接続を削除",
   "command.connect.title": "接続",
   "command.disconnect.title": "切断",
+  "command.clearDecorations.title": "変更デコレーションをクリア",
   "command.openWorkspace.title": "ワークスペースとして開く",
   "command.openTerminal.title": "SSH ターミナルを開く",
   "command.addFolder.title": "フォルダーを追加",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "SSH Config からインポート",
   "command.importWinSCP.title": "WinSCP からインポート",
   "command.importSSHFS.title": "SSH FS からインポート",
+  "command.importFileZilla.title": "FileZilla からインポート",
+  "command.importPuTTY.title": "PuTTY からインポート",
+  "command.importTotalCmd.title": "Total Commander からインポート",
   "command.setMasterPassword.title": "マスターパスワードを設定",
   "command.removeMasterPassword.title": "マスターパスワードを削除",
   "command.refresh.title": "更新",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "マスターパスワードで保存された接続を暗号化",
   "config.security.masterPasswordTimeout.description": "マスターパスワードの再入力が必要になるまでの時間（分、0 = なし）",
   "config.watch.pollInterval.description": "ファイルシステムウォッチャーのポーリング間隔（ミリ秒）",
+  "config.ai.enabled.description": "AIツールを有効にする（ベータ）。AIエージェントに専用のファイル、データベース、検索ツールを提供します。デフォルトで無効 — これらのツールなしでは、エージェントはrunCommand経由でSSHコマンドを直接使用しますが、多くの場合より良い結果が得られます。再読み込みが必要です。",
 
   "chat.participant.description": "リモートサーバーでの作業 — ファイルの一覧、読み取り、書き込み、削除、ディレクトリの作成、検索、コマンドの実行（SSH/SFTP/FTP）",
   "chat.command.connect.description": "名前でリモートサーバーに接続",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Remote Bridge 経由で接続されたリモートサーバーで名前パターンによりファイルを検索します",
   "tool.listConnections.displayName": "接続の一覧",
   "tool.listConnections.userDescription": "保存されたすべてのリモート接続とその状態を一覧表示します",
+
+  "tool.getChangedFiles.displayName": "変更されたファイル",
+  "tool.getChangedFiles.userDescription": "現在のセッションで変更されたリモートファイルの概要",
+  "tool.clearDecorations.displayName": "変更デコレーションをクリア",
+  "tool.clearDecorations.userDescription": "セッションの変更追跡をリセットし、エクスプローラーからすべてのバッジを削除します",
 
   "tool.mysqlQuery.displayName": "MySQL クエリ",
   "tool.mysqlQuery.userDescription": "Remote Bridge SSH 接続経由で MySQL/MariaDB データベースに対して読み取り専用 SQL クエリを実行します",

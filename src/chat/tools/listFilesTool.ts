@@ -7,7 +7,7 @@ import { BaseTool } from './baseTool';
 /**
  * LM Tool: List files on a remote server.
  */
-export class ListFilesTool extends BaseTool implements vscode.LanguageModelTool<{ connectionName: string; path?: string }> {
+export class ListFilesTool extends BaseTool implements vscode.LanguageModelTool<{ connectionName?: string; path?: string }> {
     constructor(
         _connectionManager: ConnectionManager,
         _pool: ConnectionPool,
@@ -17,7 +17,7 @@ export class ListFilesTool extends BaseTool implements vscode.LanguageModelTool<
     }
 
     async prepareInvocation(
-        options: vscode.LanguageModelToolInvocationPrepareOptions<{ connectionName: string; path?: string }>,
+        options: vscode.LanguageModelToolInvocationPrepareOptions<{ connectionName?: string; path?: string }>,
         _token: vscode.CancellationToken
     ) {
         const connName = this._resolveConnectionName(options.input.connectionName);
@@ -27,7 +27,7 @@ export class ListFilesTool extends BaseTool implements vscode.LanguageModelTool<
     }
 
     async invoke(
-        options: vscode.LanguageModelToolInvocationOptions<{ connectionName: string; path?: string }>,
+        options: vscode.LanguageModelToolInvocationOptions<{ connectionName?: string; path?: string }>,
         token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) {

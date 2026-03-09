@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "Error MySQL (código de salida {0}):\n{1}",
   "No schema information returned.": "No se devolvió información del esquema.",
 
+  "Replace text in {0} on {1}": "Reemplazar texto en {0} en {1}",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "Texto de búsqueda no encontrado en {0} ({1} líneas). Use readFile para inspeccionar el contenido del archivo antes de reintentar.",
+  "Successfully replaced text at line {0} in {1}": "Texto reemplazado correctamente en la línea {0} de {1}",
   "Replace lines {0}-{1} in {2} on {3}": "Reemplazar líneas {0}–{1} en {2} en {3}",
   "Write {0} bytes to {1} on {2}": "Escribir {0} bytes en {1} en {2}",
   "Failed to write file": "Error al escribir el archivo",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "Conectado",
-  "disconnected": "desconectado"
+  "disconnected": "desconectado",
+
+  "Select FileZilla Site Manager file": "Seleccionar archivo de Site Manager de FileZilla",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "Archivo de configuración de FileZilla no encontrado: {0}",
+  "Failed to read FileZilla config: {0}": "Error al leer la configuración de FileZilla: {0}",
+  "Failed to parse FileZilla XML: {0}": "Error al analizar el XML de FileZilla: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "XML de FileZilla no válido: falta el elemento raíz <FileZilla3>",
+  "FileZilla Site Manager is empty — no connections to import": "El Site Manager de FileZilla está vacío — no hay conexiones para importar",
+  "Unnamed Folder": "Carpeta sin nombre",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "Omitido \"{0}\": protocolo no admitido (tipo {1})",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "Conexión \"{0}\": inicio de sesión interactivo — contraseña no almacenada",
+  "Connection \"{0}\": failed to decode Base64 password": "Conexión \"{0}\": error al decodificar la contraseña Base64",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "Conexión \"{0}\": la contraseña está cifrada con una contraseña maestra de FileZilla — no se puede importar la contraseña",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "No se encontraron sesiones de PuTTY en el registro. Asegúrese de que PuTTY esté instalado y tenga sesiones guardadas.",
+  "No PuTTY sessions found in the registry.": "No se encontraron sesiones de PuTTY en el registro.",
+  "Failed to read PuTTY session \"{0}\": {1}": "Error al leer la sesión de PuTTY \"{0}\": {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "Directorio de sesiones de PuTTY no encontrado en {0}. Asegúrese de que PuTTY para Linux esté instalado y tenga sesiones guardadas.",
+  "Failed to read PuTTY sessions directory: {0}": "Error al leer el directorio de sesiones de PuTTY: {0}",
+  "No PuTTY sessions found in {0}.": "No se encontraron sesiones de PuTTY en {0}.",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "Sesión de PuTTY \"{0}\" omitida: el protocolo \"{1}\" no es SSH",
+
+  "Select Total Commander FTP configuration file": "Seleccionar archivo de configuración FTP de Total Commander",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Configuración FTP de Total Commander no encontrada: {0}",
+  "Failed to read Total Commander FTP config: {0}": "Error al leer la configuración FTP de Total Commander: {0}",
+  "No connections found in Total Commander FTP config.": "No se encontraron conexiones en la configuración FTP de Total Commander.",
+
+  "Registry / ~/.putty/sessions": "Registro / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "No se han modificado archivos en esta sesión.",
+  "Retrieving session change summary...": "Recuperando resumen de cambios de la sesión...",
+  "Clearing session change decorations...": "Borrando decoraciones de cambios de la sesión...",
+  "Session change tracking has been reset. All file decorations cleared.": "El seguimiento de cambios de la sesión se ha restablecido. Todas las decoraciones de archivos eliminadas.",
+
+  "Modified by AI agent": "Modificado por agente de IA",
+  "Created by AI agent": "Creado por agente de IA",
+  "Renamed by AI agent": "Renombrado por agente de IA",
+  "Deleted by AI agent": "Eliminado por agente de IA",
+  "searching for \"{0}\"": "buscando \u201E{0}\u201C",
+  "last {0} lines": "últimas {0} líneas",
+  "No matches for \"{0}\" in {1} ({2} lines)": "Sin coincidencias para \u201E{0}\u201C en {1} ({2} líneas)",
+  "Failed to search file": "Error al buscar en el archivo",
+  "Append {0} bytes to {1} on {2}": "Añadir {0} bytes a {1} en {2}",
+  "Insert content {0} \"{1}\" in {2} on {3}": "Insertar contenido {0} \u201E{1}\u201C en {2} en {3}",
+  "Successfully appended {0} bytes to {1}": "{0} bytes añadidos exitosamente a {1}",
+  "Successfully inserted content {0} line {1} in {2}": "Contenido insertado exitosamente {0} línea {1} en {2}",
+  "Successfully replaced {0} occurrence(s) in {1}": "{0} ocurrencia(s) reemplazadas exitosamente en {1}"
 }

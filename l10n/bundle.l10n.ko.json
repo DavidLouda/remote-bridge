@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "MySQL 오류(종료 코드 {0}):\n{1}",
   "No schema information returned.": "스키마 정보가 반환되지 않았습니다.",
 
+  "Replace text in {0} on {1}": "{1}의 {0}에서 텍스트 교체",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "{0}에서 검색 텍스트를 찾을 수 없습니다({1}줄). 다시 시도하기 전에 readFile을 사용하여 파일 내용을 검사하세요.",
+  "Successfully replaced text at line {0} in {1}": "{1}의 {0}번째 줄에서 텍스트를 성공적으로 교체했습니다",
   "Replace lines {0}-{1} in {2} on {3}": "{3}의 {2}에서 {0}–{1}행 교체",
   "Write {0} bytes to {1} on {2}": "{2}의 {1}에 {0}바이트 쓰기",
   "Failed to write file": "파일 쓰기 실패",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "연결됨",
-  "disconnected": "연결 끊김"
+  "disconnected": "연결 끝김",
+
+  "Select FileZilla Site Manager file": "FileZilla 사이트 관리자 파일 선택",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "FileZilla 구성 파일을 찾을 수 없음: {0}",
+  "Failed to read FileZilla config: {0}": "FileZilla 구성 읽기 실패: {0}",
+  "Failed to parse FileZilla XML: {0}": "FileZilla XML 구문 분석 실패: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "잘못된 FileZilla XML: <FileZilla3> 루트 요소가 없습니다",
+  "FileZilla Site Manager is empty — no connections to import": "FileZilla 사이트 관리자가 비어 있습니다 — 가져올 연결이 없습니다",
+  "Unnamed Folder": "이름 없는 폴더",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "\"{0}\" 건너롱: 지원되지 않는 프로토콜 (유형 {1})",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "연결 \"{0}\": 대화형 로그온 — 비밀번호가 저장되지 않음",
+  "Connection \"{0}\": failed to decode Base64 password": "연결 \"{0}\": Base64 비밀번호 디코딩 실패",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "연결 \"{0}\": FileZilla 마스터 비밀번호로 암호화됨 — 비밀번호를 가져올 수 없음",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "레지스트리에서 PuTTY 세션을 찾을 수 없습니다. PuTTY가 설치되어 있고 저장된 세션이 있는지 확인하세요.",
+  "No PuTTY sessions found in the registry.": "레지스트리에서 PuTTY 세션을 찾을 수 없습니다.",
+  "Failed to read PuTTY session \"{0}\": {1}": "PuTTY 세션 \"{0}\" 읽기 실패: {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "{0}에서 PuTTY 세션 디렉터리를 찾을 수 없습니다. Linux용 PuTTY가 설치되어 있고 저장된 세션이 있는지 확인하세요.",
+  "Failed to read PuTTY sessions directory: {0}": "PuTTY 세션 디렉터리 읽기 실패: {0}",
+  "No PuTTY sessions found in {0}.": "{0}에서 PuTTY 세션을 찾을 수 없습니다.",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "PuTTY 세션 \"{0}\" 건너롱: 프로토콜 \"{1}\"은(는) SSH가 아닙니다",
+
+  "Select Total Commander FTP configuration file": "Total Commander FTP 구성 파일 선택",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Total Commander FTP 구성을 찾을 수 없음: {0}",
+  "Failed to read Total Commander FTP config: {0}": "Total Commander FTP 구성 읽기 실패: {0}",
+  "No connections found in Total Commander FTP config.": "Total Commander FTP 구성에서 연결을 찾을 수 없습니다.",
+
+  "Registry / ~/.putty/sessions": "레지스트리 / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "이 세션에서 수정된 파일이 없습니다.",
+  "Retrieving session change summary...": "세션 변경 요약을 가져오는 중...",
+  "Clearing session change decorations...": "세션 변경 장식을 지우는 중...",
+  "Session change tracking has been reset. All file decorations cleared.": "세션 변경 추적이 재설정되었습니다. 모든 파일 장식이 제거되었습니다.",
+
+  "Modified by AI agent": "AI 에이전트가 수정",
+  "Created by AI agent": "AI 에이전트가 생성",
+  "Renamed by AI agent": "AI 에이전트가 이름 변경",
+  "Deleted by AI agent": "AI 에이전트가 삭제",
+  "searching for \"{0}\"": "\u201E{0}\u201C 검색 중",
+  "last {0} lines": "마지막 {0}줄",
+  "No matches for \"{0}\" in {1} ({2} lines)": "{1}에서 \u201E{0}\u201C에 대한 일치 항목 없음 ({2}줄)",
+  "Failed to search file": "파일 검색 실패",
+  "Append {0} bytes to {1} on {2}": "{2}의 {1}에 {0}바이트 추가",
+  "Insert content {0} \"{1}\" in {2} on {3}": "{3}의 {2}에서 \u201E{1}\u201C {0}에 콘텐츠 삽입",
+  "Successfully appended {0} bytes to {1}": "{1}에 {0}바이트가 성공적으로 추가됨",
+  "Successfully inserted content {0} line {1} in {2}": "{2}의 {1}줄 {0}에 콘텐츠가 성공적으로 삽입됨",
+  "Successfully replaced {0} occurrence(s) in {1}": "{1}에서 {0}개 항목이 성공적으로 교체됨"
 }

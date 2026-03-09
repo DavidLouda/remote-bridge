@@ -6,7 +6,7 @@ import { BaseTool } from './baseTool';
 import * as shell from '../../utils/shellCommands';
 
 interface StatFileInput {
-    connectionName: string;
+    connectionName?: string;
     path: string;
 }
 

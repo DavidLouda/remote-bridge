@@ -15,10 +15,9 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 | **Auth** | Password, private key (PPK/PEM), SSH agent, FTPS/TLS |
 | **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
-| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS |
+| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander |
 | **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password with auto-lock |
-| **MySQL / MariaDB** | Query, modify, and inspect remote databases via SSH — no local drivers needed |
-| **AI (Copilot)** | `@remote` chat participant + 15 LM tools for file operations, shell commands, and SQL |
+| **AI (Copilot)** | `@remote` chat participant + 2 always-on tools (`runCommand`, `listConnections`) + 15 beta AI tools for file operations, SQL, and session change tracking (off by default) |
 | **Multi-OS** | Per-connection OS setting — Linux, macOS, Windows (PowerShell) |
 | **Localization** | 12 languages: EN, CS, DE, FR, ES, PL, HU, SK, UK, ZH-CN, KO, JA |
 
@@ -50,6 +49,9 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
   - `~/.ssh/config`
   - WinSCP (including encrypted passwords with master password)
   - SSH FS VS Code extension
+  - FileZilla Site Manager (FTP, SFTP, FTPS; Base64 passwords decoded)
+  - PuTTY (Windows registry or `~/.putty/sessions/`; SSH only)
+  - Total Commander FTP plugin (`wcx_ftp.ini`; FTP and FTPS)
 
 ### 🔐 Security
 - Individual passwords stored securely in **VS Code SecretStorage**
@@ -62,35 +64,58 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 
 ### 🤖 AI Integration (GitHub Copilot)
 
+> **AI tools are disabled by default.** In practice, dedicated AI tools tend to complicate the agent's work — the agent gets stuck trying to use them even when a simple SSH command would be faster and more reliable. Without them, the agent accesses servers through `runCommand` using native SSH commands (`cat`, `grep`, `sed`, `find`, `mysql`…), which often produces better results. You can enable the dedicated tools in settings (`remoteBridge.ai.enabled`) if you prefer that approach.
+
 Chat participant `@remote` with commands:
 - `/connect` — Connect to a server
 - `/ls` — List remote files
 - `/status` — Show connection status
 
-15 Language Model Tools for automatic AI-assisted use:
+**Always-on tools** (available regardless of `ai.enabled`):
+
+| Tool | Reference | Description |
+|------|-----------|-------------|
+| Run Remote Command | `#remoteRun` | Execute shell commands on remote servers (SSH only) |
+| List Connections | `#remoteConnections` | List all saved connections with status |
+
+**AI tools (beta, off by default)** — enable via `remoteBridge.ai.enabled`:
 
 | Tool | Reference | Description |
 |------|-----------|-------------|
 | List Remote Files | `#remoteFiles` | List files and directories on a remote server |
 | Read Remote File | `#remoteRead` | Read file contents (supports efficient partial reads) |
-| Write Remote File | `#remoteWrite` | Write to files (full, partial replace, or insert mode) |
+| Write Remote File | `#remoteWrite` | Write to files (full write, partial replace, insert, or search/replace) |
 | Search Remote Files | `#remoteSearch` | Search/grep file contents with regex support |
-| Run Remote Command | `#remoteRun` | Execute shell commands on remote servers (SSH only) |
 | Delete Remote File | `#remoteDelete` | Delete files or directories (recursive) |
 | Create Remote Directory | `#remoteMkdir` | Create directories (auto-creates parents) |
 | Rename Remote File | `#remoteRename` | Rename or move files/directories |
 | File Info | `#remoteStat` | Get file metadata (type, size, dates, permissions) |
 | Copy Remote File | `#remoteCopy` | Copy files/directories (server-side on SSH) |
 | Find Remote Files | `#remoteFind` | Find files by name pattern (glob) |
-| List Connections | `#remoteConnections` | List all saved connections with status |
+| Session Changes | `#remoteChanges` | List all files modified/created/renamed/deleted by the agent this session |
+| Clear Decorations | — | Reset session change tracking and remove Explorer badges |
 | MySQL Query | `#remoteSql` | Execute read-only SQL queries (SELECT, SHOW, DESCRIBE) |
 | MySQL Execute | `#remoteSqlExec` | Execute data-modifying SQL (INSERT, UPDATE, DELETE, DDL) |
 | MySQL Schema | `#remoteDbSchema` | Inspect database schema (databases, tables, columns) |
 
-### 🗄 MySQL / MariaDB Integration
+#### File Decorations
+
+VS Code natively tracks file changes (e.g. git badges) and this works normally regardless of any Remote Bridge setting. However, when the AI agent modifies remote files via AI tools, native change tracking does **not** capture those changes — the agent operates through the extension's internal API, which bypasses the standard mechanisms. To compensate, Remote Bridge adds its own session-scoped decoration layer that marks what the agent touched. This is active only when `remoteBridge.ai.enabled` is `true`.
+
+| Badge | Color | Meaning |
+|-------|-------|---------|
+| **M** | Yellow | Modified / edited |
+| **A** | Green | Added / created |
+| **R** | Teal | Renamed or moved |
+| **D** | Red | Deleted |
+
+Badges propagate to parent folders for M and A changes. Use `remoteBridge.clearDecorations` (Command Palette) to reset tracking for the next task. When AI tools are enabled, the **`#remoteChanges`** tool lets the agent produce a text summary of all session changes before finishing a task.
+
+#### MySQL / MariaDB Integration
 - Query, modify, and inspect MySQL/MariaDB databases on remote servers via SSH
 - Schema browser: list databases → tables → columns, indexes, and CREATE TABLE statements
 - Read-only queries and data-modifying statements with user confirmation
+- All three MySQL tools accept optional `user`, `password`, and `host` parameters — useful when the SSH user doesn't have default MySQL access; passwords are passed securely via the `MYSQL_PWD` environment variable (hidden from the process list)
 - Uses the `mysql` CLI client on the remote server with `--no-defaults` — no local drivers needed, works across bash, zsh, and PowerShell
 
 ### 🌐 Localization
@@ -252,24 +277,32 @@ All commands are accessible via `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac):
 | Command | Description |
 |---------|-------------|
 | Remote Bridge: Add Connection | Open the connection form |
-| Remote Bridge: Import Connections | Import from SSH Config, WinSCP, or SSH FS |
+| Remote Bridge: Import Connections | Import from SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, or Total Commander |
 | Remote Bridge: Set Master Password | Encrypt all connections with a master password |
 | Remote Bridge: Remove Master Password | Decrypt and remove the master password |
 | Remote Bridge: Show Connections | Focus the Remote Bridge sidebar |
 
 ## Importing Connections
 
+All importers are accessible via: command palette → **Remote Bridge: Import Connections** (or the `⋯` overflow menu in the sidebar).
+
 ### SSH Config
-Command palette → **Remote Bridge: Import from SSH Config**  
 Reads `~/.ssh/config` and imports all named hosts.
 
 ### WinSCP
-Command palette → **Remote Bridge: Import from WinSCP**  
-Reads `WinSCP.ini` (auto-detected or manually selected). Supports master-password-protected configurations.
+Reads `WinSCP.ini` (auto-detected at `%APPDATA%\WinSCP.ini` or manually selected). Supports master-password-protected configurations.
 
 ### SSH FS
-Command palette → **Remote Bridge: Import from SSH FS**  
 Reads settings from the [SSH FS](https://marketplace.visualstudio.com/items?itemName=Kelvin.vscode-sshfs) extension.
+
+### FileZilla
+Reads `sitemanager.xml` (auto-detected at `%APPDATA%\FileZilla\sitemanager.xml` on Windows, `~/.config/filezilla/sitemanager.xml` on Linux/macOS). Imports FTP, SFTP, and FTPS connections. Passwords stored as Base64 are decoded automatically. Passwords encrypted with a FileZilla master password (`encoding="crypt"`) cannot be decrypted and are skipped with a warning. Folder groups from the Site Manager are preserved.
+
+### PuTTY
+On Windows, reads sessions from the registry (`HKCU\Software\SimonTatham\PuTTY\Sessions`). On Linux/macOS, reads session files from `~/.putty/sessions/`. Only SSH sessions are imported; other protocols (Telnet, Serial, Raw) are skipped with a warning. The private key path is preserved where set. PuTTY does not store passwords — you will need to enter them after import.
+
+### Total Commander
+Reads the built-in FTP plugin configuration from `%APPDATA%\GHISLER\wcx_ftp.ini` (Windows only, or manually selected). Imports FTP and FTPS connections. Passwords are de-obfuscated automatically (XOR cipher — note: this is obfuscation, not encryption).
 
 ## Master Password
 
@@ -293,6 +326,7 @@ Command palette → **Remote Bridge: Remove Master Password**
 | `remoteBridge.security.useMasterPassword` | `false` | Encrypt connections with master password |
 | `remoteBridge.security.masterPasswordTimeout` | `30` | Master password re-entry timeout (minutes) |
 | `remoteBridge.watch.pollInterval` | `5` | File system watcher polling interval (seconds) |
+| `remoteBridge.ai.enabled` | `false` | Enable AI tools (beta). When disabled, agent uses SSH commands directly via `runCommand`. Requires reload. |
 
 ## Architecture
 
@@ -300,13 +334,13 @@ Command palette → **Remote Bridge: Remove Master Password**
 src/
 ├── adapters/          # Protocol adapters (SSH, FTP)
 ├── chat/              # GitHub Copilot chat participant & LM tools
-├── importers/         # Connection importers (SSH Config, WinSCP, SSH FS)
+├── importers/         # Connection importers (SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, Total Commander)
 ├── providers/         # FileSystemProvider, TreeView providers
 ├── services/          # Connection manager, pool, cache, encryption
 ├── statusBar/         # Status bar integration
 ├── terminal/          # SSH terminal (PTY pseudoterminal)
 ├── types/             # TypeScript type definitions
-├── utils/             # Shared utilities (OS-aware shell commands, URI parser, workspace file manager, WinSCP crypto)
+├── utils/             # Shared utilities (OS-aware shell commands, URI parser, workspace file manager, WinSCP crypto, INI parser, Total Commander crypto)
 ├── webview/           # Connection form (webview)
 └── extension.ts       # Extension entry point
 ```

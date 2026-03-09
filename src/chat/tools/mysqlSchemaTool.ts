@@ -8,9 +8,12 @@ import * as shell from '../../utils/shellCommands';
 const SAFE_IDENTIFIER = /^[a-zA-Z0-9_]+$/;
 
 interface MysqlSchemaInput {
-    connectionName: string;
+    connectionName?: string;
     database?: string;
     table?: string;
+    user?: string;
+    password?: string;
+    host?: string;
 }
 
 /**
@@ -31,6 +34,8 @@ export class MysqlSchemaTool extends BaseTool implements vscode.LanguageModelToo
     ) {
         const connName = this._resolveConnectionName(options.input.connectionName);
         const { database, table } = options.input;
+        const userInfo = options.input.user ? ` as ${options.input.user}` : '';
+        const pwInfo = options.input.password ? ' (password: ****)' : '';
 
         let what: string;
         if (table && database) {
@@ -42,7 +47,7 @@ export class MysqlSchemaTool extends BaseTool implements vscode.LanguageModelToo
         }
 
         return {
-            invocationMessage: vscode.l10n.t('Reading {0} on {1}...', what, connName),
+            invocationMessage: vscode.l10n.t('Reading {0} on {1}{2}{3}...', what, connName, userInfo, pwInfo),
         };
     }
 
@@ -52,7 +57,7 @@ export class MysqlSchemaTool extends BaseTool implements vscode.LanguageModelToo
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, database, table } = options.input;
+        const { connectionName, database, table, user, password, host } = options.input;
 
         const config = this._resolveConnection(connectionName);
         const adapter = await this._pool.getAdapter(config);
@@ -62,7 +67,7 @@ export class MysqlSchemaTool extends BaseTool implements vscode.LanguageModelToo
                 new vscode.LanguageModelTextPart(
                     vscode.l10n.t(
                         'MySQL schema inspection requires an SSH/SFTP connection. {0} uses {1}.',
-                        connectionName,
+                        config.name,
                         config.protocol.toUpperCase()
                     )
                 ),
@@ -86,16 +91,16 @@ export class MysqlSchemaTool extends BaseTool implements vscode.LanguageModelToo
             const dbFlag = ` '${escDb}'`;
             cmd = [
                 `echo '=== COLUMNS ==='`,
-                shell.mysqlExecInline(`DESCRIBE \\\`${escTbl}\\\``, dbFlag),
+                shell.mysqlExecInline(`DESCRIBE \\\`${escTbl}\\\``, dbFlag, 'linux', user, password, host),
                 `echo ''`,
                 `echo '=== CREATE TABLE ==='`,
-                shell.mysqlExecInline(`SHOW CREATE TABLE \\\`${escTbl}\\\`\\\\G`, dbFlag),
+                shell.mysqlExecInline(`SHOW CREATE TABLE \\\`${escTbl}\\\`\\\\G`, dbFlag, 'linux', user, password, host),
                 `echo ''`,
                 `echo '=== INDEXES ==='`,
-                shell.mysqlExecInline(`SHOW INDEX FROM \\\`${escTbl}\\\``, dbFlag),
+                shell.mysqlExecInline(`SHOW INDEX FROM \\\`${escTbl}\\\``, dbFlag, 'linux', user, password, host),
                 `echo ''`,
                 `echo '=== ROW COUNT ==='`,
-                shell.mysqlExecInline(`SELECT COUNT(*) AS row_count FROM \\\`${escTbl}\\\``, dbFlag),
+                shell.mysqlExecInline(`SELECT COUNT(*) AS row_count FROM \\\`${escTbl}\\\``, dbFlag, 'linux', user, password, host),
             ].join(' && ');
             contextLabel = `${database}.${table}`;
         } else if (database) {
@@ -109,11 +114,11 @@ export class MysqlSchemaTool extends BaseTool implements vscode.LanguageModelToo
             // List tables with row counts using information_schema
             const escDb = database.replace(/'/g, "'\\''");
             const dbFlag = ` '${escDb}'`;
-            cmd = shell.mysqlExecInline(`SELECT TABLE_NAME, ENGINE, TABLE_ROWS, ROUND(DATA_LENGTH/1024/1024, 2) AS size_mb, TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA='${escDb}' ORDER BY TABLE_NAME`, dbFlag);
+            cmd = shell.mysqlExecInline(`SELECT TABLE_NAME, ENGINE, TABLE_ROWS, ROUND(DATA_LENGTH/1024/1024, 2) AS size_mb, TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA='${escDb}' ORDER BY TABLE_NAME`, dbFlag, 'linux', user, password, host);
             contextLabel = database;
         } else {
             // List all databases
-            cmd = shell.mysqlExecInline('SHOW DATABASES', '');
+            cmd = shell.mysqlExecInline('SHOW DATABASES', '', 'linux', user, password, host);
             contextLabel = vscode.l10n.t('all databases');
         }
 

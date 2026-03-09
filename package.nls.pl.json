@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Usuń połączenie",
   "command.connect.title": "Połącz",
   "command.disconnect.title": "Rozłącz",
+  "command.clearDecorations.title": "Wyczyść oznaczenia zmian",
   "command.openWorkspace.title": "Otwórz jako przestrzeń roboczą",
   "command.openTerminal.title": "Otwórz terminal SSH",
   "command.addFolder.title": "Dodaj folder",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Importuj z SSH Config",
   "command.importWinSCP.title": "Importuj z WinSCP",
   "command.importSSHFS.title": "Importuj z SSH FS",
+  "command.importFileZilla.title": "Importuj z FileZilla",
+  "command.importPuTTY.title": "Importuj z PuTTY",
+  "command.importTotalCmd.title": "Importuj z Total Commandera",
   "command.setMasterPassword.title": "Ustaw hasło główne",
   "command.removeMasterPassword.title": "Usuń hasło główne",
   "command.refresh.title": "Odśwież",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "Szyfruj zapisane połączenia hasłem głównym",
   "config.security.masterPasswordTimeout.description": "Czas w minutach przed ponownym wymaganiem hasła głównego (0 = nigdy)",
   "config.watch.pollInterval.description": "Interwał odpytywania dla obserwatorów systemu plików (w milisekundach)",
+  "config.ai.enabled.description": "Włącz narzędzia AI (beta). Udostępnia agentowi AI dedykowane narzędzia do plików, baz danych i wyszukiwania. Domyślnie wyłączone — bez tych narzędzi agent używa poleceń SSH bezpośrednio przez runCommand, co często daje lepsze wyniki. Wymaga ponownego załadowania.",
 
   "chat.participant.description": "Praca ze zdalnymi serwerami — listowanie, czytanie, pisanie, usuwanie plików, tworzenie katalogów, wyszukiwanie i uruchamianie poleceń (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Połącz się ze zdalnym serwerem po nazwie",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Wyszukuje pliki według wzorca nazwy na zdalnym serwerze połączonym przez Remote Bridge",
   "tool.listConnections.displayName": "Lista połączeń",
   "tool.listConnections.userDescription": "Wyświetla wszystkie zapisane połączenia zdalne z ich stanem",
+
+  "tool.getChangedFiles.displayName": "Zmienione pliki",
+  "tool.getChangedFiles.userDescription": "Podsumowanie zdalnych plików zmodyfikowanych w bieżącej sesji",
+  "tool.clearDecorations.displayName": "Wyczyść oznaczenia zmian",
+  "tool.clearDecorations.userDescription": "Resetuje śledzenie zmian sesji i usuwa wszystkie oznaczenia z Eksploratora",
 
   "tool.mysqlQuery.displayName": "Zapytanie MySQL",
   "tool.mysqlQuery.userDescription": "Wykonuje zapytanie SQL tylko do odczytu na bazie danych MySQL/MariaDB przez połączenie SSH Remote Bridge",

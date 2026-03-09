@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "MySQL エラー（終了コード {0}）:\n{1}",
   "No schema information returned.": "スキーマ情報が返されませんでした。",
 
+  "Replace text in {0} on {1}": "{1} の {0} のテキストを置換",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "{0} で検索テキストが見つかりませんでした（{1} 行）。readFile を使用してファイルの内容を確認してから再試行してください。",
+  "Successfully replaced text at line {0} in {1}": "{1} の {0} 行目のテキストを正常に置換しました",
   "Replace lines {0}-{1} in {2} on {3}": "{3} の {2} の {0}～{1} 行目を置換",
   "Write {0} bytes to {1} on {2}": "{2} の {1} に {0} バイトを書き込み",
   "Failed to write file": "ファイルの書き込みに失敗しました",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "接続済み",
-  "disconnected": "切断済み"
+  "disconnected": "切断済み",
+
+  "Select FileZilla Site Manager file": "FileZilla サイトマネージャーファイルを選択",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "FileZilla 設定ファイルが見つかりません: {0}",
+  "Failed to read FileZilla config: {0}": "FileZilla 設定の読み込みに失敗しました: {0}",
+  "Failed to parse FileZilla XML: {0}": "FileZilla XML の解析に失敗しました: {0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "無効な FileZilla XML: <FileZilla3> ルート要素がありません",
+  "FileZilla Site Manager is empty — no connections to import": "FileZilla サイトマネージャーが空です — インポートする接続がありません",
+  "Unnamed Folder": "名前なしフォルダー",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "\"{0}\" をスキップしました: サポートされていないプロトコル (タイプ {1})",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "接続 \"{0}\": インタラクティブログオン — パスワードは保存されていません",
+  "Connection \"{0}\": failed to decode Base64 password": "接続 \"{0}\": Base64 パスワードのデコードに失敗しました",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "接続 \"{0}\": パスワードは FileZilla マスターパスワードで暗号化されています — パスワードをインポートできません",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "レジストリに PuTTY セッションが見つかりません。PuTTY がインストールされ、セッションが保存されていることを確認してください。",
+  "No PuTTY sessions found in the registry.": "レジストリに PuTTY セッションが見つかりません。",
+  "Failed to read PuTTY session \"{0}\": {1}": "PuTTY セッション \"{0}\" の読み込みに失敗しました: {1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "PuTTY セッションディレクトリが {0} に見つかりません。Linux 用 PuTTY がインストールされ、セッションが保存されていることを確認してください。",
+  "Failed to read PuTTY sessions directory: {0}": "PuTTY セッションディレクトリの読み込みに失敗しました: {0}",
+  "No PuTTY sessions found in {0}.": "{0} に PuTTY セッションが見つかりません。",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "PuTTY セッション \"{0}\" をスキップしました: プロトコル \"{1}\" は SSH ではありません",
+
+  "Select Total Commander FTP configuration file": "Total Commander FTP 設定ファイルを選択",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "Total Commander FTP 設定が見つかりません: {0}",
+  "Failed to read Total Commander FTP config: {0}": "Total Commander FTP 設定の読み込みに失敗しました: {0}",
+  "No connections found in Total Commander FTP config.": "Total Commander FTP 設定に接続が見つかりません。",
+
+  "Registry / ~/.putty/sessions": "レジストリ / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "このセッションでファイルは変更されていません。",
+  "Retrieving session change summary...": "セッション変更サマリーを取得しています...",
+  "Clearing session change decorations...": "セッション変更デコレーションをクリアしています...",
+  "Session change tracking has been reset. All file decorations cleared.": "セッション変更追跡がリセットされました。すべてのファイルデコレーションが削除されました。",
+
+  "Modified by AI agent": "AIエージェントが変更",
+  "Created by AI agent": "AIエージェントが作成",
+  "Renamed by AI agent": "AIエージェントが名前変更",
+  "Deleted by AI agent": "AIエージェントが削除",
+  "searching for \"{0}\"": "「{0}」を検索中",
+  "last {0} lines": "最後の {0} 行",
+  "No matches for \"{0}\" in {1} ({2} lines)": "{1} で「{0}」に一致するものが見つかりません（{2} 行）",
+  "Failed to search file": "ファイルの検索に失敗しました",
+  "Append {0} bytes to {1} on {2}": "{2} の {1} に {0} バイトを追加",
+  "Insert content {0} \"{1}\" in {2} on {3}": "{3} の {2} で「{1}」の{0}にコンテンツを挿入",
+  "Successfully appended {0} bytes to {1}": "{1} に {0} バイトを正常に追加しました",
+  "Successfully inserted content {0} line {1} in {2}": "{2} の {1} 行目の{0}にコンテンツを正常に挿入しました",
+  "Successfully replaced {0} occurrence(s) in {1}": "{1} で {0} 件を正常に置換しました"
 }

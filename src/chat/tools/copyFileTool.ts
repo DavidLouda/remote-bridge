@@ -3,11 +3,12 @@ import { ConnectionManager } from '../../services/connectionManager';
 import { ConnectionPool } from '../../services/connectionPool';
 import { CacheService } from '../../services/cacheService';
 import { RemoteBridgeFileSystemProvider } from '../../providers/fileSystemProvider';
+import { RemoteBridgeFileDecorationProvider } from '../../providers/fileDecorationProvider';
 import { BaseTool } from './baseTool';
 import * as shell from '../../utils/shellCommands';
 
 interface CopyFileInput {
-    connectionName: string;
+    connectionName?: string;
     sourcePath: string;
     destinationPath: string;
     recursive?: boolean;
@@ -23,7 +24,8 @@ export class CopyFileTool extends BaseTool implements vscode.LanguageModelTool<C
         _connectionManager: ConnectionManager,
         _pool: ConnectionPool,
         private readonly _cache: CacheService,
-        private readonly _fsProvider: RemoteBridgeFileSystemProvider
+        private readonly _fsProvider: RemoteBridgeFileSystemProvider,
+        private readonly _decorations: RemoteBridgeFileDecorationProvider
     ) {
         super(_connectionManager, _pool);
     }
@@ -110,6 +112,7 @@ export class CopyFileTool extends BaseTool implements vscode.LanguageModelTool<C
 
         // Notify Explorer
         this._fsProvider.notifyExternalChange(config.id, destinationPath, vscode.FileChangeType.Created);
+        this._decorations.markAdded(config.id, destinationPath);
 
         return new vscode.LanguageModelToolResult([
             new vscode.LanguageModelTextPart(

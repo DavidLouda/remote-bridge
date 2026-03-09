@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "删除连接",
   "command.connect.title": "连接",
   "command.disconnect.title": "断开连接",
+  "command.clearDecorations.title": "清除更改装饰",
   "command.openWorkspace.title": "作为工作区打开",
   "command.openTerminal.title": "打开 SSH 终端",
   "command.addFolder.title": "添加文件夹",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "从 SSH Config 导入",
   "command.importWinSCP.title": "从 WinSCP 导入",
   "command.importSSHFS.title": "从 SSH FS 导入",
+  "command.importFileZilla.title": "从 FileZilla 导入",
+  "command.importPuTTY.title": "从 PuTTY 导入",
+  "command.importTotalCmd.title": "从 Total Commander 导入",
   "command.setMasterPassword.title": "设置主密码",
   "command.removeMasterPassword.title": "移除主密码",
   "command.refresh.title": "刷新",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "使用主密码加密已保存的连接",
   "config.security.masterPasswordTimeout.description": "需要重新输入主密码的时间（分钟，0 = 从不）",
   "config.watch.pollInterval.description": "文件系统监视器的轮询间隔（毫秒）",
+  "config.ai.enabled.description": "启用 AI 工具（测试版）。为 AI 代理提供专用的文件、数据库和搜索工具。默认禁用 — 没有这些工具时，代理通过 runCommand 直接使用 SSH 命令，这通常能获得更好的结果。需要重新加载。",
 
   "chat.participant.description": "使用远程服务器 — 列出、读取、写入、删除文件，创建目录，搜索和运行命令（SSH/SFTP/FTP）",
   "chat.command.connect.description": "按名称连接到远程服务器",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "按名称模式在通过 Remote Bridge 连接的远程服务器上查找文件",
   "tool.listConnections.displayName": "列出连接",
   "tool.listConnections.userDescription": "列出所有已保存的远程连接及其状态",
+
+  "tool.getChangedFiles.displayName": "查看已更改文件",
+  "tool.getChangedFiles.userDescription": "当前会话中已修改的远程文件摘要",
+  "tool.clearDecorations.displayName": "清除更改装饰",
+  "tool.clearDecorations.userDescription": "重置会话更改跟踪并从资源管理器中删除所有徽章",
 
   "tool.mysqlQuery.displayName": "MySQL 查询",
   "tool.mysqlQuery.userDescription": "通过 Remote Bridge SSH 连接在 MySQL/MariaDB 数据库上执行只读 SQL 查询",

@@ -5,9 +5,12 @@ import { BaseTool } from './baseTool';
 import * as shell from '../../utils/shellCommands';
 
 interface MysqlExecuteInput {
-    connectionName: string;
+    connectionName?: string;
     sql: string;
     database?: string;
+    user?: string;
+    password?: string;
+    host?: string;
 }
 
 /**
@@ -29,15 +32,19 @@ export class MysqlExecuteTool extends BaseTool implements vscode.LanguageModelTo
     ) {
         const connName = this._resolveConnectionName(options.input.connectionName);
         const dbInfo = options.input.database ? ` (${options.input.database})` : '';
+        const userInfo = options.input.user ? ` as ${options.input.user}` : '';
+        const pwInfo = options.input.password ? ' (password: ****)' : '';
         const sqlPreview = options.input.sql.length > 120
             ? options.input.sql.substring(0, 120) + '…'
             : options.input.sql;
 
         return {
             invocationMessage: vscode.l10n.t(
-                'Executing SQL on {0}{1}...',
+                'Executing SQL on {0}{1}{2}{3}...',
                 connName,
-                dbInfo
+                dbInfo,
+                userInfo,
+                pwInfo
             ),
             confirmationMessages: {
                 title: vscode.l10n.t('Execute SQL Statement'),
@@ -59,7 +66,7 @@ export class MysqlExecuteTool extends BaseTool implements vscode.LanguageModelTo
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, sql, database } = options.input;
+        const { connectionName, sql, database, user, password, host } = options.input;
 
         const config = this._resolveConnection(connectionName);
         const adapter = await this._pool.getAdapter(config);
@@ -69,7 +76,7 @@ export class MysqlExecuteTool extends BaseTool implements vscode.LanguageModelTo
                 new vscode.LanguageModelTextPart(
                     vscode.l10n.t(
                         'MySQL execution requires an SSH/SFTP connection. {0} uses {1}.',
-                        connectionName,
+                        config.name,
                         config.protocol.toUpperCase()
                     )
                 ),
@@ -79,7 +86,7 @@ export class MysqlExecuteTool extends BaseTool implements vscode.LanguageModelTo
         // Use execWithStdin to pipe SQL via stdin — avoids shell escaping issues with complex SQL
         const dbArg = database ? ` '${database.replace(/'/g, "'\\''")}'` : '';
         const os = config.os ?? 'linux';
-        const cmd = shell.mysqlCmd(dbArg, os);
+        const cmd = shell.mysqlCmd(dbArg, os, user, password, host);
 
         const result = await adapter.execWithStdin(cmd, sql);
 

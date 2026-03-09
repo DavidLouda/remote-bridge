@@ -74,6 +74,27 @@ export class ConnectionManager implements vscode.Disposable {
         );
     }
 
+    /**
+     * Fuzzy-find a connection when exact name match fails.
+     * Tries: (1) host substring match, (2) partial name match.
+     * Returns the first match, or undefined if nothing fits.
+     */
+    findConnectionFuzzy(input: string): ConnectionConfig | undefined {
+        const lower = input.toLowerCase();
+        const connections = this._requireStore().connections;
+        // Host match: input contains the host or host contains input
+        const byHost = connections.find(
+            (c) => lower.includes(c.host.toLowerCase()) || c.host.toLowerCase().includes(lower)
+        );
+        if (byHost) { return byHost; }
+        // Partial name match: input is a substring of name or vice-versa
+        return connections.find(
+            (c) =>
+                c.name.toLowerCase().includes(lower) ||
+                lower.includes(c.name.toLowerCase())
+        );
+    }
+
     async addConnection(
         config: Omit<ConnectionConfig, 'id' | 'sortOrder'>,
         password?: string,

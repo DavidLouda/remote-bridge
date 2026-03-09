@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Видалити з'єднання",
   "command.connect.title": "Підключитися",
   "command.disconnect.title": "Від'єднатися",
+  "command.clearDecorations.title": "Очистити позначення змін",
   "command.openWorkspace.title": "Відкрити як робочий простір",
   "command.openTerminal.title": "Відкрити термінал SSH",
   "command.addFolder.title": "Додати теку",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Імпортувати з SSH Config",
   "command.importWinSCP.title": "Імпортувати з WinSCP",
   "command.importSSHFS.title": "Імпортувати з SSH FS",
+  "command.importFileZilla.title": "Імпортувати з FileZilla",
+  "command.importPuTTY.title": "Імпортувати з PuTTY",
+  "command.importTotalCmd.title": "Імпортувати з Total Commander",
   "command.setMasterPassword.title": "Встановити головний пароль",
   "command.removeMasterPassword.title": "Видалити головний пароль",
   "command.refresh.title": "Оновити",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "Шифрувати збережені з'єднання головним паролем",
   "config.security.masterPasswordTimeout.description": "Час у хвилинах до повторного запиту головного пароля (0 = ніколи)",
   "config.watch.pollInterval.description": "Інтервал опитування для спостерігачів файлової системи (в мілісекундах)",
+  "config.ai.enabled.description": "Увімкнути інструменти AI (бета). Надає AI-агенту спеціалізовані інструменти для файлів, баз даних та пошуку. Вимкнено за замовчуванням — без цих інструментів агент використовує SSH-команди безпосередньо через runCommand, що часто дає кращі результати. Потребує перезавантаження.",
 
   "chat.participant.description": "Робота з віддаленими серверами — перегляд, читання, запис, видалення файлів, створення каталогів, пошук та виконання команд (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Підключитися до віддаленого сервера за назвою",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Шукає файли за шаблоном назви на віддаленому сервері, підключеному через Remote Bridge",
   "tool.listConnections.displayName": "Список з'єднань",
   "tool.listConnections.userDescription": "Показує всі збережені віддалені з'єднання з їхнім станом",
+
+  "tool.getChangedFiles.displayName": "Змінені файли",
+  "tool.getChangedFiles.userDescription": "Зведення віддалених файлів, змінених протягом поточного сеансу",
+  "tool.clearDecorations.displayName": "Очистити позначення змін",
+  "tool.clearDecorations.userDescription": "Скидає відстеження змін сеансу та видаляє всі значки з Провідника",
 
   "tool.mysqlQuery.displayName": "Запит MySQL",
   "tool.mysqlQuery.userDescription": "Виконує SQL-запит лише для читання на базі даних MySQL/MariaDB через SSH-з'єднання Remote Bridge",

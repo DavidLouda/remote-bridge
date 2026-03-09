@@ -251,6 +251,9 @@
   "MySQL error (exit code {0}):\n{1}": "MySQL 错误（退出代码 {0}）:\n{1}",
   "No schema information returned.": "未返回架构信息。",
 
+  "Replace text in {0} on {1}": "替换 {1} 上 {0} 中的文本",
+  "Search text not found in {0} ({1} lines). Use readFile to inspect the file content before retrying.": "在 {0}（{1} 行）中未找到搜索文本。请使用 readFile 检查文件内容后重试。",
+  "Successfully replaced text at line {0} in {1}": "已成功替换 {1} 中第 {0} 行的文本",
   "Replace lines {0}-{1} in {2} on {3}": "替换 {3} 上 {2} 的第 {0}–{1} 行",
   "Write {0} bytes to {1} on {2}": "将 {0} 字节写入 {2} 上的 {1}",
   "Failed to write file": "写入文件失败",
@@ -260,5 +263,53 @@
 
   "WinSCP INI": "WinSCP INI",
   "Connected": "已连接",
-  "disconnected": "已断开"
+  "disconnected": "已断开",
+
+  "Select FileZilla Site Manager file": "选择 FileZilla 站点管理器文件",
+  "FileZilla XML": "FileZilla XML",
+  "FileZilla config file not found: {0}": "找不到 FileZilla 配置文件：{0}",
+  "Failed to read FileZilla config: {0}": "无法读取 FileZilla 配置：{0}",
+  "Failed to parse FileZilla XML: {0}": "无法解析 FileZilla XML：{0}",
+  "Invalid FileZilla XML: missing <FileZilla3> root element": "无效的 FileZilla XML：缺少 <FileZilla3> 根元素",
+  "FileZilla Site Manager is empty — no connections to import": "FileZilla 站点管理器为空 — 没有可导入的连接",
+  "Unnamed Folder": "未命名文件夹",
+  "Skipped \"{0}\": unsupported protocol (type {1})": "已跳过“{0}”：不支持的协议（类型 {1}）",
+  "Connection \"{0}\": interactive/ask logon — password not stored": "连接“{0}”：交互式登录 — 密码未存储",
+  "Connection \"{0}\": failed to decode Base64 password": "连接“{0}”：无法解码 Base64 密码",
+  "Connection \"{0}\": password is encrypted with a FileZilla master password — cannot import password": "连接“{0}”：密码已用 FileZilla 主密码加密 — 无法导入密码",
+
+  "No PuTTY sessions found in the registry. Make sure PuTTY is installed and has saved sessions.": "在注册表中未找到 PuTTY 会话。请确保 PuTTY 已安装并具有已保存的会话。",
+  "No PuTTY sessions found in the registry.": "在注册表中未找到 PuTTY 会话。",
+  "Failed to read PuTTY session \"{0}\": {1}": "无法读取 PuTTY 会话“{0}”：{1}",
+  "PuTTY sessions directory not found at {0}. Make sure PuTTY for Linux is installed and has saved sessions.": "在 {0} 未找到 PuTTY 会话目录。请确保 Linux 版 PuTTY 已安装并具有已保存的会话。",
+  "Failed to read PuTTY sessions directory: {0}": "无法读取 PuTTY 会话目录：{0}",
+  "No PuTTY sessions found in {0}.": "在 {0} 未找到 PuTTY 会话。",
+  "Skipped PuTTY session \"{0}\": protocol \"{1}\" is not SSH": "已跳过 PuTTY 会话“{0}”：协议“{1}”不是 SSH",
+
+  "Select Total Commander FTP configuration file": "选择 Total Commander FTP 配置文件",
+  "Total Commander FTP INI": "Total Commander FTP INI",
+  "Total Commander FTP config not found: {0}": "找不到 Total Commander FTP 配置：{0}",
+  "Failed to read Total Commander FTP config: {0}": "无法读取 Total Commander FTP 配置：{0}",
+  "No connections found in Total Commander FTP config.": "Total Commander FTP 配置中未找到连接。",
+
+  "Registry / ~/.putty/sessions": "注册表 / ~/.putty/sessions",
+
+  "No files have been modified in this session.": "此会话中没有修改任何文件。",
+  "Retrieving session change summary...": "正在检索会话更改摘要...",
+  "Clearing session change decorations...": "正在清除会话更改装饰...",
+  "Session change tracking has been reset. All file decorations cleared.": "会话更改跟踪已重置。所有文件装饰已清除。",
+
+  "Modified by AI agent": "由AI代理修改",
+  "Created by AI agent": "由AI代理创建",
+  "Renamed by AI agent": "由AI代理重命名",
+  "Deleted by AI agent": "由AI代理删除",
+  "searching for \"{0}\"": "搜索\u201C{0}\u201D",
+  "last {0} lines": "最后 {0} 行",
+  "No matches for \"{0}\" in {1} ({2} lines)": "在 {1} 中未找到\u201C{0}\u201D的匹配项（{2} 行）",
+  "Failed to search file": "搜索文件失败",
+  "Append {0} bytes to {1} on {2}": "向 {2} 上的 {1} 追加 {0} 字节",
+  "Insert content {0} \"{1}\" in {2} on {3}": "在 {3} 上的 {2} 中\u201C{1}\u201D{0}插入内容",
+  "Successfully appended {0} bytes to {1}": "成功向 {1} 追加了 {0} 字节",
+  "Successfully inserted content {0} line {1} in {2}": "在 {2} 中第 {1} 行{0}成功插入了内容",
+  "Successfully replaced {0} occurrence(s) in {1}": "在 {1} 中成功替换了 {0} 处"
 }

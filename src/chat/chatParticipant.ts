@@ -42,23 +42,14 @@ export function registerChatParticipant(
             .join('\n');
 
         response.markdown(
-            vscode.l10n.t(
-                'I can help you work with your remote servers. Here are your configured connections:\n\n'
-            )
+            vscode.l10n.t('Connections:\n\n')
         );
-        response.markdown('```\n' + connectionInfo + '\n```\n\n');
+        response.markdown('```\n' + connectionInfo + '\n```\n');
         response.markdown(
-            vscode.l10n.t(
-                'You can ask me to list files, read/write files (with efficient partial line-range support and insert mode), search for content, find files by name, delete/rename/copy files, create directories, get file info, run commands, or query MySQL databases on any connected server. Use `listConnections` to discover available servers. Use the connection **name** when calling tools. Prefer partial reads and writes for large files. Use `runCommand` only when there is no dedicated file/database tool for the task.'
-            )
-        );
-        response.markdown(
-            '\n\n**Efficiency tips:**\n'
-            + '- Skip `statFile` before `readFile` — `readFile` returns a clear error if the file does not exist.\n'
-            + '- Use `searchFiles` to search file **contents**, use `findFiles` to search file **names**.\n'
-            + '- Use `readFile` with `startLine`/`endLine` for large files — only the requested lines travel over SSH.\n'
-            + '- Use `writeFile` with `startLine`/`endLine` to replace specific lines, or `mode=insert` to add new code.\n'
-            + '- Use `copyFile`, `renameFile`, `deleteFile` instead of `runCommand` with cp/mv/rm.\n'
+            '\n**Tips:**\n' +
+            '- To edit remote files, use `writeFile` with `search` + `content` (never rewrite entire files).\n' +
+            '- For MySQL auth errors, find credentials first: search config files (`configuration.php`, `wp-config.php`, `.env`) with `readFile`, then pass `user`/`password`/`host` to MySQL tools.\n' +
+            '- Never use local tools (`replace_string_in_file`, `multi_replace_string_in_file`, local grep/PowerShell) on remote files.\n'
         );
 
         return {};

@@ -5,10 +5,13 @@ import { BaseTool } from './baseTool';
 import * as shell from '../../utils/shellCommands';
 
 interface SearchFilesInput {
-    connectionName: string;
+    connectionName?: string;
     path: string;
     pattern: string;
     fileGlob?: string;
+    contextLines?: number;
+    maxResults?: number;
+    caseSensitive?: boolean;
 }
 
 /**
@@ -44,7 +47,10 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, path: remotePath, pattern, fileGlob } = options.input;
+        const { connectionName, path: remotePath, pattern, fileGlob, contextLines, maxResults, caseSensitive } = options.input;
+        const limit = maxResults ?? 100;
+        const ctx = contextLines ?? 0;
+        const isCaseSensitive = caseSensitive ?? false;
 
         const config = this._resolveConnection(connectionName);
         const adapter = await this._pool.getAdapter(config);
@@ -52,7 +58,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
         if (adapter.supportsExec && adapter.exec) {
             // Use grep over SSH for fast searching
             const os = config.os ?? 'linux';
-            const grepCommand = shell.grepSearch(pattern, remotePath, fileGlob, os);
+            const grepCommand = shell.grepSearch(pattern, remotePath, fileGlob, os, ctx, isCaseSensitive, limit);
 
             const result = await adapter.exec(grepCommand);
 
@@ -81,7 +87,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
             const results: string[] = [];
             let regex: RegExp;
             try {
-                regex = new RegExp(pattern, 'gi');
+                regex = new RegExp(pattern, isCaseSensitive ? 'g' : 'gi');
             } catch {
                 return new vscode.LanguageModelToolResult([
                     new vscode.LanguageModelTextPart(
@@ -90,7 +96,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                 ]);
             }
             let matchCount = 0;
-            const maxMatches = 50;
+            const maxMatches = Math.min(limit, 200);
 
             const globRegex = fileGlob
                 ? new RegExp(
@@ -148,7 +154,17 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
 
                         for (let i = 0; i < lines.length && matchCount < maxMatches; i++) {
                             if (regex.test(lines[i])) {
-                                results.push(`${fullPath}:${i + 1}:${lines[i].trim()}`);
+                                if (ctx > 0) {
+                                    // Include context lines
+                                    const ctxStart = Math.max(0, i - ctx);
+                                    const ctxEnd = Math.min(lines.length - 1, i + ctx);
+                                    for (let j = ctxStart; j <= ctxEnd; j++) {
+                                        results.push(`${fullPath}:${j + 1}:${lines[j].trimEnd()}`);
+                                    }
+                                    results.push('--');
+                                } else {
+                                    results.push(`${fullPath}:${i + 1}:${lines[i].trim()}`);
+                                }
                                 matchCount++;
                             }
                             regex.lastIndex = 0;

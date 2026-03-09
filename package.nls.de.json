@@ -13,6 +13,7 @@
   "command.deleteConnection.title": "Verbindung löschen",
   "command.connect.title": "Verbinden",
   "command.disconnect.title": "Trennen",
+  "command.clearDecorations.title": "Änderungsdekorationen löschen",
   "command.openWorkspace.title": "Als Arbeitsbereich öffnen",
   "command.openTerminal.title": "SSH-Terminal öffnen",
   "command.addFolder.title": "Ordner hinzufügen",
@@ -21,6 +22,9 @@
   "command.importSSH.title": "Aus SSH Config importieren",
   "command.importWinSCP.title": "Aus WinSCP importieren",
   "command.importSSHFS.title": "Aus SSH FS importieren",
+  "command.importFileZilla.title": "Aus FileZilla importieren",
+  "command.importPuTTY.title": "Aus PuTTY importieren",
+  "command.importTotalCmd.title": "Aus Total Commander importieren",
   "command.setMasterPassword.title": "Master-Passwort festlegen",
   "command.removeMasterPassword.title": "Master-Passwort entfernen",
   "command.refresh.title": "Aktualisieren",
@@ -37,6 +41,7 @@
   "config.security.useMasterPassword.description": "Gespeicherte Verbindungen mit einem Master-Passwort verschlüsseln",
   "config.security.masterPasswordTimeout.description": "Zeit in Minuten, bevor das Master-Passwort erneut eingegeben werden muss (0 = nie)",
   "config.watch.pollInterval.description": "Abfrageintervall für Dateisystem-Watcher (in Millisekunden)",
+  "config.ai.enabled.description": "KI-Tools aktivieren (Beta). Stellt dem KI-Agenten dedizierte Werkzeuge für Dateien, Datenbanken und Suche bereit. Standardmäßig deaktiviert — ohne diese Tools verwendet der Agent SSH-Befehle direkt über runCommand, was oft bessere Ergebnisse liefert. Erfordert Neustart.",
 
   "chat.participant.description": "Mit entfernten Servern arbeiten — Dateien auflisten, lesen, schreiben, löschen, Verzeichnisse erstellen, suchen und Befehle ausführen (SSH/SFTP/FTP)",
   "chat.command.connect.description": "Mit einem entfernten Server nach Name verbinden",
@@ -68,6 +73,11 @@
   "tool.findFiles.userDescription": "Sucht Dateien nach Namensmuster auf einem über Remote Bridge verbundenen entfernten Server",
   "tool.listConnections.displayName": "Verbindungen auflisten",
   "tool.listConnections.userDescription": "Zeigt alle gespeicherten entfernten Verbindungen mit ihrem Status an",
+
+  "tool.getChangedFiles.displayName": "Geänderte Dateien anzeigen",
+  "tool.getChangedFiles.userDescription": "Zeigt alle in dieser Sitzung geänderten Remote-Dateien an",
+  "tool.clearDecorations.displayName": "Änderungsdekorationen löschen",
+  "tool.clearDecorations.userDescription": "Setzt die Sitzungs-Änderungsverfolgung zurück und entfernt alle Abzeichen aus dem Explorer",
 
   "tool.mysqlQuery.displayName": "MySQL-Abfrage",
   "tool.mysqlQuery.userDescription": "Führt eine schreibgeschützte SQL-Abfrage auf einer MySQL/MariaDB-Datenbank über die Remote Bridge SSH-Verbindung aus",

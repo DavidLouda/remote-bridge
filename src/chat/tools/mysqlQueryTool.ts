@@ -8,9 +8,13 @@ import * as shell from '../../utils/shellCommands';
 const READ_ONLY_PREFIXES = /^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i;
 
 interface MysqlQueryInput {
-    connectionName: string;
+    connectionName?: string;
     query: string;
     database?: string;
+    maxRows?: number;
+    user?: string;
+    password?: string;
+    host?: string;
 }
 
 /**
@@ -31,11 +35,15 @@ export class MysqlQueryTool extends BaseTool implements vscode.LanguageModelTool
     ) {
         const connName = this._resolveConnectionName(options.input.connectionName);
         const dbInfo = options.input.database ? ` (${options.input.database})` : '';
+        const userInfo = options.input.user ? ` as ${options.input.user}` : '';
+        const pwInfo = options.input.password ? ' (password: ****)' : '';
         return {
             invocationMessage: vscode.l10n.t(
-                'Running SQL query on {0}{1}...',
+                'Running SQL query on {0}{1}{2}{3}...',
                 connName,
-                dbInfo
+                dbInfo,
+                userInfo,
+                pwInfo
             ),
         };
     }
@@ -46,7 +54,14 @@ export class MysqlQueryTool extends BaseTool implements vscode.LanguageModelTool
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, query, database } = options.input;
+        const { connectionName, query: rawQuery, database, maxRows, user, password, host } = options.input;
+
+        // Auto-add LIMIT if missing to prevent huge result sets
+        let query = rawQuery;
+        const limit = maxRows ?? 200;
+        if (READ_ONLY_PREFIXES.test(query) && !/\bLIMIT\b/i.test(query)) {
+            query = query.replace(/;?\s*$/, '') + ` LIMIT ${limit}`;
+        }
 
         // Validate that the query is read-only
         if (!READ_ONLY_PREFIXES.test(query)) {
@@ -77,7 +92,7 @@ export class MysqlQueryTool extends BaseTool implements vscode.LanguageModelTool
                 new vscode.LanguageModelTextPart(
                     vscode.l10n.t(
                         'MySQL queries require an SSH/SFTP connection. {0} uses {1}.',
-                        connectionName,
+                        config.name,
                         config.protocol.toUpperCase()
                     )
                 ),
@@ -87,7 +102,7 @@ export class MysqlQueryTool extends BaseTool implements vscode.LanguageModelTool
         // Use execWithStdin to pipe SQL via stdin — avoids shell escaping issues
         const dbArg = database ? ` '${database.replace(/'/g, "'\\''")}'` : '';
         const os = config.os ?? 'linux';
-        const cmd = shell.mysqlCmd(dbArg, os);
+        const cmd = shell.mysqlCmd(dbArg, os, user, password, host);
 
         const result = await adapter.execWithStdin(cmd, query);
 

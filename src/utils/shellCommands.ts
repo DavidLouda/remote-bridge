@@ -128,7 +128,10 @@ export function grepSearch(
     pattern: string,
     path: string,
     fileGlob: string | undefined,
-    os: RemoteOS = 'linux'
+    os: RemoteOS = 'linux',
+    contextLines: number = 0,
+    caseSensitive: boolean = false,
+    maxResults: number = 100
 ): string {
     const escapedPattern = os === 'windows'
         ? pattern
@@ -141,16 +144,86 @@ export function grepSearch(
         if (fileGlob) {
             cmd += ` -Filter '${fileGlob}'`;
         }
-        cmd += ` -File | Select-String -Pattern '${escapedPattern}' | Select-Object -First 100 | ForEach-Object { "$($_.Path):$($_.LineNumber):$($_.Line)" }`;
+        const csFlag = caseSensitive ? '-CaseSensitive ' : '';
+        const ctxFlag = contextLines > 0 ? `-Context ${contextLines},${contextLines} ` : '';
+        cmd += ` -File | Select-String ${csFlag}${ctxFlag}-Pattern '${escapedPattern}' | Select-Object -First ${maxResults}`;
+        if (contextLines > 0) {
+            cmd += ` | ForEach-Object { $_.ToString() }`;
+        } else {
+            cmd += ` | ForEach-Object { "$($_.Path):$($_.LineNumber):$($_.Line)" }`;
+        }
         return cmd;
     }
     // Linux & macOS
     let cmd = `grep -rn -I --color=never`;
+    if (!caseSensitive) {
+        cmd += ' -i';
+    }
+    if (contextLines > 0) {
+        cmd += ` -C ${contextLines}`;
+    }
     if (fileGlob) {
         cmd += ` --include='${fileGlob}'`;
     }
-    cmd += ` '${escapedPattern}' ${p} | head -n 100`;
+    cmd += ` '${escapedPattern}' ${p} | head -n ${maxResults}`;
     return cmd;
+}
+
+// ─── grep in single file (readFile search mode) ─────────────────────
+
+export function grepInFile(
+    pattern: string,
+    path: string,
+    contextLines: number = 3,
+    os: RemoteOS = 'linux'
+): string {
+    const escapedPattern = os === 'windows'
+        ? pattern
+        : pattern.replace(/'/g, "'\\''");
+    const p = esc(path, os);
+
+    if (os === 'windows') {
+        const ctxFlag = contextLines > 0 ? `-Context ${contextLines},${contextLines} ` : '';
+        return `$lines = Get-Content -LiteralPath ${p}; $lines.Count; Select-String -InputObject ($lines -join "\n") ${ctxFlag}-Pattern '${escapedPattern}' -AllMatches | ForEach-Object { $_.ToString() }`;
+    }
+    // Linux & macOS: line count + grep with context
+    let cmd = `_t=$(wc -l < ${p}) && echo "$_t" && grep -n -I --color=never`;
+    if (contextLines > 0) {
+        cmd += ` -C ${contextLines}`;
+    }
+    cmd += ` '${escapedPattern}' ${p}`;
+    return cmd;
+}
+
+// ─── tail (readFile tail mode) ──────────────────────────────────────
+
+export function tailRead(
+    path: string,
+    lines: number,
+    os: RemoteOS = 'linux'
+): string {
+    const p = esc(path, os);
+    if (os === 'windows') {
+        return `$lines = Get-Content -LiteralPath ${p}; $lines.Count; $lines | Select-Object -Last ${lines}`;
+    }
+    return `_t=$(wc -l < ${p}) && echo "$_t" && tail -n ${lines} ${p}`;
+}
+
+// ─── append (writeFile append mode) ─────────────────────────────────
+
+/**
+ * Build a command that appends stdin content to the end of a file.
+ * Expects the caller to pipe content via stdin (execWithStdin).
+ */
+export function writeAppend(
+    path: string,
+    os: RemoteOS = 'linux'
+): string {
+    const p = esc(path, os);
+    if (os === 'windows') {
+        return `$input | Add-Content -LiteralPath ${p}`;
+    }
+    return `cat >> ${p}`;
 }
 
 // ─── stat (permissions) ─────────────────────────────────────────────
@@ -191,15 +264,35 @@ export function findCmd(
     path: string,
     namePattern: string,
     limit: number,
-    os: RemoteOS = 'linux'
+    os: RemoteOS = 'linux',
+    type?: 'file' | 'directory',
+    excludePattern?: string
 ): string {
     const p = esc(path, os);
     if (os === 'windows') {
         const pat = namePattern.replace(/'/g, "''");
-        return `Get-ChildItem -LiteralPath ${p} -Recurse -Depth 10 -Filter '${pat}' -ErrorAction SilentlyContinue | Select-Object -First ${limit} -ExpandProperty FullName`;
+        let cmd = `Get-ChildItem -LiteralPath ${p} -Recurse -Depth 10 -Filter '${pat}' -ErrorAction SilentlyContinue`;
+        if (type === 'file') {
+            cmd += ' -File';
+        } else if (type === 'directory') {
+            cmd += ' -Directory';
+        }
+        cmd += ` | Select-Object -First ${limit} -ExpandProperty FullName`;
+        return cmd;
     }
     const escapedPattern = namePattern.replace(/'/g, "'\\''");
-    return `find ${p} -maxdepth 10 \\( -name .git -o -name node_modules -o -name .svn -o -name __pycache__ -o -name .DS_Store \\) -prune -o -name '${escapedPattern}' -print 2>/dev/null | head -n ${limit}`;
+    let pruneList = '\( -name .git -o -name node_modules -o -name .svn -o -name __pycache__ -o -name .DS_Store \) -prune';
+    if (excludePattern) {
+        const escapedExclude = excludePattern.replace(/'/g, "'\\''");
+        pruneList += ` -o -path '${escapedExclude}' -prune`;
+    }
+    let typeFilter = '';
+    if (type === 'file') {
+        typeFilter = ' -type f';
+    } else if (type === 'directory') {
+        typeFilter = ' -type d';
+    }
+    return `find ${p} -maxdepth 10 ${pruneList} -o${typeFilter} -name '${escapedPattern}' -print 2>/dev/null | head -n ${limit}`;
 }
 
 // ─── mysql ──────────────────────────────────────────────────────────
@@ -211,13 +304,31 @@ export function findCmd(
  * to avoid bash process-substitution dependency. Works across bash, zsh,
  * and Windows (Git Bash / PowerShell with mysql in PATH).
  */
-export function mysqlCmd(dbArg: string, _os: RemoteOS = 'linux'): string {
-    return `mysql --no-defaults${dbArg} 2>&1`;
+export function mysqlCmd(dbArg: string, _os: RemoteOS = 'linux', user?: string, password?: string, host?: string): string {
+    const auth = mysqlAuthArgs(user, host);
+    const prefix = mysqlPwdPrefix(password);
+    return `${prefix}mysql --no-defaults${auth}${dbArg} 2>&1`;
 }
 
 /**
  * Build a mysql -e "..." command for inline SQL.
  */
-export function mysqlExecInline(sql: string, dbArg: string, _os: RemoteOS = 'linux'): string {
-    return `mysql --no-defaults -e "${sql}"${dbArg} 2>&1`;
+export function mysqlExecInline(sql: string, dbArg: string, _os: RemoteOS = 'linux', user?: string, password?: string, host?: string): string {
+    const auth = mysqlAuthArgs(user, host);
+    const prefix = mysqlPwdPrefix(password);
+    return `${prefix}mysql --no-defaults${auth} -e "${sql}"${dbArg} 2>&1`;
+}
+
+/** Build -u user -h host args. */
+function mysqlAuthArgs(user?: string, host?: string): string {
+    let args = '';
+    if (user) { args += ` -u '${user.replace(/'/g, "'\\''")}'`; }
+    if (host) { args += ` -h '${host.replace(/'/g, "'\\''")}'`; }
+    return args;
+}
+
+/** Build MYSQL_PWD='...' prefix to pass password via env var (hidden from ps). */
+function mysqlPwdPrefix(password?: string): string {
+    if (!password) { return ''; }
+    return `MYSQL_PWD='${password.replace(/'/g, "'\\''")}' `;
 }
