@@ -184,6 +184,25 @@ export class SshAdapter implements RemoteAdapter {
         });
     }
 
+    async getUnixMode(remotePath: string): Promise<number | undefined> {
+        const sftp = this._requireSftp();
+        try {
+            const stats = await new Promise<{ mode?: number }>((resolve, reject) => {
+                sftp.stat(remotePath, (err, s) => err ? reject(err) : resolve(s));
+            });
+            return stats.mode !== undefined ? (stats.mode & 0o7777) : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    async chmod(remotePath: string, mode: number): Promise<void> {
+        const sftp = this._requireSftp();
+        return new Promise((resolve, reject) => {
+            sftp.chmod(remotePath, mode, (err) => err ? reject(this._mapSftpError(err, remotePath)) : resolve());
+        });
+    }
+
     async readDirectory(remotePath: string): Promise<RemoteFileInfo[]> {
         const sftp = this._requireSftp();
         return new Promise((resolve, reject) => {
@@ -253,8 +272,15 @@ export class SshAdapter implements RemoteAdapter {
             }
         }
 
+        // Preserve original permissions when overwriting an existing file.
+        // createWriteStream() without an explicit mode resets to server defaults
+        // (typically 0o666), ignoring the file's existing permissions.
+        const originalMode = await this.getUnixMode(remotePath);
+
         return new Promise((resolve, reject) => {
-            const stream = sftp.createWriteStream(remotePath);
+            const stream = originalMode !== undefined
+                ? sftp.createWriteStream(remotePath, { mode: originalMode })
+                : sftp.createWriteStream(remotePath);
             stream.on('close', () => {
                 this._tracker?.recordUpload(content.length);
                 resolve();

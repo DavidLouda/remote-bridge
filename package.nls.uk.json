@@ -7,6 +7,7 @@
   "view.activeSessions.name": "Активні сеанси",
 
   "welcome.noConnections": "Немає налаштованих з'єднань.\n[Додати з'єднання](command:remoteBridge.addConnection)\n[Імпортувати з'єднання](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "З'єднання заблоковано.\n[Розблокувати](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "Додати з'єднання",
   "command.editConnection.title": "Редагувати з'єднання",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "Імпортувати з PuTTY",
   "command.importTotalCmd.title": "Імпортувати з Total Commander",
   "command.setMasterPassword.title": "Встановити головний пароль",
+  "command.changeMasterPassword.title": "Змінити головний пароль",
+  "command.unlockMasterPassword.title": "Розблокувати з'єднання",
+  "command.lockMasterPassword.title": "Заблокувати з'єднання",
   "command.removeMasterPassword.title": "Видалити головний пароль",
+  "command.restoreBackup.title": "Відновити з резервної копії",
+  "command.createBackup.title": "Створити резервну копію",
   "command.refresh.title": "Оновити",
+  "command.moveToFolder.title": "Перемістити до теки",
   "command.duplicateConnection.title": "Дублювати з'єднання",
   "command.import.title": "Імпортувати з'єднання",
+  "command.exportConnections.title": "Експортувати з'єднання",
+  "command.syncNow.title": "Синхронізувати з'єднання зараз (Beta)",
   "command.showConnections.title": "Показати з'єднання",
 
   "submenu.import.label": "Імпорт",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "Максимальний розмір кешу вмісту файлів (в МБ)",
   "config.pool.idleTimeout.description": "Час у секундах до закриття неактивних з'єднань",
   "config.pool.maxConnections.description": "Максимальна кількість одночасних з'єднань",
-  "config.security.useMasterPassword.description": "Шифрувати збережені з'єднання головним паролем",
-  "config.security.masterPasswordTimeout.description": "Час у хвилинах до повторного запиту головного пароля (0 = ніколи)",
+  "config.security.syncConnections.description": "(Beta) Включає секрети до зашифрованого сховища, щоб з'єднання (включно з паролями) синхронізувалися між пристроями через синхронізацію налаштувань VS Code. Потрібне активне головний пароль. На всіх пристроях має бути встановлено однаковий головний пароль. Увага: ця функція може працювати ненадійно в деяких сценаріях і залежить від активної та правильно налаштованої синхронізації VS Code.",
   "config.watch.pollInterval.description": "Інтервал опитування для спостерігачів файлової системи (в мілісекундах)",
   "config.ai.enabled.description": "Увімкнути інструменти AI (бета). Надає AI-агенту спеціалізовані інструменти для файлів, баз даних та пошуку. Вимкнено за замовчуванням — без цих інструментів агент використовує SSH-команди безпосередньо через runCommand, що часто дає кращі результати. Потребує перезавантаження.",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "Виконання MySQL",
   "tool.mysqlExecute.userDescription": "Виконує SQL-інструкцію, що змінює дані, на базі даних MySQL/MariaDB через SSH-з'єднання Remote Bridge",
   "tool.mysqlSchema.displayName": "Схема MySQL",
-  "tool.mysqlSchema.userDescription": "Перевіряє схему бази даних MySQL/MariaDB (бази даних, таблиці, стовпці) через SSH-з'єднання Remote Bridge"
+  "tool.mysqlSchema.userDescription": "Перевіряє схему бази даних MySQL/MariaDB (бази даних, таблиці, стовпці) через SSH-з'єднання Remote Bridge",
+
+  "walkthrough.title": "Початок роботи з Remote Bridge",
+  "walkthrough.description": "Підключайтеся до віддалених серверів через SSH, SFTP, FTP і FTPS — та використовуйте кожну функцію на повну.",
+  "walkthrough.step.addConnection.title": "Додайте перше з'єднання",
+  "walkthrough.step.addConnection.description": "Відкрийте форму, щоб налаштувати перше SSH-, SFTP-, FTP- або FTPS-з'єднання.\n[Додати з'єднання](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "Захист головним паролем",
+  "walkthrough.step.masterPassword.description": "Увімкніть шифрування головним паролем для захисту всіх з'єднань за допомогою AES-256-GCM. Ви також отримаєте автоматичні зашифровані резервні копії (7 щоденних + 4 щотижневих) та синхронізацію між пристроями.\n[Встановити головний пароль](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "Синхронізація між пристроями (Beta)",
+  "walkthrough.step.sync.description": "Увімкніть синхронізацію, щоб ділитися з'єднаннями — включно з паролями — на всіх пристроях через VS Code Settings Sync. З'єднання об'єднуються автоматично.\n[Відкрити налаштування синхронізації](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "Імпорт наявних з'єднань",
+  "walkthrough.step.import.description": "Вже використовуєте інший клієнт? Імпортуйте з'єднання з SSH Config, WinSCP, FileZilla, PuTTY, SSH FS або Total Commander за один крок.\n[Імпортувати з'єднання](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.uk.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.uk.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.uk.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.uk.md"
 }

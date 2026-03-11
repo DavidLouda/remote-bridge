@@ -7,6 +7,7 @@
   "view.activeSessions.name": "Aktywne sesje",
 
   "welcome.noConnections": "Brak skonfigurowanych połączeń.\n[Dodaj połączenie](command:remoteBridge.addConnection)\n[Importuj połączenia](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "Połączenia są zablokowane.\n[Odblokuj](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "Dodaj połączenie",
   "command.editConnection.title": "Edytuj połączenie",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "Importuj z PuTTY",
   "command.importTotalCmd.title": "Importuj z Total Commandera",
   "command.setMasterPassword.title": "Ustaw hasło główne",
+  "command.changeMasterPassword.title": "Zmień hasło główne",
+  "command.unlockMasterPassword.title": "Odblokuj połączenia",
+  "command.lockMasterPassword.title": "Zablokuj połączenia",
   "command.removeMasterPassword.title": "Usuń hasło główne",
+  "command.restoreBackup.title": "Przywróć z kopii zapasowej",
+  "command.createBackup.title": "Utwórz kopię zapasową",
   "command.refresh.title": "Odśwież",
+  "command.moveToFolder.title": "Przenieś do folderu",
   "command.duplicateConnection.title": "Duplikuj połączenie",
   "command.import.title": "Importuj połączenia",
+  "command.exportConnections.title": "Eksportuj połączenia",
+  "command.syncNow.title": "Synchronizuj połączenia teraz (Beta)",
   "command.showConnections.title": "Pokaż połączenia",
 
   "submenu.import.label": "Import",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "Maksymalny rozmiar pamięci podręcznej zawartości plików (w MB)",
   "config.pool.idleTimeout.description": "Czas w sekundach przed zamknięciem nieaktywnych połączeń",
   "config.pool.maxConnections.description": "Maksymalna liczba jednoczesnych połączeń",
-  "config.security.useMasterPassword.description": "Szyfruj zapisane połączenia hasłem głównym",
-  "config.security.masterPasswordTimeout.description": "Czas w minutach przed ponownym wymaganiem hasła głównego (0 = nigdy)",
+  "config.security.syncConnections.description": "(Beta) Dołącza dane uwierzytelniające do zaszyfrowanego magazynu, aby połączenia (w tym hasła) były synchronizowane między urządzeniami przez funkcję synchronizacji ustawień VS Code. Wymaga włączonego szyfrowania hasłem głównym. Na wszystkich urządzeniach musi być ustawione to samo hasło główne. Uwaga: ta funkcja może nie działać niezawodnie we wszystkich scenariuszach i zależy od aktywnej i poprawnie działającej synchronizacji VS Code.",
   "config.watch.pollInterval.description": "Interwał odpytywania dla obserwatorów systemu plików (w milisekundach)",
   "config.ai.enabled.description": "Włącz narzędzia AI (beta). Udostępnia agentowi AI dedykowane narzędzia do plików, baz danych i wyszukiwania. Domyślnie wyłączone — bez tych narzędzi agent używa poleceń SSH bezpośrednio przez runCommand, co często daje lepsze wyniki. Wymaga ponownego załadowania.",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "Wykonanie MySQL",
   "tool.mysqlExecute.userDescription": "Wykonuje instrukcję SQL modyfikującą dane na bazie danych MySQL/MariaDB przez połączenie SSH Remote Bridge",
   "tool.mysqlSchema.displayName": "Schemat MySQL",
-  "tool.mysqlSchema.userDescription": "Inspektuje schemat bazy danych MySQL/MariaDB (bazy danych, tabele, kolumny) przez połączenie SSH Remote Bridge"
+  "tool.mysqlSchema.userDescription": "Inspektuje schemat bazy danych MySQL/MariaDB (bazy danych, tabele, kolumny) przez połączenie SSH Remote Bridge",
+
+  "walkthrough.title": "Pierwsze kroki z Remote Bridge",
+  "walkthrough.description": "Łącz się ze zdalnymi serwerami przez SSH, SFTP, FTP i FTPS – i korzystaj z każdej funkcji w pełni.",
+  "walkthrough.step.addConnection.title": "Dodaj pierwsze połączenie",
+  "walkthrough.step.addConnection.description": "Otwórz formularz, aby skonfigurować swoje pierwsze połączenie SSH, SFTP, FTP lub FTPS.\n[Dodaj połączenie](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "Chroń hasłem głównym",
+  "walkthrough.step.masterPassword.description": "Włącz szyfrowanie hasłem głównym, aby zabezpieczyć wszystkie połączenia za pomocą AES-256-GCM. Zyskasz również automatyczne zaszyfrowane kopie zapasowe (7 dziennych + 4 tygodniowe) oraz synchronizację między urządzeniami.\n[Ustaw hasło główne](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "Synchronizacja między urządzeniami (Beta)",
+  "walkthrough.step.sync.description": "Włącz synchronizację, aby udostępniać połączenia – w tym hasła – na wszystkich urządzeniach przez VS Code Settings Sync. Połączenia są łączone automatycznie.\n[Otwórz ustawienie synchronizacji](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "Importuj istniejące połączenia",
+  "walkthrough.step.import.description": "Używasz już innego klienta? Zaimportuj połączenia z SSH Config, WinSCP, FileZilla, PuTTY, SSH FS lub Total Commander w jednym kroku.\n[Importuj połączenia](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.pl.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.pl.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.pl.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.pl.md"
 }

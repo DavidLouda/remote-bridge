@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
@@ -71,7 +71,13 @@
     "viewsWelcome": [
       {
         "view": "remoteBridge.connections",
-        "contents": "%welcome.noConnections%"
+        "contents": "%welcome.noConnections%",
+        "when": "!remoteBridge.encryptionEnabled || remoteBridge.encryptionUnlocked"
+      },
+      {
+        "view": "remoteBridge.connections",
+        "contents": "%welcome.connectionsLocked%",
+        "when": "remoteBridge.encryptionEnabled && !remoteBridge.encryptionUnlocked"
       }
     ],
     "commands": [
@@ -184,9 +190,39 @@
         "category": "Remote Bridge"
       },
       {
+        "command": "remoteBridge.changeMasterPassword",
+        "title": "%command.changeMasterPassword.title%",
+        "icon": "$(key)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.unlockMasterPassword",
+        "title": "%command.unlockMasterPassword.title%",
+        "icon": "$(unlock)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.lockMasterPassword",
+        "title": "%command.lockMasterPassword.title%",
+        "icon": "$(lock)",
+        "category": "Remote Bridge"
+      },
+      {
         "command": "remoteBridge.removeMasterPassword",
         "title": "%command.removeMasterPassword.title%",
-        "icon": "$(unlock)",
+        "icon": "$(trash)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.restoreBackup",
+        "title": "%command.restoreBackup.title%",
+        "icon": "$(history)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.createBackup",
+        "title": "%command.createBackup.title%",
+        "icon": "$(archive)",
         "category": "Remote Bridge"
       },
       {
@@ -211,6 +247,18 @@
         "command": "remoteBridge.import",
         "title": "%command.import.title%",
         "icon": "$(cloud-download)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.exportConnections",
+        "title": "%command.exportConnections.title%",
+        "icon": "$(cloud-upload)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.syncNow",
+        "title": "%command.syncNow.title%",
+        "icon": "$(sync)",
         "category": "Remote Bridge"
       },
       {
@@ -243,14 +291,44 @@
           "group": "overflow@1"
         },
         {
-          "command": "remoteBridge.setMasterPassword",
+          "command": "remoteBridge.exportConnections",
           "when": "view == remoteBridge.connections",
           "group": "overflow@2"
         },
         {
-          "command": "remoteBridge.removeMasterPassword",
-          "when": "view == remoteBridge.connections",
+          "command": "remoteBridge.syncNow",
+          "when": "view == remoteBridge.connections && config.remoteBridge.security.syncConnections",
           "group": "overflow@3"
+        },
+        {
+          "command": "remoteBridge.setMasterPassword",
+          "when": "view == remoteBridge.connections && !remoteBridge.encryptionEnabled",
+          "group": "overflow@4"
+        },
+        {
+          "command": "remoteBridge.changeMasterPassword",
+          "when": "view == remoteBridge.connections && remoteBridge.encryptionEnabled",
+          "group": "overflow@4"
+        },
+        {
+          "command": "remoteBridge.lockMasterPassword",
+          "when": "view == remoteBridge.connections && remoteBridge.encryptionEnabled && remoteBridge.encryptionUnlocked",
+          "group": "overflow@5"
+        },
+        {
+          "command": "remoteBridge.removeMasterPassword",
+          "when": "view == remoteBridge.connections && remoteBridge.encryptionEnabled",
+          "group": "overflow@6"
+        },
+        {
+          "command": "remoteBridge.restoreBackup",
+          "when": "view == remoteBridge.connections",
+          "group": "overflow@6"
+        },
+        {
+          "command": "remoteBridge.createBackup",
+          "when": "view == remoteBridge.connections",
+          "group": "overflow@7"
         }
       ],
       "view/item/context": [
@@ -352,6 +430,18 @@
         {
           "command": "remoteBridge.importTotalCmd",
           "when": "false"
+        },
+        {
+          "command": "remoteBridge.unlockMasterPassword",
+          "when": "remoteBridge.encryptionEnabled && !remoteBridge.encryptionUnlocked"
+        },
+        {
+          "command": "remoteBridge.lockMasterPassword",
+          "when": "remoteBridge.encryptionEnabled && remoteBridge.encryptionUnlocked"
+        },
+        {
+          "command": "remoteBridge.changeMasterPassword",
+          "when": "remoteBridge.encryptionEnabled"
         }
       ]
     },
@@ -392,17 +482,10 @@
           "maximum": 50,
           "description": "%config.pool.maxConnections.description%"
         },
-        "remoteBridge.security.useMasterPassword": {
+        "remoteBridge.security.syncConnections": {
           "type": "boolean",
           "default": false,
-          "description": "%config.security.useMasterPassword.description%"
-        },
-        "remoteBridge.security.masterPasswordTimeout": {
-          "type": "number",
-          "default": 30,
-          "minimum": 1,
-          "maximum": 1440,
-          "description": "%config.security.masterPasswordTimeout.description%"
+          "description": "%config.security.syncConnections.description%"
         },
         "remoteBridge.watch.pollInterval": {
           "type": "number",
@@ -1032,6 +1115,59 @@
           "properties": {},
           "required": []
         }
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "remoteBridge.getStarted",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
+        "steps": [
+          {
+            "id": "addConnection",
+            "title": "%walkthrough.step.addConnection.title%",
+            "description": "%walkthrough.step.addConnection.description%",
+            "media": {
+              "markdown": "%walkthrough.step.addConnection.media%"
+            },
+            "completionEvents": [
+              "onCommand:remoteBridge.addConnection"
+            ]
+          },
+          {
+            "id": "masterPassword",
+            "title": "%walkthrough.step.masterPassword.title%",
+            "description": "%walkthrough.step.masterPassword.description%",
+            "media": {
+              "markdown": "%walkthrough.step.masterPassword.media%"
+            },
+            "completionEvents": [
+              "onCommand:remoteBridge.setMasterPassword"
+            ]
+          },
+          {
+            "id": "syncDevices",
+            "title": "%walkthrough.step.sync.title%",
+            "description": "%walkthrough.step.sync.description%",
+            "media": {
+              "markdown": "%walkthrough.step.sync.media%"
+            },
+            "completionEvents": [
+              "onSettingChanged:remoteBridge.security.syncConnections"
+            ]
+          },
+          {
+            "id": "import",
+            "title": "%walkthrough.step.import.title%",
+            "description": "%walkthrough.step.import.description%",
+            "media": {
+              "markdown": "%walkthrough.step.import.media%"
+            },
+            "completionEvents": [
+              "onCommand:remoteBridge.import"
+            ]
+          }
+        ]
       }
     ]
   },

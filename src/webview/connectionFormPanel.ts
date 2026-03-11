@@ -363,6 +363,9 @@ export class ConnectionFormPanel {
         // FTP-specific
         if (protocol === 'ftp' || protocol === 'ftps') {
             config.secure = !!data.secure;
+            if (data.allowSelfSigned) {
+                config.allowSelfSigned = true;
+            }
         }
 
         // Operating system
@@ -429,6 +432,8 @@ export class ConnectionFormPanel {
             labelRemotePath: vscode.l10n.t('Remote Path'),
             labelKeepalive: vscode.l10n.t('Keep-alive Interval (seconds)'),
             labelSecure: vscode.l10n.t('Use TLS (FTPS)'),
+            labelAllowSelfSigned: vscode.l10n.t('Allow self-signed TLS certificates'),
+            hintAllowSelfSigned: vscode.l10n.t('Disable certificate verification. Use only for servers with self-signed certificates.'),
             labelUseProxy: vscode.l10n.t('Use Proxy'),
             labelProxyType: vscode.l10n.t('Proxy Type'),
             labelProxyHost: vscode.l10n.t('Proxy Host'),
@@ -491,6 +496,8 @@ export class ConnectionFormPanel {
             labelRemotePath: escapeHtml(vscode.l10n.t('Remote Path')),
             labelKeepalive: escapeHtml(vscode.l10n.t('Keep-alive Interval (seconds)')),
             labelSecure: escapeHtml(vscode.l10n.t('Use TLS (FTPS)')),
+            labelAllowSelfSigned: escapeHtml(vscode.l10n.t('Allow self-signed TLS certificates')),
+            hintAllowSelfSigned: escapeHtml(vscode.l10n.t('Disable certificate verification. Use only for servers with self-signed certificates.')),
             labelUseProxy: escapeHtml(vscode.l10n.t('Use Proxy')),
             labelProxyType: escapeHtml(vscode.l10n.t('Proxy Type')),
             labelProxyHost: escapeHtml(vscode.l10n.t('Proxy Host')),
@@ -679,6 +686,13 @@ export class ConnectionFormPanel {
         <div id="secureSection" class="form-group checkbox-group hidden">
             <input type="checkbox" id="secure">
             <label id="labelSecure" for="secure">${s.labelSecure}</label>
+        </div>
+
+        <!-- FTP-only: Allow self-signed TLS certificates -->
+        <div id="allowSelfSignedSection" class="form-group checkbox-group hidden">
+            <input type="checkbox" id="allowSelfSigned">
+            <label id="labelAllowSelfSigned" for="allowSelfSigned">${s.labelAllowSelfSigned}</label>
+            <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintAllowSelfSigned">${s.hintAllowSelfSigned}</div>
         </div>
 
         <!-- Proxy (hidden — not yet implemented) -->

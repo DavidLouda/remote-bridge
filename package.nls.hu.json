@@ -7,6 +7,7 @@
   "view.activeSessions.name": "Aktív munkamenetek",
 
   "welcome.noConnections": "Nincsenek beállított kapcsolatok.\n[Kapcsolat hozzáadása](command:remoteBridge.addConnection)\n[Kapcsolatok importálása](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "A kapcsolatok zárolva vannak.\n[Feloldás](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "Kapcsolat hozzáadása",
   "command.editConnection.title": "Kapcsolat szerkesztése",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "Importálás PuTTY-ból",
   "command.importTotalCmd.title": "Importálás Total Commanderből",
   "command.setMasterPassword.title": "Mesterjelszó beállítása",
+  "command.changeMasterPassword.title": "Mesterjelszó megváltoztatása",
+  "command.unlockMasterPassword.title": "Kapcsolatok feloldása",
+  "command.lockMasterPassword.title": "Kapcsolatok zárolása",
   "command.removeMasterPassword.title": "Mesterjelszó eltávolítása",
+  "command.restoreBackup.title": "Visszaállítás biztonsági mentésből",
+  "command.createBackup.title": "Biztonsági mentés létrehozása",
   "command.refresh.title": "Frissítés",
+  "command.moveToFolder.title": "Áthelyezés mappába",
   "command.duplicateConnection.title": "Kapcsolat másolása",
   "command.import.title": "Kapcsolatok importálása",
+  "command.exportConnections.title": "Kapcsolatok exportálása",
+  "command.syncNow.title": "Kapcsolatok szinkronizálása most (Beta)",
   "command.showConnections.title": "Kapcsolatok megjelenítése",
 
   "submenu.import.label": "Importálás",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "A fájltartalom-gyorsítótár maximális mérete (MB)",
   "config.pool.idleTimeout.description": "Tétlen kapcsolatok lezárásáig eltelt idő (másodpercben)",
   "config.pool.maxConnections.description": "Egyidejű kapcsolatok maximális száma",
-  "config.security.useMasterPassword.description": "Mentett kapcsolatok titkosítása mesterjelszóval",
-  "config.security.masterPasswordTimeout.description": "Mesterjelszó újbóli kérése ennyi perc elteltével (0 = soha)",
+  "config.security.syncConnections.description": "(Beta) A titkokat a titkosított tárolóba csomagolja, hogy a kapcsolatok (beleértve a jelszavakat is) szinkronizálódjanak az eszközök között a VS Code Beállítások Sync segítségével. Mesterjelszavó titkosítás szükséges. Mindkét eszközön ugyanazt a mesterjelszavót kell beállítani. Megjegyzés: Ez a funkció nem mindig működik megbízhatóan és függ a VS Code szinkronizációjánától.",
   "config.watch.pollInterval.description": "Fájlrendszer-figyelők lekérdezési időköze (milliszekundumban)",
   "config.ai.enabled.description": "AI-eszközök engedélyezése (béta). Dedikált fájl-, adatbázis- és keresőeszközöket biztosít az AI-ügynöknek. Alapértelmezés szerint letiltva — e nélkül az ügynök SSH-parancsokat használ közvetlenül a runCommand-on keresztül, ami gyakran jobb eredményeket ad. Újraindítást igényel.",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "MySQL végrehajtás",
   "tool.mysqlExecute.userDescription": "Adatmódosító SQL-utasítás végrehajtása MySQL/MariaDB adatbázison SSH Remote Bridge kapcsolaton keresztül",
   "tool.mysqlSchema.displayName": "MySQL séma",
-  "tool.mysqlSchema.userDescription": "MySQL/MariaDB adatbázis-séma vizsgálata (adatbázisok, táblák, oszlopok) SSH Remote Bridge kapcsolaton keresztül"
+  "tool.mysqlSchema.userDescription": "MySQL/MariaDB adatbázis-séma vizsgálata (adatbázisok, táblák, oszlopok) SSH Remote Bridge kapcsolaton keresztül",
+
+  "walkthrough.title": "Ismerkedés a Remote Bridge-dzsel",
+  "walkthrough.description": "Csatlakozzon távoli szerverekhez SSH, SFTP, FTP és FTPS protokollon – és aknázza ki az összes funkciót.",
+  "walkthrough.step.addConnection.title": "Első kapcsolat hozzáadása",
+  "walkthrough.step.addConnection.description": "Nyissa meg az űrlapot az első SSH-, SFTP-, FTP- vagy FTPS-kapcsolat beállításához.\n[Kapcsolat hozzáadása](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "Védelem mesterjelszóval",
+  "walkthrough.step.masterPassword.description": "Engedélyezze a mesterjelszavas titkosítást az összes kapcsolat AES-256-GCM védelméhez. Automatikus titkosított biztonsági mentéseket is kap (7 napi + 4 heti), és szinkronizálhatja a kapcsolatokat eszközök között.\n[Mesterjelszó beállítása](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "Szinkronizálás eszközök között (Beta)",
+  "walkthrough.step.sync.description": "Kapcsolja be a szinkronizálást, hogy megossza kapcsolatait – jelszavakkal együtt – minden eszközén a VS Code Settings Sync segítségével. A kapcsolatok automatikusan összevonódnak.\n[Szinkronizálási beállítás megnyitása](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "Meglévő kapcsolatok importálása",
+  "walkthrough.step.import.description": "Már használ más klienst? Importálja a kapcsolatokat SSH Config, WinSCP, FileZilla, PuTTY, SSH FS vagy Total Commander forrásból egy lépésben.\n[Kapcsolatok importálása](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.hu.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.hu.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.hu.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.hu.md"
 }

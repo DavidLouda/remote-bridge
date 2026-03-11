@@ -94,8 +94,14 @@ export class CopyFileTool extends BaseTool implements vscode.LanguageModelTool<C
                     }
                     await this._copyDirectoryFtp(adapter, sourcePath, destinationPath);
                 } else {
+                    const sourceMode = adapter.getUnixMode
+                        ? await adapter.getUnixMode(sourcePath)
+                        : undefined;
                     const content = await adapter.readFile(sourcePath);
                     await adapter.writeFile(destinationPath, content, { create: true, overwrite: true });
+                    if (sourceMode !== undefined && adapter.chmod) {
+                        await adapter.chmod(destinationPath, sourceMode);
+                    }
                 }
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
@@ -137,8 +143,14 @@ export class CopyFileTool extends BaseTool implements vscode.LanguageModelTool<C
             if (entry.type === vscode.FileType.Directory) {
                 await this._copyDirectoryFtp(adapter, srcPath, dstPath);
             } else {
+                const srcMode = adapter.getUnixMode
+                    ? await adapter.getUnixMode(srcPath)
+                    : undefined;
                 const content = await adapter.readFile(srcPath);
                 await adapter.writeFile(dstPath, content, { create: true, overwrite: true });
+                if (srcMode !== undefined && adapter.chmod) {
+                    await adapter.chmod(dstPath, srcMode);
+                }
             }
         }
     }

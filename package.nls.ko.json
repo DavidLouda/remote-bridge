@@ -7,6 +7,7 @@
   "view.activeSessions.name": "활성 세션",
 
   "welcome.noConnections": "구성된 연결이 없습니다.\n[연결 추가](command:remoteBridge.addConnection)\n[연결 가져오기](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "연결이 잠겨 있습니다.\n[잠금 해제](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "연결 추가",
   "command.editConnection.title": "연결 편집",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "PuTTY에서 가져오기",
   "command.importTotalCmd.title": "Total Commander에서 가져오기",
   "command.setMasterPassword.title": "마스터 비밀번호 설정",
+  "command.changeMasterPassword.title": "마스터 비밀번호 변경",
+  "command.unlockMasterPassword.title": "연결 잠금 해제",
+  "command.lockMasterPassword.title": "연결 잠금",
   "command.removeMasterPassword.title": "마스터 비밀번호 제거",
+  "command.restoreBackup.title": "백업에서 복원",
+  "command.createBackup.title": "백업 만들기",
   "command.refresh.title": "새로 고침",
+  "command.moveToFolder.title": "폴더로 이동",
   "command.duplicateConnection.title": "연결 복제",
   "command.import.title": "연결 가져오기",
+  "command.exportConnections.title": "연결 내보내기",
+  "command.syncNow.title": "지금 연결 동기화 (Beta)",
   "command.showConnections.title": "연결 표시",
 
   "submenu.import.label": "가져오기",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "파일 콘텐츠 캐시의 최대 크기(MB)",
   "config.pool.idleTimeout.description": "유휴 연결이 닫히기 전 시간(초)",
   "config.pool.maxConnections.description": "최대 동시 연결 수",
-  "config.security.useMasterPassword.description": "마스터 비밀번호로 저장된 연결 암호화",
-  "config.security.masterPasswordTimeout.description": "마스터 비밀번호 재입력까지의 시간(분, 0 = 사용 안 함)",
+  "config.security.syncConnections.description": "비밀번호를 암호화된 저장소에 포함하여 VS Code 설정 동기화를 통해 연결(비밀번호 포함)을 여러 장치에서 동기화합니다. 마스터 비밀번호 암호화가 활성화되어 있어야 합니다. 모든 장치에 동일한 마스터 비밀번호를 설정해야 합니다.",
   "config.watch.pollInterval.description": "파일 시스템 감시기의 폴링 간격(밀리초)",
   "config.ai.enabled.description": "AI 도구 활성화(베타). AI 에이전트에 전용 파일, 데이터베이스 및 검색 도구를 제공합니다. 기본적으로 비활성화 — 이 도구 없이 에이전트는 runCommand를 통해 SSH 명령을 직접 사용하며, 이 방법이 종종 더 나은 결과를 제공합니다. 다시 로드가 필요합니다.",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "MySQL 실행",
   "tool.mysqlExecute.userDescription": "Remote Bridge SSH 연결을 통해 MySQL/MariaDB 데이터베이스에서 데이터 수정 SQL 문을 실행합니다",
   "tool.mysqlSchema.displayName": "MySQL 스키마",
-  "tool.mysqlSchema.userDescription": "Remote Bridge SSH 연결을 통해 MySQL/MariaDB 데이터베이스 스키마(데이터베이스, 테이블, 열)를 검사합니다"
+  "tool.mysqlSchema.userDescription": "Remote Bridge SSH 연결을 통해 MySQL/MariaDB 데이터베이스 스키마(데이터베이스, 테이블, 열)를 검사합니다",
+
+  "walkthrough.title": "Remote Bridge 시작하기",
+  "walkthrough.description": "SSH, SFTP, FTP, FTPS로 원격 서버에 연결하고 모든 기능을 최대한 활용하세요.",
+  "walkthrough.step.addConnection.title": "첫 번째 연결 추가",
+  "walkthrough.step.addConnection.description": "양식을 열고 첫 번째 SSH, SFTP, FTP 또는 FTPS 연결을 설정하세요.\n[연결 추가](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "마스터 비밀번호로 보호",
+  "walkthrough.step.masterPassword.description": "마스터 비밀번호 암호화를 활성화하여 AES-256-GCM으로 모든 연결을 보호하세요. 자동 암호화 백업(일별 7개 + 주별 4개)과 장치 간 동기화도 이용할 수 있습니다.\n[마스터 비밀번호 설정](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "장치 간 동기화 (Beta)",
+  "walkthrough.step.sync.description": "동기화를 활성화하면 VS Code Settings Sync를 통해 비밀번호를 포함한 연결 정보를 모든 장치에서 공유할 수 있습니다. 연결은 자동으로 병합됩니다.\n[동기화 설정 열기](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "기존 연결 가져오기",
+  "walkthrough.step.import.description": "다른 클라이언트를 사용하고 계신가요? SSH Config, WinSCP, FileZilla, PuTTY, SSH FS 또는 Total Commander에서 한 번에 연결을 가져오세요.\n[연결 가져오기](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.ko.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.ko.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.ko.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.ko.md"
 }

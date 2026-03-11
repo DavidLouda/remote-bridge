@@ -63,4 +63,12 @@ export interface RemoteAdapter extends vscode.Disposable {
 
     /** Whether this adapter supports interactive shell. */
     readonly supportsShell: boolean;
+
+    // ─── Optional Unix Permission Operations ─────────────────────
+
+    /** Get Unix file mode bits (e.g. 0o644). Returns undefined if not supported or file not found. */
+    getUnixMode?(remotePath: string): Promise<number | undefined>;
+
+    /** Set Unix file mode bits. Silently no-ops if not supported by the protocol. */
+    chmod?(remotePath: string, mode: number): Promise<void>;
 }

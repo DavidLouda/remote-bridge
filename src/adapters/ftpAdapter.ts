@@ -64,7 +64,7 @@ export class FtpAdapter implements RemoteAdapter {
                 user: this._config.username,
                 password: password || '',
                 secure: isSecure,
-                ...(isSecure ? { secureOptions: { rejectUnauthorized: false } } : {}),
+                ...(isSecure ? { secureOptions: { rejectUnauthorized: !this._config.allowSelfSigned } } : {}),
             });
 
             this._client = client;
@@ -236,6 +236,11 @@ export class FtpAdapter implements RemoteAdapter {
                 }
             }
 
+            // Preserve original permissions when overwriting an existing file.
+            // uploadFrom() resets permissions to server defaults; restore them
+            // via SITE CHMOD after the upload if the server supports it.
+            const originalMode = await this._getUnixModeRaw(client, remotePath);
+
             // Auto-create parent directories (FTP doesn't do this implicitly)
             const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
             if (parentDir !== '/') {
@@ -246,6 +251,11 @@ export class FtpAdapter implements RemoteAdapter {
             const readable = Readable.from(Buffer.from(content));
             await client.uploadFrom(readable, remotePath);
             this._tracker?.recordUpload(content.length);
+
+            if (originalMode !== undefined) {
+                const modeStr = originalMode.toString(8).padStart(3, '0');
+                await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+            }
         });
     }
 
@@ -299,6 +309,17 @@ export class FtpAdapter implements RemoteAdapter {
 
     // ─── Not Supported ──────────────────────────────────────────
 
+    async getUnixMode(remotePath: string): Promise<number | undefined> {
+        return this._enqueue((client) => this._getUnixModeRaw(client, remotePath));
+    }
+
+    async chmod(remotePath: string, mode: number): Promise<void> {
+        return this._enqueue(async (client) => {
+            const modeStr = mode.toString(8).padStart(3, '0');
+            await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+        });
+    }
+
     async exec(_command: string): Promise<ExecResult> {
         throw new Error(vscode.l10n.t('Command execution is not supported over FTP'));
     }
@@ -349,6 +370,23 @@ export class FtpAdapter implements RemoteAdapter {
             return true;
         } catch {
             return false;
+        }
+    }
+
+    /** Get Unix mode bits from a directory listing, without going through the queue. */
+    private async _getUnixModeRaw(client: FTPClient, remotePath: string): Promise<number | undefined> {
+        try {
+            const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
+            const fileName = remotePath.substring(remotePath.lastIndexOf('/') + 1);
+            const entries = await client.list(parentDir);
+            const entry = entries.find(e => e.name === fileName);
+            if (!entry?.permissions) {
+                return undefined;
+            }
+            const { user, group, world } = entry.permissions;
+            return (user << 6) | (group << 3) | world;
+        } catch {
+            return undefined;
         }
     }
 

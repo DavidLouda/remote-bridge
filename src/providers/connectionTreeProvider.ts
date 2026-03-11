@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
+import { EncryptionService } from '../services/encryptionService';
 import {
     ConnectionConfig,
     ConnectionFolder,
@@ -73,12 +74,15 @@ export class ConnectionTreeProvider
 
     constructor(
         private readonly _connectionManager: ConnectionManager,
-        private readonly _pool: ConnectionPool
+        private readonly _pool: ConnectionPool,
+        private readonly _encryptionService: EncryptionService
     ) {
         // Refresh tree when connections change
         this._disposables.push(
             this._connectionManager.onDidChange(() => this.refresh()),
-            this._pool.onDidChangeStatus(() => this.refresh())
+            this._pool.onDidChangeStatus(() => this.refresh()),
+            this._encryptionService.onDidLock(() => this.refresh()),
+            this._encryptionService.onDidUnlock(() => this.refresh())
         );
     }
 
@@ -98,6 +102,12 @@ export class ConnectionTreeProvider
     // ─── getChildren ────────────────────────────────────────────
 
     getChildren(element?: TreeNode): TreeNode[] {
+        // When the store is locked, return nothing — VS Code will show the
+        // "connectionsLocked" welcome view with an inline Unlock link.
+        if (this._encryptionService.isEnabled() && !this._encryptionService.isUnlocked()) {
+            return [];
+        }
+
         const parentId = element?.type === 'folder' ? element.folder.id : undefined;
 
         // Get folders at this level

@@ -7,6 +7,7 @@
   "view.activeSessions.name": "活动会话",
 
   "welcome.noConnections": "未配置连接。\n[添加连接](command:remoteBridge.addConnection)\n[导入连接](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "连接已锁定。\n[解锁](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "添加连接",
   "command.editConnection.title": "编辑连接",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "从 PuTTY 导入",
   "command.importTotalCmd.title": "从 Total Commander 导入",
   "command.setMasterPassword.title": "设置主密码",
+  "command.changeMasterPassword.title": "更改主密码",
+  "command.unlockMasterPassword.title": "解锁连接",
+  "command.lockMasterPassword.title": "锁定连接",
   "command.removeMasterPassword.title": "移除主密码",
+  "command.restoreBackup.title": "从备份恢复",
+  "command.createBackup.title": "创建备份",
   "command.refresh.title": "刷新",
+  "command.moveToFolder.title": "移动到文件夹",
   "command.duplicateConnection.title": "复制连接",
   "command.import.title": "导入连接",
+  "command.exportConnections.title": "导出连接",
+  "command.syncNow.title": "立即同步连接 (Beta)",
   "command.showConnections.title": "显示连接",
 
   "submenu.import.label": "导入",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "文件内容缓存的最大大小（MB）",
   "config.pool.idleTimeout.description": "空闲连接关闭前的等待时间（秒）",
   "config.pool.maxConnections.description": "最大并发连接数",
-  "config.security.useMasterPassword.description": "使用主密码加密已保存的连接",
-  "config.security.masterPasswordTimeout.description": "需要重新输入主密码的时间（分钟，0 = 从不）",
+  "config.security.syncConnections.description": "(Beta) 将密鑰捆绑到加密存储中，以便通过 VS Code 设置同步在设备间同步连接（包括密码）。需要启用主密码加密。所有设备必须设置相同的主密码。注意：此功能在所有场景下可能无法可靠地工作，并且取决于 VS Code 设置同步是否处于活动状态且正常运行。",
   "config.watch.pollInterval.description": "文件系统监视器的轮询间隔（毫秒）",
   "config.ai.enabled.description": "启用 AI 工具（测试版）。为 AI 代理提供专用的文件、数据库和搜索工具。默认禁用 — 没有这些工具时，代理通过 runCommand 直接使用 SSH 命令，这通常能获得更好的结果。需要重新加载。",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "MySQL 执行",
   "tool.mysqlExecute.userDescription": "通过 Remote Bridge SSH 连接在 MySQL/MariaDB 数据库上执行数据修改 SQL 语句",
   "tool.mysqlSchema.displayName": "MySQL 架构",
-  "tool.mysqlSchema.userDescription": "通过 Remote Bridge SSH 连接检查 MySQL/MariaDB 数据库架构（数据库、表、列）"
+  "tool.mysqlSchema.userDescription": "通过 Remote Bridge SSH 连接检查 MySQL/MariaDB 数据库架构（数据库、表、列）",
+
+  "walkthrough.title": "Remote Bridge 入门",
+  "walkthrough.description": "通过 SSH、SFTP、FTP 和 FTPS 连接到远程服务器，充分利用每项功能。",
+  "walkthrough.step.addConnection.title": "添加第一个连接",
+  "walkthrough.step.addConnection.description": "打开表单，配置您的第一个 SSH、SFTP、FTP 或 FTPS 连接。\n[添加连接](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "使用主密码保护",
+  "walkthrough.step.masterPassword.description": "启用主密码加密，以 AES-256-GCM 保护所有连接。还可获得自动加密备份（每天 7 份 + 每周 4 份）以及跨设备同步功能。\n[设置主密码](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "跨设备同步 (Beta)",
+  "walkthrough.step.sync.description": "启用连接同步，通过 VS Code Settings Sync 在所有设备上共享连接（包括密码）。连接将自动合并，不会丢失任何数据。\n[打开同步设置](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "导入现有连接",
+  "walkthrough.step.import.description": "已在使用其他客户端？可一键从 SSH Config、WinSCP、FileZilla、PuTTY、SSH FS 或 Total Commander 导入连接。\n[导入连接](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.zh-cn.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.zh-cn.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.zh-cn.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.zh-cn.md"
 }

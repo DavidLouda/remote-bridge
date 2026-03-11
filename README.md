@@ -15,8 +15,8 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 | **Auth** | Password, private key (PPK/PEM), SSH agent, FTPS/TLS |
 | **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
-| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander |
-| **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password with auto-lock |
+| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |
+| **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password encryption; optional cross-device sync via VS Code Settings Sync |
 | **AI (Copilot)** | `@remote` chat participant + 2 always-on tools (`runCommand`, `listConnections`) + 15 beta AI tools for file operations, SQL, and session change tracking (off by default) |
 | **Multi-OS** | Per-connection OS setting — Linux, macOS, Windows (PowerShell) |
 | **Localization** | 12 languages: EN, CS, DE, FR, ES, PL, HU, SK, UK, ZH-CN, KO, JA |
@@ -52,11 +52,13 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
   - FileZilla Site Manager (FTP, SFTP, FTPS; Base64 passwords decoded)
   - PuTTY (Windows registry or `~/.putty/sessions/`; SSH only)
   - Total Commander FTP plugin (`wcx_ftp.ini`; FTP and FTPS)
+- **Export** to JSON (all connections, re-importable; optional password inclusion) or SSH Config (SSH/SFTP connections)
 
 ### 🔐 Security
 - Individual passwords stored securely in **VS Code SecretStorage**
 - Optional **master password** to encrypt the entire connection store (AES-256-GCM + PBKDF2)
-- Auto-lock after configurable timeout
+- Optional **connection sync** — sync encrypted connections (including passwords) across devices via VS Code Settings Sync (requires master password)
+- Automatic **daily encrypted backups** — stored locally, never synced, with 7-day / 4-week retention
 
 ### 🖥️ SSH Terminal
 - Open an **interactive SSH shell** directly in the VS Code integrated terminal
@@ -196,6 +198,7 @@ When adding or editing a connection, you'll see a form with these sections:
 - Proxy support (HTTP, SOCKS4, SOCKS5)
 - Keep-alive interval
 - TLS/FTPS toggle (for FTP connections)
+- **Allow self-signed TLS certificates** (FTPS only) — disables certificate verification; use only for servers with self-signed or invalid certs. The default is strict verification.
 
 ### Sidebar Overview
 
@@ -212,7 +215,7 @@ The Remote Bridge sidebar has two sections:
 | ➕ | Add Connection |
 | 📁 | Add Folder |
 | 🔄 | Refresh |
-| ⋯ (overflow menu) | Import, Set/Remove Master Password |
+| ⋯ (overflow menu) | Import, Export, Set/Change/Remove Master Password, Lock/Unlock Connections, Backup/Restore |
 
 ### Working with Connections
 
@@ -284,8 +287,14 @@ All commands are accessible via `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac):
 |---------|-------------|
 | Remote Bridge: Add Connection | Open the connection form |
 | Remote Bridge: Import Connections | Import from SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, or Total Commander |
-| Remote Bridge: Set Master Password | Encrypt all connections with a master password |
+| Remote Bridge: Export Connections | Export connections to JSON (re-importable) or SSH Config format |
+| Remote Bridge: Set Master Password | Encrypt all connections with a master password (shown when encryption is off) |
+| Remote Bridge: Change Master Password | Change the current master password (shown when encryption is on) |
 | Remote Bridge: Remove Master Password | Decrypt and remove the master password |
+| Remote Bridge: Lock Connections | Clear the decryption key from memory |
+| Remote Bridge: Unlock Connections | Prompt for the master password to unlock the panel |
+| Remote Bridge: Restore from Backup | Restore connections from an encrypted local backup |
+| Remote Bridge: Create Backup | Manually create an encrypted backup of current connections |
 | Remote Bridge: Show Connections | Focus the Remote Bridge sidebar |
 
 ## Importing Connections
@@ -310,16 +319,72 @@ On Windows, reads sessions from the registry (`HKCU\Software\SimonTatham\PuTTY\S
 ### Total Commander
 Reads the built-in FTP plugin configuration from `%APPDATA%\GHISLER\wcx_ftp.ini` (Windows only, or manually selected). Imports FTP and FTPS connections. Passwords are de-obfuscated automatically (XOR cipher — note: this is obfuscation, not encryption).
 
+## Exporting Connections
+
+Command Palette → **Remote Bridge: Export Connections** (or the `⋯` overflow menu in the sidebar).
+
+Choose the export format:
+
+### JSON (Remote Bridge)
+Exports all connections and folder structure to a `.json` file that can be re-imported into Remote Bridge. You will be asked whether to include passwords — if included, they are stored as plain text in the file, so keep it secure.
+
+### SSH Config
+Exports SSH and SFTP connections to a standard `~/.ssh/config`-compatible file. FTP/FTPS connections are automatically skipped (they are not supported by the SSH Config format). The output can be appended to or used as your SSH config file.
+
 ## Master Password
 
 You can encrypt all stored connections with a master password:
 
-1. Command palette → **Remote Bridge: Set Master Password**
+1. Command Palette → **Remote Bridge: Set Master Password**
 2. Enter a password (minimum 8 characters)
 3. Your connections are now encrypted with AES-256-GCM
 
-To remove it:  
-Command palette → **Remote Bridge: Remove Master Password**
+Once encryption is active, the Command Palette and the `⋯` overflow menu show **Change Master Password** instead of Set. Changing requires the current password first, then the new password twice.
+
+**Locking and unlocking:**  
+Use **Lock Connections** to clear the decryption key from memory (connections become inaccessible until unlocked). When locked, the Connections panel shows a *Connections are locked* message with an inline **Unlock** link — click it or run **Unlock Connections** from the Command Palette to re-enter the password.
+
+To remove encryption entirely:  
+Command Palette → **Remote Bridge: Remove Master Password**
+
+## Connection Sync
+
+Remote Bridge can synchronize your connections — including passwords — across multiple devices using VS Code's built-in Settings Sync.
+
+> **Requires master password.** Without it, sensitive data would travel through VS Code's sync infrastructure unencrypted. Enable master password encryption first.
+
+**How it works:**
+
+1. Enable **master password** (Command Palette → **Remote Bridge: Set Master Password**)
+2. Enable `remoteBridge.security.syncConnections` in Settings
+3. Sign into VS Code Settings Sync on all your devices
+4. Set the **same master password** on every device
+
+Your connections are encrypted with AES-256-GCM before being handed to Settings Sync. The master password itself is never synced — it stays in VS Code SecretStorage on each device.
+
+**Merging connections from multiple devices**
+
+When you enable sync on a device that already has connections, Remote Bridge automatically merges them with whatever connections exist on other devices — no data is lost. The merge uses per-item timestamps and a last-write-wins rule (local wins on tie). Deletions are tracked with tombstones for 30 days so that a connection deleted on one device is not resurrected by another device's sync.
+
+> **Note:** If your master password changes on another device, Remote Bridge detects the mismatch automatically when sync delivers the updated data and prompts you to unlock with the new password.
+
+## Backups
+
+Remote Bridge automatically creates an encrypted daily backup of your connections whenever the store is saved. Backups are stored locally (never synced) in VS Code's global storage and are retained for **7 days** (daily) + **4 weeks** (weekly, promoted every Monday).
+
+Backups use the same AES-256-GCM encryption as the live store. The backup service never has access to your plaintext passwords.
+
+**To create a manual backup:**
+Command Palette → **Remote Bridge: Create Backup**
+
+Manual backups are retained alongside automatic ones (up to 5 most recent).
+
+**To restore a backup:**
+1. Command Palette → **Remote Bridge: Restore from Backup**
+2. Select a backup from the list (shown with date and type)
+3. Confirm — all current connections are replaced with the backup
+
+If the backup was created with a different master password (e.g., after a password change), you will be prompted for the old password to decrypt it.
 
 ## Configuration
 
@@ -329,8 +394,7 @@ Command palette → **Remote Bridge: Remove Master Password**
 | `remoteBridge.cache.maxSize` | `10` | Maximum file content cache size (MB) |
 | `remoteBridge.pool.idleTimeout` | `10` | Idle connection timeout (seconds) |
 | `remoteBridge.pool.maxConnections` | `10` | Maximum concurrent connections |
-| `remoteBridge.security.useMasterPassword` | `false` | Encrypt connections with master password |
-| `remoteBridge.security.masterPasswordTimeout` | `30` | Master password re-entry timeout (minutes) |
+| `remoteBridge.security.syncConnections` | `false` | Sync encrypted connections across devices via VS Code Settings Sync (requires master password) |
 | `remoteBridge.watch.pollInterval` | `5` | File system watcher polling interval (seconds) |
 | `remoteBridge.ai.enabled` | `false` | Enable AI tools (beta). When disabled, agent uses SSH commands directly via `runCommand`. Requires reload. |
 
@@ -340,6 +404,7 @@ Command palette → **Remote Bridge: Remove Master Password**
 src/
 ├── adapters/          # Protocol adapters (SSH, FTP)
 ├── chat/              # GitHub Copilot chat participant & LM tools
+├── exporters/         # Connection exporters (JSON, SSH Config)
 ├── importers/         # Connection importers (SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, Total Commander)
 ├── providers/         # FileSystemProvider, TreeView providers
 ├── services/          # Connection manager, pool, cache, encryption
@@ -377,6 +442,14 @@ Once upon a time, [Kelvin Schoofs](https://github.com/SchoofsKelvin) created a w
 And so **Remote Bridge** was born — a fresh extension built from the ground up, with no legacy baggage, multi-protocol support, AI integration, and way too many shell command edge cases for three different operating systems.
 
 I'm building this mainly for myself, because apparently that's how side projects work: you solve your own problem and accidentally write 30,000 lines of TypeScript. If you find it useful too — that's a happy accident. 🎉
+
+## Disclaimer
+
+Remote Bridge reads, writes, and deletes files on remote servers. While the extension is designed with care, **the author assumes no responsibility for data loss, file corruption, or any other damages** arising from its use — including but not limited to file operations performed manually, via the AI agent, or through automated workflows.
+
+**Always maintain independent backups of your remote data before performing bulk operations, enabling AI tools, or relying on automated sync.**
+
+This software is provided "as is" under the [MIT License](LICENSE), without warranty of any kind.
 
 ## License
 

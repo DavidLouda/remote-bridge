@@ -75,8 +75,8 @@ export function writeInsert(
         return `$lines = @(Get-Content -LiteralPath ${p}); $new = @($input); $lines = $lines[0..${startLine - 1}] + $new + $lines[${startLine}..($lines.Count-1)]; $lines | Set-Content -LiteralPath ${p}`;
     }
     if (os === 'macos') {
-        // macOS: mktemp without -p, no chmod --reference (BSD)
-        return `tmpf=$(mktemp) && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine} ${p} > "$tmpf" && cat >> "$tmpf" && tail -n +${startLine + 1} ${p} >> "$tmpf" && mv "$tmpf" ${p}`;
+        // macOS: mktemp without -p; use BSD stat -f '%Lp' instead of --reference
+        return `perms=$(stat -f '%Lp' ${p}) && tmpf=$(mktemp) && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine} ${p} > "$tmpf" && cat >> "$tmpf" && tail -n +${startLine + 1} ${p} >> "$tmpf" && chmod "$perms" "$tmpf" 2>/dev/null; mv "$tmpf" ${p}`;
     }
     // Linux
     return `tmpf=$(mktemp -p "$(dirname ${p})") && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine} ${p} > "$tmpf" && cat >> "$tmpf" && tail -n +${startLine + 1} ${p} >> "$tmpf" && chmod --reference=${p} "$tmpf" 2>/dev/null; mv "$tmpf" ${p}`;
@@ -97,7 +97,7 @@ export function writeDelete(
         return `$lines = @(Get-Content -LiteralPath ${p}); $lines = $lines[0..${startLine - 2}] + $lines[${endLine}..($lines.Count-1)]; $lines | Set-Content -LiteralPath ${p}`;
     }
     if (os === 'macos') {
-        return `tmpf=$(mktemp) && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine - 1} ${p} > "$tmpf" && tail -n +${endLine + 1} ${p} >> "$tmpf" && mv "$tmpf" ${p}`;
+        return `perms=$(stat -f '%Lp' ${p}) && tmpf=$(mktemp) && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine - 1} ${p} > "$tmpf" && tail -n +${endLine + 1} ${p} >> "$tmpf" && chmod "$perms" "$tmpf" 2>/dev/null; mv "$tmpf" ${p}`;
     }
     return `tmpf=$(mktemp -p "$(dirname ${p})") && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine - 1} ${p} > "$tmpf" && tail -n +${endLine + 1} ${p} >> "$tmpf" && chmod --reference=${p} "$tmpf" 2>/dev/null; mv "$tmpf" ${p}`;
 }
@@ -117,7 +117,7 @@ export function writeReplace(
         return `$lines = @(Get-Content -LiteralPath ${p}); $new = @($input); $lines = $lines[0..${startLine - 2}] + $new + $lines[${endLine}..($lines.Count-1)]; $lines | Set-Content -LiteralPath ${p}`;
     }
     if (os === 'macos') {
-        return `tmpf=$(mktemp) && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine - 1} ${p} > "$tmpf" && cat >> "$tmpf" && tail -n +${endLine + 1} ${p} >> "$tmpf" && mv "$tmpf" ${p}`;
+        return `perms=$(stat -f '%Lp' ${p}) && tmpf=$(mktemp) && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine - 1} ${p} > "$tmpf" && cat >> "$tmpf" && tail -n +${endLine + 1} ${p} >> "$tmpf" && chmod "$perms" "$tmpf" 2>/dev/null; mv "$tmpf" ${p}`;
     }
     return `tmpf=$(mktemp -p "$(dirname ${p})") && trap 'rm -f "$tmpf"' EXIT && head -n ${startLine - 1} ${p} > "$tmpf" && cat >> "$tmpf" && tail -n +${endLine + 1} ${p} >> "$tmpf" && chmod --reference=${p} "$tmpf" 2>/dev/null; mv "$tmpf" ${p}`;
 }

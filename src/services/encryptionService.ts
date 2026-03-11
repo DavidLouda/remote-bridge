@@ -13,6 +13,8 @@ const DIGEST = 'sha512';
 const STORE_KEY = 'remote-bridge.connectionStore';
 const ENCRYPTED_STORE_KEY = 'remote-bridge.encryptedStore';
 const ENCRYPTION_META_KEY = 'remote-bridge.encryptionMeta';
+/** Local-only shadow of the encrypted store — never registered for Settings Sync. */
+const LOCAL_ENCRYPTED_STORE_KEY = 'remote-bridge.localEncryptedStore';
 
 /**
  * Manages encryption of the connection store with an optional master password.
@@ -25,12 +27,18 @@ const ENCRYPTION_META_KEY = 'remote-bridge.encryptionMeta';
  */
 export class EncryptionService {
     private _derivedKey: Buffer | null = null;
-    private _masterPasswordTimeout: ReturnType<typeof setTimeout> | null = null;
+    private _lastVerificationHash: string | null = null;
 
     private readonly _onDidLock = new vscode.EventEmitter<void>();
     readonly onDidLock = this._onDidLock.event;
 
-    constructor(private readonly _globalState: vscode.Memento) {}
+    private readonly _onDidUnlock = new vscode.EventEmitter<void>();
+    readonly onDidUnlock = this._onDidUnlock.event;
+
+    private readonly _onDidDetectRemotePasswordChange = new vscode.EventEmitter<void>();
+    readonly onDidDetectRemotePasswordChange = this._onDidDetectRemotePasswordChange.event;
+
+    constructor(private readonly _globalState: vscode.Memento & { setKeysForSync(keys: string[]): void }) {}
 
     /**
      * Check if master password encryption is enabled.
@@ -45,6 +53,29 @@ export class EncryptionService {
      */
     isUnlocked(): boolean {
         return this._derivedKey !== null;
+    }
+
+    /**
+     * Register (or deregister) the encrypted store keys for VS Code Settings Sync.
+     * Sync is only meaningful when master password encryption is active — the plain
+     * store key is intentionally never registered for sync.
+     *
+     * @param enabled true = register encrypted store + meta for sync; false = clear the list
+     */
+    setSyncEnabled(enabled: boolean): void {
+        this._globalState.setKeysForSync(
+            enabled ? [ENCRYPTED_STORE_KEY, ENCRYPTION_META_KEY] : []
+        );
+    }
+
+    /**
+     * Dispose event emitters and clear the derived key.
+     */
+    dispose(): void {
+        this.lock();
+        this._onDidLock.dispose();
+        this._onDidUnlock.dispose();
+        this._onDidDetectRemotePasswordChange.dispose();
     }
 
     /**
@@ -76,7 +107,7 @@ export class EncryptionService {
 
         await this._globalState.update(ENCRYPTION_META_KEY, meta);
         this._derivedKey = key;
-        this._startTimeout();
+        this._lastVerificationHash = verificationHash;
     }
 
     /**
@@ -100,8 +131,21 @@ export class EncryptionService {
         }
 
         this._derivedKey = key;
-        this._startTimeout();
+        this._lastVerificationHash = meta.verificationHash;
+        this._onDidUnlock.fire();
         return true;
+    }
+
+    /**
+     * Check whether the encryption meta has changed since we last unlocked —
+     * i.e. another device changed the master password via Settings Sync.
+     */
+    hasPasswordChangedRemotely(): boolean {
+        if (!this._lastVerificationHash) {
+            return false;
+        }
+        const meta = this._globalState.get<EncryptionMeta>(ENCRYPTION_META_KEY);
+        return !!meta && meta.verificationHash !== this._lastVerificationHash;
     }
 
     /**
@@ -113,13 +157,75 @@ export class EncryptionService {
             this._derivedKey.fill(0);
             this._derivedKey = null;
         }
-        if (this._masterPasswordTimeout) {
-            clearTimeout(this._masterPasswordTimeout);
-            this._masterPasswordTimeout = null;
-        }
         if (wasUnlocked) {
             this._onDidLock.fire();
         }
+    }
+
+    /**
+     * Change the master password. Decrypts with the old password and re-encrypts
+     * with a new salt and new derived key derived from the new password.
+     * Returns false if the old password is incorrect.
+     */
+    async changeMasterPassword(oldPassword: string, newPassword: string): Promise<boolean> {
+        if (!this.isEnabled()) {
+            return false;
+        }
+
+        // Verify old password
+        const meta = this._globalState.get<EncryptionMeta>(ENCRYPTION_META_KEY);
+        if (!meta?.enabled) {
+            return false;
+        }
+
+        const oldKey = await this._deriveKey(oldPassword, meta.salt);
+        const oldHash = crypto.createHash('sha256').update(oldKey).digest('hex');
+        if (oldHash !== meta.verificationHash) {
+            oldKey.fill(0);
+            return false;
+        }
+
+        // Decrypt current store with old key
+        const encrypted = this._globalState.get<string>(ENCRYPTED_STORE_KEY);
+        let storeJson: string | null = null;
+        if (encrypted) {
+            try {
+                storeJson = this._decrypt(encrypted, oldKey);
+            } catch {
+                oldKey.fill(0);
+                return false;
+            }
+        }
+        oldKey.fill(0);
+
+        // Derive new key with a fresh salt
+        const newSalt = crypto.randomBytes(SALT_LENGTH).toString('hex');
+        const newKey = await this._deriveKey(newPassword, newSalt);
+        const newVerificationHash = crypto.createHash('sha256').update(newKey).digest('hex');
+
+        const newMeta: EncryptionMeta = {
+            enabled: true,
+            salt: newSalt,
+            verificationHash: newVerificationHash,
+        };
+
+        // Re-encrypt store with new key
+        if (storeJson !== null) {
+            const reEncrypted = this._encrypt(storeJson, newKey);
+            await this._globalState.update(ENCRYPTED_STORE_KEY, reEncrypted);
+            await this._globalState.update(LOCAL_ENCRYPTED_STORE_KEY, reEncrypted);
+        }
+
+        await this._globalState.update(ENCRYPTION_META_KEY, newMeta);
+
+        // Swap in new derived key
+        if (this._derivedKey) {
+            this._derivedKey.fill(0);
+        }
+        this._derivedKey = newKey;
+        this._lastVerificationHash = newVerificationHash;
+
+        return true;
     }
 
     /**
@@ -135,6 +241,7 @@ export class EncryptionService {
 
         await this._globalState.update(ENCRYPTION_META_KEY, undefined);
         await this._globalState.update(ENCRYPTED_STORE_KEY, undefined);
+        await this._globalState.update(LOCAL_ENCRYPTED_STORE_KEY, undefined);
 
         if (store) {
             await this._globalState.update(STORE_KEY, store);
@@ -157,6 +264,15 @@ export class EncryptionService {
                 const json = this._decrypt(encrypted, this._derivedKey);
                 return JSON.parse(json) as ConnectionStore;
             } catch {
+                // Detect if decryption failed because remote sync changed the password
+                if (this._lastVerificationHash) {
+                    const currentMeta = this._globalState.get<EncryptionMeta>(ENCRYPTION_META_KEY);
+                    if (currentMeta && currentMeta.verificationHash !== this._lastVerificationHash) {
+                        this._lastVerificationHash = null; // prevent repeated fires
+                        this.lock();
+                        this._onDidDetectRemotePasswordChange.fire();
+                    }
+                }
                 return null;
             }
         } else {
@@ -166,6 +282,9 @@ export class EncryptionService {
 
     /**
      * Save the connection store (encrypting if necessary).
+     * When encryption is active the ciphertext is written to both the synced
+     * key and the local-only shadow key so that a fallback copy is always
+     * available on this device even if sync delivers incompatible data.
      */
     async saveStore(store: ConnectionStore): Promise<void> {
         if (this.isEnabled()) {
@@ -174,8 +293,100 @@ export class EncryptionService {
             }
             const encrypted = this._encrypt(JSON.stringify(store), this._derivedKey);
             await this._globalState.update(ENCRYPTED_STORE_KEY, encrypted);
+            await this._globalState.update(LOCAL_ENCRYPTED_STORE_KEY, encrypted);
         } else {
             await this._globalState.update(STORE_KEY, store);
+        }
+    }
+
+    /**
+     * Return the current encrypted blob from globalState.
+     * Used by BackupService to copy already-encrypted data to backup files.
+     */
+    getEncryptedBlob(): string | undefined {
+        return this._globalState.get<string>(ENCRYPTED_STORE_KEY);
+    }
+
+    /**
+     * Load the local shadow copy of the connection store.
+     *
+     * The shadow is written by `saveStore()` in parallel with the synced key,
+     * but is never registered for Settings Sync.  It therefore always reflects
+     * the last state saved on *this* device and is used as a merge baseline
+     * when sync delivers data from another device.
+     *
+     * Returns `null` if there is no shadow, encryption is disabled, the store
+     * is currently locked, or decryption fails.
+     */
+    async loadLocalStore(): Promise<ConnectionStore | null> {
+        if (!this.isEnabled() || !this._derivedKey) {
+            return null;
+        }
+        const encrypted = this._globalState.get<string>(LOCAL_ENCRYPTED_STORE_KEY);
+        if (!encrypted) {
+            return null;
+        }
+        try {
+            const json = this._decrypt(encrypted, this._derivedKey);
+            return JSON.parse(json) as ConnectionStore;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Return the current encryption metadata.
+     */
+    getMeta(): EncryptionMeta | undefined {
+        return this._globalState.get<EncryptionMeta>(ENCRYPTION_META_KEY);
+    }
+
+    /**
+     * Try to decrypt backup data using the currently derived key.
+     * Returns null if the key doesn't match the backup's verificationHash.
+     */
+    async tryDecryptWith(
+        encryptedData: string,
+        backupMeta: EncryptionMeta
+    ): Promise<ConnectionStore | null> {
+        if (!this._derivedKey) { return null; }
+        const currentHash = crypto
+            .createHash('sha256')
+            .update(this._derivedKey)
+            .digest('hex');
+        if (currentHash !== backupMeta.verificationHash) {
+            return null;
+        }
+        try {
+            const json = this._decrypt(encryptedData, this._derivedKey);
+            return JSON.parse(json) as ConnectionStore;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Decrypt backup data with an explicit password.
+     * Used when a backup was created with a different (older) master password.
+     */
+    async decryptWithPassword(
+        encryptedData: string,
+        backupMeta: EncryptionMeta,
+        password: string
+    ): Promise<ConnectionStore | null> {
+        const key = await this._deriveKey(password, backupMeta.salt);
+        const hash = crypto.createHash('sha256').update(key).digest('hex');
+        if (hash !== backupMeta.verificationHash) {
+            key.fill(0);
+            return null;
+        }
+        try {
+            const json = this._decrypt(encryptedData, key);
+            key.fill(0);
+            return JSON.parse(json) as ConnectionStore;
+        } catch {
+            key.fill(0);
+            return null;
         }
     }
 
@@ -233,22 +444,5 @@ export class EncryptionService {
         return decipher.update(ciphertext) + decipher.final('utf8');
     }
 
-    private _startTimeout(): void {
-        if (this._masterPasswordTimeout) {
-            clearTimeout(this._masterPasswordTimeout);
-        }
-
-        const config = vscode.workspace.getConfiguration('remoteBridge.security');
-        const timeoutMinutes = config.get<number>('masterPasswordTimeout', 30);
-        const timeoutMs = timeoutMinutes * 60 * 1000;
-
-        this._masterPasswordTimeout = setTimeout(() => {
-            this.lock();
-        }, timeoutMs);
-    }
-
-    dispose(): void {
-        this.lock();
-        this._onDidLock.dispose();
-    }
 }
+

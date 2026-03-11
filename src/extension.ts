@@ -13,6 +13,8 @@ import { SshFsImporter } from './importers/sshFsImporter';
 import { FileZillaImporter } from './importers/fileZillaImporter';
 import { PuTTYImporter } from './importers/puttyImporter';
 import { TotalCmdImporter } from './importers/totalCmdImporter';
+import { JsonExporter } from './exporters/jsonExporter';
+import { SshConfigExporter } from './exporters/sshConfigExporter';
 import { openSshTerminal } from './terminal/sshTerminalProvider';
 import { registerChatParticipant } from './chat/chatParticipant';
 import { ListFilesTool } from './chat/tools/listFilesTool';
@@ -34,6 +36,8 @@ import { GetChangedFilesTool } from './chat/tools/getChangedFilesTool';
 import { ClearDecorationsTool } from './chat/tools/clearDecorationsTool';
 import { StatusBarService } from './statusBar/statusBarService';
 import { TransferTracker } from './services/transferTracker';
+import { BackupService } from './services/backupService';
+import { SyncService } from './services/syncService';
 import { buildRemoteUri } from './utils/uriParser';
 import {
     createWorkspaceFile,
@@ -55,6 +59,9 @@ let cacheService: CacheService;
 let connectionManager: ConnectionManager;
 let connectionPool: ConnectionPool;
 let transferTracker: TransferTracker;
+let backupService: BackupService;
+let syncService: SyncService;
+let applySyncRegistration: () => void;
 
 type TreeConnectionNode = { type: 'connection'; connection: ConnectionConfig };
 type TreeFolderNode = { type: 'folder'; folder: { id: string; name: string; parentId?: string } };
@@ -101,17 +108,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     encryptionService = new EncryptionService(context.globalState);
     context.subscriptions.push({ dispose: () => encryptionService.dispose() });
 
-    // Notify user when master password times out
+    // Keep VS Code context keys in sync with encryption state
+    await setEncryptionContextKeysAsync(encryptionService);
     context.subscriptions.push(
-        encryptionService.onDidLock(async () => {
-            const reenter = await vscode.window.showWarningMessage(
-                vscode.l10n.t('Remote Bridge: Master password timed out. Connections are locked.'),
+        encryptionService.onDidLock(() => setEncryptionContextKeys(encryptionService)),
+        encryptionService.onDidUnlock(() => setEncryptionContextKeys(encryptionService))
+    );
+
+    // Notify user when the master password changed on another device via sync
+    context.subscriptions.push(
+        encryptionService.onDidDetectRemotePasswordChange(async () => {
+            const action = await vscode.window.showWarningMessage(
+                vscode.l10n.t('Remote Bridge: The master password was changed on another device. Please enter the new password to unlock connections.'),
                 vscode.l10n.t('Unlock')
             );
-            if (reenter) {
+            if (action) {
                 const unlocked = await promptMasterPassword(encryptionService);
                 if (unlocked) {
                     await connectionManager.load();
+                    // Key rotation: the new encrypted blob may arrive with a delay — schedule retries.
+                    syncService?.scheduleRetry();
                 }
             }
         })
@@ -121,11 +137,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (encryptionService.isEnabled()) {
         const unlocked = await promptMasterPassword(encryptionService);
         if (!unlocked) {
+            // Don't show a warning — the locked welcome view already communicates this.
+        }
+        // If unlock succeeded, syncService.scheduleRetry() is called below after SyncService is created.
+    }
+
+    // ─── Sync Registration ──────────────────────────────────────
+    // Register encrypted store keys for VS Code Settings Sync when the user
+    // has both master password AND syncConnections enabled. The unencrypted
+    // store is intentionally never registered for sync.
+    applySyncRegistration = (): void => {
+        const secCfg = vscode.workspace.getConfiguration('remoteBridge.security');
+        const syncWanted = !!secCfg.get<boolean>('syncConnections');
+        if (syncWanted && !encryptionService.isEnabled()) {
             vscode.window.showWarningMessage(
-                vscode.l10n.t('Remote Bridge: Connections are locked. Set or remove master password to access them.')
+                vscode.l10n.t('Remote Bridge: Connection sync requires a master password. Please enable master password encryption first.')
             );
         }
-    }
+        encryptionService.setSyncEnabled(syncWanted && encryptionService.isEnabled());
+    };
+
+    applySyncRegistration();
 
     const config = vscode.workspace.getConfiguration('remoteBridge');
     cacheService = new CacheService(
@@ -146,10 +178,46 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     context.subscriptions.push(connectionPool);
 
-    connectionManager = new ConnectionManager(encryptionService, context.secrets);
+    backupService = new BackupService(context.globalStorageUri);
+    connectionManager = new ConnectionManager(encryptionService, context.secrets, backupService);
     context.subscriptions.push(connectionManager);
 
+    // ─── Output Channel ──────────────────────────────────────────
+    const outputChannel = vscode.window.createOutputChannel('Remote Bridge');
+    context.subscriptions.push(outputChannel);
+
     await connectionManager.load();
+
+    // ─── SyncService ─────────────────────────────────────────────
+    syncService = new SyncService(connectionManager, encryptionService, outputChannel);
+    context.subscriptions.push(syncService);
+    syncService.startPeriodicSync();
+    // Schedule retry if sync is active — Settings Sync may deliver data after activation.
+    if (encryptionService.isEnabled() && encryptionService.isUnlocked()) {
+        const secCfg = vscode.workspace.getConfiguration('remoteBridge.security');
+        if (secCfg.get<boolean>('syncConnections')) {
+            syncService.scheduleRetry();
+        }
+    }
+
+    // React to syncConnections setting changes.
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(async (e) => {
+            if (e.affectsConfiguration('remoteBridge.security.syncConnections')) {
+                applySyncRegistration();
+                // If sync was just enabled and the store is already unlocked,
+                // schedule a retry to load any connections delivered via Settings Sync.
+                if (encryptionService.isEnabled() && encryptionService.isUnlocked()) {
+                    const cfg = vscode.workspace.getConfiguration('remoteBridge.security');
+                    if (cfg.get<boolean>('syncConnections')) {
+                        syncService.scheduleRetry();
+                    } else {
+                        syncService.cancelRetry();
+                    }
+                }
+            }
+        })
+    );
 
     // ─── FileSystemProvider ─────────────────────────────────────
     const fsProvider = new RemoteBridgeFileSystemProvider(
@@ -191,6 +259,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     connectionManager.onDidChange(syncWorkspaceFolderNames);
     syncWorkspaceFolderNames();
 
+    // ─── Master Password Hint ──────────────────────────────────
+    // Show a one-time tip encouraging new users to set up master password
+    // encryption after they add their very first connection.
+    context.subscriptions.push(
+        connectionManager.onDidChange(async () => {
+            if (
+                connectionManager.getConnections().length === 1 &&
+                !encryptionService.isEnabled() &&
+                !context.globalState.get('remote-bridge.masterPasswordHintShown')
+            ) {
+                await context.globalState.update('remote-bridge.masterPasswordHintShown', true);
+                const choice = await vscode.window.showInformationMessage(
+                    vscode.l10n.t(
+                        'Tip: Enable master password to encrypt your connections, get automatic backups, and sync across devices.'
+                    ),
+                    vscode.l10n.t('Set Master Password'),
+                    vscode.l10n.t("Don't Show Again")
+                );
+                if (choice === vscode.l10n.t('Set Master Password')) {
+                    vscode.commands.executeCommand('remoteBridge.setMasterPassword');
+                }
+            }
+        })
+    );
+
     // ─── Auto-Reconnect ───────────────────────────────────────
     // When VS Code reopens a .code-workspace file containing remote-bridge:// folders,
     // proactively reconnect so the status bar and tree view reflect the live state.
@@ -211,7 +304,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })();
 
     // ─── Tree View ──────────────────────────────────────────────
-    const treeProvider = new ConnectionTreeProvider(connectionManager, connectionPool);
+    const treeProvider = new ConnectionTreeProvider(connectionManager, connectionPool, encryptionService);
     const treeView = vscode.window.createTreeView('remoteBridge.connections', {
         treeDataProvider: treeProvider,
         showCollapseAll: true,
@@ -230,11 +323,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(activeSessionsProvider);
 
     // ─── Status Bar ─────────────────────────────────────────────
-    const statusBarService = new StatusBarService(connectionManager, connectionPool, context);
+    const statusBarService = new StatusBarService(connectionManager, connectionPool, encryptionService, context);
     context.subscriptions.push(statusBarService);
 
     // ─── Register Commands ──────────────────────────────────────
     registerCommands(context, treeProvider);
+
+    // ─── Getting Started Walkthrough (first install only) ───────
+    if (!context.globalState.get('remote-bridge.walkthroughShown')) {
+        await context.globalState.update('remote-bridge.walkthroughShown', true);
+        vscode.commands.executeCommand(
+            'workbench.action.openWalkthrough',
+            'DavidLouda.remote-bridge#remoteBridge.getStarted',
+            false
+        );
+    }
+
+    // Window-focus sync and periodic polling are now handled by SyncService.
 
     // ─── Always-on LM Tools (available even when AI features are disabled) ─
     context.subscriptions.push(
@@ -787,9 +892,118 @@ function registerCommands(
         })
     );
 
+    // Export Connections
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.exportConnections', async () => {
+            const connections = connectionManager.getConnections();
+            if (connections.length === 0) {
+                vscode.window.showInformationMessage(vscode.l10n.t('No connections to export.'));
+                return;
+            }
+
+            const formatChoice = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: 'JSON (Remote Bridge)',
+                        description: vscode.l10n.t('All connections, re-importable'),
+                        value: 'json' as const,
+                    },
+                    {
+                        label: 'SSH Config',
+                        description: vscode.l10n.t('SSH/SFTP connections only'),
+                        value: 'ssh-config' as const,
+                    },
+                ],
+                { title: vscode.l10n.t('Export connections as') }
+            );
+            if (!formatChoice) {
+                return;
+            }
+
+            if (formatChoice.value === 'json') {
+                const includePwdChoice = await vscode.window.showWarningMessage(
+                    vscode.l10n.t('Include passwords in export? They will be stored as plain text.'),
+                    { modal: true },
+                    vscode.l10n.t('Include Passwords'),
+                    vscode.l10n.t('Skip Passwords')
+                );
+                if (!includePwdChoice) {
+                    return;
+                }
+                const includePasswords = includePwdChoice === vscode.l10n.t('Include Passwords');
+
+                const saveUri = await vscode.window.showSaveDialog({
+                    title: vscode.l10n.t('Export connections as JSON'),
+                    defaultUri: vscode.Uri.file('remote-bridge-connections.json'),
+                    filters: { JSON: ['json'] },
+                });
+                if (!saveUri) {
+                    return;
+                }
+
+                const exporter = new JsonExporter();
+                const content = await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: vscode.l10n.t('Exporting connections...'),
+                        cancellable: false,
+                    },
+                    () => exporter.export(connections, connectionManager.getFolders(), context.secrets, includePasswords)
+                );
+
+                await vscode.workspace.fs.writeFile(saveUri, Buffer.from(content, 'utf-8'));
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Exported {0} connections.', String(connections.length))
+                );
+            } else {
+                const saveUri = await vscode.window.showSaveDialog({
+                    title: vscode.l10n.t('Export connections as SSH Config'),
+                    defaultUri: vscode.Uri.file('ssh_config'),
+                    filters: { 'SSH Config': ['conf', 'config', ''], All: ['*'] },
+                });
+                if (!saveUri) {
+                    return;
+                }
+
+                const exporter = new SshConfigExporter();
+                const result = exporter.export(connections);
+                await vscode.workspace.fs.writeFile(saveUri, Buffer.from(result.content, 'utf-8'));
+
+                if (result.skipped > 0) {
+                    vscode.window.showWarningMessage(
+                        vscode.l10n.t(
+                            'Exported {0} SSH/SFTP connections. {1} FTP/FTPS connections were skipped (not supported by SSH Config format).',
+                            String(result.exported),
+                            String(result.skipped)
+                        )
+                    );
+                } else {
+                    vscode.window.showInformationMessage(
+                        vscode.l10n.t('Exported {0} connections.', String(result.exported))
+                    );
+                }
+            }
+        })
+    );
+
     // Set Master Password
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.setMasterPassword', async () => {
+            // Guard: if encryption meta already exists (e.g. delivered via Settings Sync
+            // from another device) but the store is currently locked, redirect to unlock
+            // instead of creating a new incompatible salt — which would destroy synced data.
+            if (encryptionService.isEnabled() && !encryptionService.isUnlocked()) {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Remote Bridge: Synced connections detected. Enter the master password from your other device to unlock them.')
+                );
+                const unlocked = await promptMasterPassword(encryptionService);
+                if (unlocked) {
+                    await connectionManager.load();
+                    applySyncRegistration();
+                }
+                return;
+            }
+
             const password = await vscode.window.showInputBox({
                 title: vscode.l10n.t('Set Master Password'),
                 prompt: vscode.l10n.t('Enter a master password to encrypt your connections'),
@@ -820,6 +1034,16 @@ function registerCommands(
 
             await encryptionService.setupMasterPassword(password);
             await connectionManager.save();
+            applySyncRegistration();
+            // Reload to pick up any connections that may have been delivered via
+            // Settings Sync between activation and this point.
+            await connectionManager.load();
+            // Schedule retry in case the encrypted blob hasn't arrived yet.
+            const cfgAfterSetup = vscode.workspace.getConfiguration('remoteBridge.security');
+            if (cfgAfterSetup.get<boolean>('syncConnections')) {
+                syncService?.scheduleRetry();
+            }
+            setEncryptionContextKeys(encryptionService);
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Master password set successfully.')
             );
@@ -852,10 +1076,226 @@ function registerCommands(
             if (confirm) {
                 await encryptionService.removeMasterPassword();
                 await connectionManager.load();
+                applySyncRegistration();
+                setEncryptionContextKeys(encryptionService);
                 vscode.window.showInformationMessage(
                     vscode.l10n.t('Master password removed.')
                 );
             }
+        })
+    );
+
+    // Unlock Master Password
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.unlockMasterPassword', async () => {
+            if (!encryptionService.isEnabled()) {
+                return;
+            }
+            if (encryptionService.isUnlocked()) {
+                return;
+            }
+            const unlocked = await promptMasterPassword(encryptionService);
+            if (unlocked) {
+                await connectionManager.load();
+                applySyncRegistration();
+                if (encryptionService.isEnabled()) {
+                    const secCfg = vscode.workspace.getConfiguration('remoteBridge.security');
+                    if (secCfg.get<boolean>('syncConnections')) {
+                        syncService?.scheduleRetry();
+                    }
+                }
+            }
+        })
+    );
+
+    // Lock Master Password
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.lockMasterPassword', async () => {
+            if (!encryptionService.isEnabled() || !encryptionService.isUnlocked()) {
+                return;
+            }
+            encryptionService.lock();
+            syncService?.cancelRetry();
+        })
+    );
+
+    // Change Master Password
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.changeMasterPassword', async () => {
+            if (!encryptionService.isEnabled()) {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('No master password is set.')
+                );
+                return;
+            }
+
+            // Ask for the current password first
+            const currentPassword = await vscode.window.showInputBox({
+                title: vscode.l10n.t('Change Master Password'),
+                prompt: vscode.l10n.t('Enter your current master password'),
+                password: true,
+                ignoreFocusOut: true,
+            });
+            if (!currentPassword) {
+                return;
+            }
+
+            // Ask for the new password
+            const newPassword = await vscode.window.showInputBox({
+                title: vscode.l10n.t('Change Master Password'),
+                prompt: vscode.l10n.t('Enter the new master password'),
+                password: true,
+                ignoreFocusOut: true,
+                validateInput: (v) =>
+                    v.length >= 8
+                        ? null
+                        : vscode.l10n.t('Password must be at least 8 characters'),
+            });
+            if (!newPassword) {
+                return;
+            }
+
+            // Confirm new password
+            const confirmPassword = await vscode.window.showInputBox({
+                title: vscode.l10n.t('Change Master Password'),
+                prompt: vscode.l10n.t('Re-enter the new master password'),
+                password: true,
+                ignoreFocusOut: true,
+            });
+            if (confirmPassword !== newPassword) {
+                vscode.window.showErrorMessage(
+                    vscode.l10n.t('Passwords do not match.')
+                );
+                return;
+            }
+
+            const changed = await encryptionService.changeMasterPassword(currentPassword, newPassword);
+            if (!changed) {
+                vscode.window.showErrorMessage(
+                    vscode.l10n.t('Incorrect current password.')
+                );
+                return;
+            }
+
+            await connectionManager.save();
+            const cfgChange = vscode.workspace.getConfiguration('remoteBridge.security');
+            if (cfgChange.get<boolean>('syncConnections')) {
+                syncService?.scheduleRetry();
+            }
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Master password changed successfully.')
+            );
+        })
+    );
+
+    // Sync Now
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.syncNow', async () => {
+            const secCfg = vscode.workspace.getConfiguration('remoteBridge.security');
+            if (!secCfg.get<boolean>('syncConnections')) {
+                vscode.window.showWarningMessage(
+                    vscode.l10n.t('Remote Bridge: Connection sync is not enabled. Enable it in Settings → Remote Bridge → Security → Sync Connections.')
+                );
+                return;
+            }
+            if (!encryptionService.isUnlocked()) {
+                const unlocked = await promptMasterPassword(encryptionService);
+                if (!unlocked) { return; }
+            }
+            await syncService.syncNow();
+        })
+    );
+
+    // Restore from Backup
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.restoreBackup', async () => {
+            if (!encryptionService.isEnabled()) {
+                vscode.window.showWarningMessage(
+                    vscode.l10n.t('Backups are only available with master password encryption.')
+                );
+                return;
+            }
+            if (!encryptionService.isUnlocked()) {
+                const unlocked = await promptMasterPassword(encryptionService);
+                if (!unlocked) { return; }
+            }
+
+            const entries = await backupService.listBackups();
+            if (entries.length === 0) {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('No backups available.')
+                );
+                return;
+            }
+
+            const picked = await vscode.window.showQuickPick(entries, {
+                title: vscode.l10n.t('Restore Connections from Backup'),
+                placeHolder: vscode.l10n.t('Select a backup to restore'),
+            });
+            if (!picked) { return; }
+
+            const confirm2 = await vscode.window.showWarningMessage(
+                vscode.l10n.t('This will replace all current connections with the backup from {0}. Continue?', picked.label),
+                { modal: true },
+                vscode.l10n.t('Restore')
+            );
+            if (!confirm2) { return; }
+
+            const backupFile = await backupService.readBackup(picked.uri);
+            let store = await encryptionService.tryDecryptWith(backupFile.data, backupFile.meta);
+            if (!store) {
+                const oldPassword = await vscode.window.showInputBox({
+                    title: vscode.l10n.t('Backup Master Password'),
+                    prompt: vscode.l10n.t('This backup was created with a different master password. Enter it to decrypt.'),
+                    password: true,
+                    ignoreFocusOut: true,
+                });
+                if (!oldPassword) { return; }
+
+                store = await encryptionService.decryptWithPassword(backupFile.data, backupFile.meta, oldPassword);
+                if (!store) {
+                    vscode.window.showErrorMessage(
+                        vscode.l10n.t('Incorrect password. Cannot decrypt backup.')
+                    );
+                    return;
+                }
+            }
+
+            await connectionManager.restoreFromBackup(store);
+            const count = connectionManager.getConnections().length;
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Backup restored successfully. {0} connections recovered.', String(count))
+            );
+        })
+    );
+
+    // Create Backup
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.createBackup', async () => {
+            if (!encryptionService.isEnabled()) {
+                vscode.window.showWarningMessage(
+                    vscode.l10n.t('Backups are only available with master password encryption.')
+                );
+                return;
+            }
+            if (!encryptionService.isUnlocked()) {
+                const unlocked = await promptMasterPassword(encryptionService);
+                if (!unlocked) { return; }
+            }
+
+            const blob = encryptionService.getEncryptedBlob();
+            const meta = encryptionService.getMeta();
+            if (!blob || !meta) {
+                vscode.window.showWarningMessage(
+                    vscode.l10n.t('No connections to back up.')
+                );
+                return;
+            }
+
+            await backupService.createManualBackup(blob, meta);
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Backup created successfully.')
+            );
         })
     );
 
@@ -868,6 +1308,20 @@ function registerCommands(
 }
 
 // ─── Helper Functions ───────────────────────────────────────────
+
+/** Fire-and-forget variant used in event handlers. */
+function setEncryptionContextKeys(encryption: EncryptionService): void {
+    vscode.commands.executeCommand('setContext', 'remoteBridge.encryptionEnabled', encryption.isEnabled());
+    vscode.commands.executeCommand('setContext', 'remoteBridge.encryptionUnlocked', encryption.isUnlocked());
+}
+
+/** Awaitable variant used during activation to ensure keys are set before the welcome view renders. */
+async function setEncryptionContextKeysAsync(encryption: EncryptionService): Promise<void> {
+    await Promise.all([
+        vscode.commands.executeCommand('setContext', 'remoteBridge.encryptionEnabled', encryption.isEnabled()),
+        vscode.commands.executeCommand('setContext', 'remoteBridge.encryptionUnlocked', encryption.isUnlocked()),
+    ]);
+}
 
 async function promptMasterPassword(encryption: EncryptionService): Promise<boolean> {
     for (let attempts = 0; attempts < 3; attempts++) {

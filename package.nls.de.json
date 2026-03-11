@@ -7,6 +7,7 @@
   "view.activeSessions.name": "Aktive Sitzungen",
 
   "welcome.noConnections": "Keine Verbindungen konfiguriert.\n[Verbindung hinzufügen](command:remoteBridge.addConnection)\n[Verbindungen importieren](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "Verbindungen sind gesperrt.\n[Entsperren](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "Verbindung hinzufügen",
   "command.editConnection.title": "Verbindung bearbeiten",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "Aus PuTTY importieren",
   "command.importTotalCmd.title": "Aus Total Commander importieren",
   "command.setMasterPassword.title": "Master-Passwort festlegen",
+  "command.changeMasterPassword.title": "Master-Passwort ändern",
+  "command.unlockMasterPassword.title": "Verbindungen entsperren",
+  "command.lockMasterPassword.title": "Verbindungen sperren",
   "command.removeMasterPassword.title": "Master-Passwort entfernen",
+  "command.restoreBackup.title": "Aus Sicherung wiederherstellen",
+  "command.createBackup.title": "Sicherung erstellen",
   "command.refresh.title": "Aktualisieren",
   "command.duplicateConnection.title": "Verbindung duplizieren",
+  "command.moveToFolder.title": "In Ordner verschieben",
   "command.import.title": "Verbindungen importieren",
+  "command.exportConnections.title": "Verbindungen exportieren",
+  "command.syncNow.title": "Verbindungen jetzt synchronisieren (Beta)",
   "command.showConnections.title": "Verbindungen anzeigen",
 
   "submenu.import.label": "Import",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "Maximale Größe des Dateiinhalt-Caches (in MB)",
   "config.pool.idleTimeout.description": "Zeit in Sekunden, bevor inaktive Verbindungen geschlossen werden",
   "config.pool.maxConnections.description": "Maximale Anzahl gleichzeitiger Verbindungen",
-  "config.security.useMasterPassword.description": "Gespeicherte Verbindungen mit einem Master-Passwort verschlüsseln",
-  "config.security.masterPasswordTimeout.description": "Zeit in Minuten, bevor das Master-Passwort erneut eingegeben werden muss (0 = nie)",
+  "config.security.syncConnections.description": "(Beta) Bündelt Geheimnisse im verschlüsselten Speicher, damit Verbindungen (einschließlich Passwörter) geräteübergreifend über die VS Code Settings Sync synchronisiert werden. Erfordert ein aktiviertes Master-Passwort. Auf allen Geräten muss dasselbe Master-Passwort festgelegt sein. Hinweis: Diese Funktion funktioniert möglicherweise nicht in allen Szenarien zuverlässig und ist von einer aktiven und korrekt funktionierenden VS Code-Synchronisierung abhängig.",
   "config.watch.pollInterval.description": "Abfrageintervall für Dateisystem-Watcher (in Millisekunden)",
   "config.ai.enabled.description": "KI-Tools aktivieren (Beta). Stellt dem KI-Agenten dedizierte Werkzeuge für Dateien, Datenbanken und Suche bereit. Standardmäßig deaktiviert — ohne diese Tools verwendet der Agent SSH-Befehle direkt über runCommand, was oft bessere Ergebnisse liefert. Erfordert Neustart.",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "MySQL-Ausführung",
   "tool.mysqlExecute.userDescription": "Führt eine datenändernde SQL-Anweisung auf einer MySQL/MariaDB-Datenbank über die Remote Bridge SSH-Verbindung aus",
   "tool.mysqlSchema.displayName": "MySQL-Schema",
-  "tool.mysqlSchema.userDescription": "Zeigt das MySQL/MariaDB-Datenbankschema (Datenbanken, Tabellen, Spalten) über die Remote Bridge SSH-Verbindung an"
+  "tool.mysqlSchema.userDescription": "Zeigt das MySQL/MariaDB-Datenbankschema (Datenbanken, Tabellen, Spalten) über die Remote Bridge SSH-Verbindung an",
+
+  "walkthrough.title": "Erste Schritte mit Remote Bridge",
+  "walkthrough.description": "Verbinden Sie sich mit Remote-Servern über SSH, SFTP, FTP und FTPS – und nutzen Sie alle Funktionen optimal.",
+  "walkthrough.step.addConnection.title": "Erste Verbindung hinzufügen",
+  "walkthrough.step.addConnection.description": "Öffnen Sie das Formular, um Ihre erste SSH-, SFTP-, FTP- oder FTPS-Verbindung einzurichten.\n[Verbindung hinzufügen](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "Mit Master-Passwort schützen",
+  "walkthrough.step.masterPassword.description": "Aktivieren Sie die Master-Passwort-Verschlüsselung mit AES-256-GCM. Sie erhalten auch automatische verschlüsselte Sicherungen (7 täglich + 4 wöchentlich) und die Möglichkeit, Verbindungen geräteübergreifend zu synchronisieren.\n[Master-Passwort festlegen](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "Geräteübergreifend synchronisieren (Beta)",
+  "walkthrough.step.sync.description": "Aktivieren Sie die Verbindungssynchronisierung, um Ihre Verbindungen – einschließlich Passwörter – über alle Geräte via VS Code Settings Sync zu teilen. Verbindungen werden automatisch zusammengeführt.\n[Synchronisierungseinstellung öffnen](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "Bestehende Verbindungen importieren",
+  "walkthrough.step.import.description": "Nutzen Sie bereits einen anderen Client? Importieren Sie Verbindungen aus SSH Config, WinSCP, FileZilla, PuTTY, SSH FS oder Total Commander in einem Schritt.\n[Verbindungen importieren](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.de.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.de.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.de.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.de.md"
 }

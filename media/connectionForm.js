@@ -21,12 +21,14 @@
     const portInput = /** @type {HTMLInputElement} */ (document.getElementById('port'));
     const authMethodSelect = /** @type {HTMLSelectElement} */ (document.getElementById('authMethod'));
     const secureCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('secure'));
+    const allowSelfSignedCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('allowSelfSigned'));
 
     // Conditional sections
     const passwordSection = /** @type {HTMLElement} */ (document.getElementById('passwordSection'));
     const keySection = /** @type {HTMLElement} */ (document.getElementById('keySection'));
     const agentSection = /** @type {HTMLElement} */ (document.getElementById('agentSection'));
     const secureSection = /** @type {HTMLElement} */ (document.getElementById('secureSection'));
+    const allowSelfSignedSection = /** @type {HTMLElement} */ (document.getElementById('allowSelfSignedSection'));
 
     // Buttons
     const saveBtn = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
@@ -57,6 +59,7 @@
         // Show/hide FTP-specific fields
         const isFtp = protocol === 'ftp' || protocol === 'ftps';
         toggleVisibility(secureSection, isFtp);
+        toggleVisibility(allowSelfSignedSection, isFtp);
 
         if (protocol === 'ftps') {
             secureCheckbox.checked = true;
@@ -215,6 +218,7 @@
             remotePath: getVal('remotePath') || '/',
             keepaliveInterval: parseInt(getVal('keepaliveInterval'), 10) || 10,
             secure: secureCheckbox.checked,
+            allowSelfSigned: allowSelfSignedCheckbox.checked,
             os: /** @type {HTMLSelectElement} */ (document.getElementById('os')).value,
 
             // Auth-specific
@@ -260,6 +264,7 @@
         setVal('remotePath', data.remotePath || '/');
         setVal('keepaliveInterval', String(data.keepaliveInterval ?? 10));
         secureCheckbox.checked = !!data.secure;
+        allowSelfSignedCheckbox.checked = !!data.allowSelfSigned;
         /** @type {HTMLSelectElement} */ (document.getElementById('os')).value = data.os || 'linux';
 
         setVal('privateKeyPath', data.privateKeyPath || '');
@@ -280,6 +285,7 @@
         // Trigger UI updates
         const isFtp = data.protocol === 'ftp' || data.protocol === 'ftps';
         toggleVisibility(secureSection, isFtp);
+        toggleVisibility(allowSelfSignedSection, isFtp);
         const isSsh = data.protocol === 'ssh' || data.protocol === 'sftp';
         updateAuthMethodOptions(isSsh);
         updateAuthSections();

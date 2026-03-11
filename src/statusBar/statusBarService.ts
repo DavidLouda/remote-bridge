@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
+import { EncryptionService } from '../services/encryptionService';
 import { ConnectionStatus } from '../types/connection';
 import { openSshTerminal } from '../terminal/sshTerminalProvider';
 
@@ -8,14 +9,20 @@ import { openSshTerminal } from '../terminal/sshTerminalProvider';
  * Provides a simple status bar item (left, lowest priority) showing
  * a plug icon and live transfer speeds (↓/↑). Clicking it opens a
  * QuickPick with all configured connections and their current state.
+ *
+ * When master password encryption is enabled, a second status bar item
+ * (lock icon) is shown to the right of the main item. It indicates the
+ * locked/unlocked state and can be clicked to lock or unlock.
  */
 export class StatusBarService implements vscode.Disposable {
     private readonly _item: vscode.StatusBarItem;
+    private readonly _lockItem: vscode.StatusBarItem;
     private readonly _disposables: vscode.Disposable[] = [];
 
     constructor(
         private readonly _connectionManager: ConnectionManager,
         private readonly _connectionPool: ConnectionPool,
+        private readonly _encryptionService: EncryptionService,
         context: vscode.ExtensionContext
     ) {
         // Create status bar item — left side, priority 0 (far left)
@@ -28,11 +35,20 @@ export class StatusBarService implements vscode.Disposable {
         this._item.tooltip = vscode.l10n.t('Show remote connections');
         this._item.command = 'remoteBridge.showConnections';
 
+        // Create lock status bar item — shown only when master password is enabled
+        this._lockItem = vscode.window.createStatusBarItem(
+            'remoteBridge.lockStatus',
+            vscode.StatusBarAlignment.Left,
+            -1
+        );
+        this._lockItem.name = 'Remote Bridge — Master Password';
+
         // Set initial text based on current connection state
         this._updateText();
 
         // Only show the status bar when there are connections
         this._updateVisibility();
+        this._updateLockItem();
 
         // Listen for connection changes to toggle visibility and update text
         this._disposables.push(
@@ -47,6 +63,12 @@ export class StatusBarService implements vscode.Disposable {
             this._connectionPool.onDidChangeStatus(() => this._updateText())
         );
 
+        // Update lock item on encryption state changes
+        this._disposables.push(
+            this._encryptionService.onDidLock(() => this._updateLockItem()),
+            this._encryptionService.onDidUnlock(() => this._updateLockItem())
+        );
+
         // Register the QuickPick command
         this._disposables.push(
             vscode.commands.registerCommand(
@@ -55,7 +77,7 @@ export class StatusBarService implements vscode.Disposable {
             )
         );
 
-        context.subscriptions.push(this._item);
+        context.subscriptions.push(this._item, this._lockItem);
     }
 
     /** Show the status bar only when at least one connection is configured. */
@@ -65,6 +87,26 @@ export class StatusBarService implements vscode.Disposable {
         } else {
             this._item.hide();
         }
+    }
+
+    /** Update the lock status bar item to reflect the current encryption state. */
+    private _updateLockItem(): void {
+        if (!this._encryptionService.isEnabled()) {
+            this._lockItem.hide();
+            return;
+        }
+        if (this._encryptionService.isUnlocked()) {
+            this._lockItem.text = '$(unlock)';
+            this._lockItem.tooltip = vscode.l10n.t('Connections unlocked — click to lock');
+            this._lockItem.command = 'remoteBridge.lockMasterPassword';
+            this._lockItem.backgroundColor = undefined;
+        } else {
+            this._lockItem.text = '$(lock)';
+            this._lockItem.tooltip = vscode.l10n.t('Connections locked — click to unlock');
+            this._lockItem.command = 'remoteBridge.unlockMasterPassword';
+            this._lockItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        }
+        this._lockItem.show();
     }
 
     /** Update the status bar text to show currently connected server names. */
@@ -206,6 +248,7 @@ export class StatusBarService implements vscode.Disposable {
 
     dispose(): void {
         this._item.dispose();
+        this._lockItem.dispose();
         for (const d of this._disposables) {
             d.dispose();
         }

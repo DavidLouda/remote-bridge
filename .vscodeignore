@@ -11,6 +11,8 @@ esbuild.mjs
 **/*.ts
 **/*.vsix
 .playwright-mcp/**
+skills/**
 resources/Info.jpg
 resources/screen_*.png
 !dist/**
+dist/**/*.map

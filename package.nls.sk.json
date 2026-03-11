@@ -7,6 +7,7 @@
   "view.activeSessions.name": "Aktívne relácie",
 
   "welcome.noConnections": "Žiadne nakonfigurované pripojenia.\n[Pridať pripojenie](command:remoteBridge.addConnection)\n[Importovať pripojenia](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "Pripojenia sú zamknuté.\n[Odomknúť](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "Pridať pripojenie",
   "command.editConnection.title": "Upraviť pripojenie",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "Importovať z PuTTY",
   "command.importTotalCmd.title": "Importovať z Total Commanderu",
   "command.setMasterPassword.title": "Nastaviť hlavné heslo",
+  "command.changeMasterPassword.title": "Zmeniť hlavné heslo",
+  "command.unlockMasterPassword.title": "Odomknúť pripojenia",
+  "command.lockMasterPassword.title": "Zamknúť pripojenia",
   "command.removeMasterPassword.title": "Odstrániť hlavné heslo",
+  "command.restoreBackup.title": "Obnoviť zo zálohy",
+  "command.createBackup.title": "Vytvoriť zálohu",
   "command.refresh.title": "Obnoviť",
+  "command.moveToFolder.title": "Presunúť do priečinka",
   "command.duplicateConnection.title": "Duplikovať pripojenie",
   "command.import.title": "Importovať pripojenia",
+  "command.exportConnections.title": "Exportovať pripojenia",
+  "command.syncNow.title": "Synchronizovať pripojenia teraz (Beta)",
   "command.showConnections.title": "Zobraziť pripojenia",
 
   "submenu.import.label": "Import",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "Maximálna veľkosť cache obsahu súborov (v MB)",
   "config.pool.idleTimeout.description": "Čas v sekundách pred uzavretím neaktívnych pripojení",
   "config.pool.maxConnections.description": "Maximálny počet súčasných pripojení",
-  "config.security.useMasterPassword.description": "Šifrovať uložené pripojenia hlavným heslom",
-  "config.security.masterPasswordTimeout.description": "Čas v minútach pred opätovným vyžiadaním hlavného hesla (0 = nikdy)",
+  "config.security.syncConnections.description": "(Beta) Zahrnie heslá do šifrovaného úložiska, aby sa pripojenia (vrátane hesiel) synchronizovali napriec zariadeniami cez VS Code Settings Sync. Vyžaduje aktivé hlavné heslo. Na všetkých zariadeniach musí byť nastavené rovnaké hlavné heslo. Upozornenie: Táto funkcia nemusí fungovať spoloľivo vo všetkých scenaroch a závisí od aktivíty a správneho fungovania synchronizácie VS Code.",
   "config.watch.pollInterval.description": "Interval dotazovania pre sledovače súborového systému (v milisekundách)",
   "config.ai.enabled.description": "Povoliť nástroje AI (beta). Poskytuje AI agentovi špecializované nástroje pre súbory, databázy a vyhľadávanie. Predvolene vypnuté — bez týchto nástrojov agent používa SSH príkazy priamo cez runCommand, čo často prináša lepšie výsledky. Vyžaduje opätovné načítanie.",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "MySQL vykonanie",
   "tool.mysqlExecute.userDescription": "Vykoná SQL príkaz modifikujúci dáta na databáze MySQL/MariaDB cez SSH pripojenie Remote Bridge",
   "tool.mysqlSchema.displayName": "MySQL schéma",
-  "tool.mysqlSchema.userDescription": "Prehliadne schému databázy MySQL/MariaDB (databázy, tabuľky, stĺpce) cez SSH pripojenie Remote Bridge"
+  "tool.mysqlSchema.userDescription": "Prehliadne schému databázy MySQL/MariaDB (databázy, tabuľky, stĺpce) cez SSH pripojenie Remote Bridge",
+
+  "walkthrough.title": "Začíname s Remote Bridge",
+  "walkthrough.description": "Pripojte sa k vzdialenými serverom cez SSH, SFTP, FTP a FTPS – a využite každú funkciu naplno.",
+  "walkthrough.step.addConnection.title": "Pridajte prvé pripojenie",
+  "walkthrough.step.addConnection.description": "Otvorte formulár a nastavte svoje prvé SSH, SFTP, FTP alebo FTPS pripojenie.\n[Pridať pripojenie](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "Ochrana hlavným heslom",
+  "walkthrough.step.masterPassword.description": "Zapnite šifrovanie hlavným heslom a zabezpečte všetky pripojenia pomocou AES-256-GCM. Získate aj automatické šifrované zálohy (7 denných + 4 týždenné) a synchronizáciu medzi zariadeniami.\n[Nastaviť hlavné heslo](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "Synchronizácia medzi zariadeniami (Beta)",
+  "walkthrough.step.sync.description": "Zapnite synchronizáciu a zdieľajte pripojenia – vrátane hesiel – na všetkých zariadeniach cez VS Code Settings Sync. Pripojenia sa zlučujú automaticky.\n[Otvoriť nastavenie synchronizácie](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "Import existujúcich pripojení",
+  "walkthrough.step.import.description": "Používate iného klienta? Importujte pripojenia zo SSH config, WinSCP, FileZilla, PuTTY, SSH FS alebo Total Commander jedným krokom.\n[Importovať pripojenia](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.sk.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.sk.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.sk.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.sk.md"
 }

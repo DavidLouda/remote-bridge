@@ -7,6 +7,7 @@
   "view.activeSessions.name": "アクティブセッション",
 
   "welcome.noConnections": "接続が構成されていません。\n[接続を追加](command:remoteBridge.addConnection)\n[接続をインポート](command:remoteBridge.import)",
+  "welcome.connectionsLocked": "接続はロックされています。\n[ロック記除](command:remoteBridge.unlockMasterPassword)",
 
   "command.addConnection.title": "接続を追加",
   "command.editConnection.title": "接続を編集",
@@ -26,10 +27,18 @@
   "command.importPuTTY.title": "PuTTY からインポート",
   "command.importTotalCmd.title": "Total Commander からインポート",
   "command.setMasterPassword.title": "マスターパスワードを設定",
+  "command.changeMasterPassword.title": "マスターパスワードを変更",
+  "command.unlockMasterPassword.title": "接続をロック解除",
+  "command.lockMasterPassword.title": "接続をロック",
   "command.removeMasterPassword.title": "マスターパスワードを削除",
+  "command.restoreBackup.title": "バックアップから復元",
+  "command.createBackup.title": "バックアップを作成",
   "command.refresh.title": "更新",
+  "command.moveToFolder.title": "フォルダーに移動",
   "command.duplicateConnection.title": "接続を複製",
   "command.import.title": "接続をインポート",
+  "command.exportConnections.title": "接続をエクスポート",
+  "command.syncNow.title": "今すぐ接続を同期 (Beta)",
   "command.showConnections.title": "接続を表示",
 
   "submenu.import.label": "インポート",
@@ -38,8 +47,7 @@
   "config.cache.maxSize.description": "ファイルコンテンツキャッシュの最大サイズ（MB）",
   "config.pool.idleTimeout.description": "アイドル接続が閉じられるまでの時間（秒）",
   "config.pool.maxConnections.description": "同時接続の最大数",
-  "config.security.useMasterPassword.description": "マスターパスワードで保存された接続を暗号化",
-  "config.security.masterPasswordTimeout.description": "マスターパスワードの再入力が必要になるまでの時間（分、0 = なし）",
+  "config.security.syncConnections.description": "(Beta) シークレットを暗号化されたストアにバンドルして、VS Code の設定同期を通じてデバイス間で接続（パスワードを含む）を同期します。マスターパスワード暗号化が有効である必要があります。すべてのデバイスで同じマスターパスワードを設定する必要があります。注意：この機能はすべてのシナリオで信頼性高く動作するとは限らず、VS Code 設定同期が有効で正常に機能していることに依存します。",
   "config.watch.pollInterval.description": "ファイルシステムウォッチャーのポーリング間隔（ミリ秒）",
   "config.ai.enabled.description": "AIツールを有効にする（ベータ）。AIエージェントに専用のファイル、データベース、検索ツールを提供します。デフォルトで無効 — これらのツールなしでは、エージェントはrunCommand経由でSSHコマンドを直接使用しますが、多くの場合より良い結果が得られます。再読み込みが必要です。",
 
@@ -84,5 +92,20 @@
   "tool.mysqlExecute.displayName": "MySQL 実行",
   "tool.mysqlExecute.userDescription": "Remote Bridge SSH 接続経由で MySQL/MariaDB データベースに対してデータ変更 SQL 文を実行します",
   "tool.mysqlSchema.displayName": "MySQL スキーマ",
-  "tool.mysqlSchema.userDescription": "Remote Bridge SSH 接続経由で MySQL/MariaDB データベースのスキーマ（データベース、テーブル、列）を検査します"
+  "tool.mysqlSchema.userDescription": "Remote Bridge SSH 接続経由で MySQL/MariaDB データベースのスキーマ（データベース、テーブル、列）を検査します",
+
+  "walkthrough.title": "Remote Bridge を使い始める",
+  "walkthrough.description": "SSH、SFTP、FTP、FTPS でリモートサーバーに接続し、すべての機能を活用しましょう。",
+  "walkthrough.step.addConnection.title": "最初の接続を追加する",
+  "walkthrough.step.addConnection.description": "フォームを開いて、最初の SSH、SFTP、FTP、または FTPS 接続を設定してください。\n[接続を追加](command:remoteBridge.addConnection)",
+  "walkthrough.step.masterPassword.title": "マスターパスワードで保護する",
+  "walkthrough.step.masterPassword.description": "マスターパスワード暗号化を有効にして、AES-256-GCM ですべての接続を保護しましょう。自動暗号化バックアップ（毎日 7 件 + 毎週 4 件）やデバイス間の同期も利用できます。\n[マスターパスワードを設定](command:remoteBridge.setMasterPassword)",
+  "walkthrough.step.sync.title": "デバイス間で同期する (Beta)",
+  "walkthrough.step.sync.description": "同期を有効にすると、VS Code Settings Sync を通じてパスワードを含む接続情報をすべてのデバイスで共有できます。接続は自動的にマージされます。\n[同期設定を開く](command:workbench.action.openSettings?%5B%22remoteBridge.security.syncConnections%22%5D)",
+  "walkthrough.step.import.title": "既存の接続をインポートする",
+  "walkthrough.step.import.description": "他のクライアントをお使いですか？SSH Config、WinSCP、FileZilla、PuTTY、SSH FS、Total Commander からワンステップでインポートできます。\n[接続をインポート](command:remoteBridge.import)",
+  "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.ja.md",
+  "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.ja.md",
+  "walkthrough.step.sync.media": "media/walkthrough/sync.ja.md",
+  "walkthrough.step.import.media": "media/walkthrough/import.ja.md"
 }

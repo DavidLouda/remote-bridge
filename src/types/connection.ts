@@ -53,8 +53,12 @@ export interface ConnectionConfig {
     sortOrder: number;
     /** Use TLS/FTPS (only for FTP connections) */
     secure?: boolean;
+    /** Allow self-signed / invalid TLS certificates (FTPS only). Default: false = verify certificates. */
+    allowSelfSigned?: boolean;
     /** Remote server operating system (default: 'linux') */
     os?: RemoteOS;
+    /** Epoch ms of the last modification. Used for sync merge conflict resolution. */
+    updatedAt?: number;
 }
 
 // ─── Connection Folder ──────────────────────────────────────────────
@@ -68,17 +72,53 @@ export interface ConnectionFolder {
     parentId?: string;
     /** Sort order */
     sortOrder: number;
+    /** Epoch ms of the last modification. Used for sync merge conflict resolution. */
+    updatedAt?: number;
+}
+
+// ─── Tombstone ─────────────────────────────────────────────────────
+
+/**
+ * Records that a connection or folder was deleted, enabling sync merge to
+ * propagate deletions from one device to another.
+ */
+export interface Tombstone {
+    /** ID of the deleted connection or folder. */
+    id: string;
+    /** Epoch ms when the entity was deleted. */
+    deletedAt: number;
 }
 
 // ─── Connection Store (serialized to globalState) ───────────────────
+
+/** Secrets for a single connection, bundled into the store when sync is enabled. */
+export interface ConnectionSecrets {
+    password?: string;
+    passphrase?: string;
+    proxyPassword?: string;
+}
 
 export interface ConnectionStore {
     /** Schema version for future migrations */
     version: number;
     /** All connection folders */
     folders: ConnectionFolder[];
-    /** All connection configurations (secrets stored separately) */
+    /** All connection configurations (secrets stored separately in SecretStorage) */
     connections: ConnectionConfig[];
+    /**
+     * Secrets bundled into the encrypted store to enable cross-device sync.
+     * Only present when `remoteBridge.security.syncConnections` is enabled
+     * together with a master password. The store must be encrypted before saving
+     * with this field populated.
+     * Key = connection ID, value = secrets object.
+     */
+    secrets?: Record<string, ConnectionSecrets>;
+    /**
+     * Recently deleted connection and folder IDs with deletion timestamps.
+     * Used during sync merge so deletions on one device propagate to others.
+     * Entries older than 30 days are pruned on every save.
+     */
+    tombstones?: Tombstone[];
 }
 
 // ─── Encryption Metadata ────────────────────────────────────────────
