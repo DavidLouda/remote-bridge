@@ -289,9 +289,11 @@ export class FileZillaImporter {
                 try {
                     password = Buffer.from(rawPass, 'base64').toString('utf8');
                 } catch {
-                    result.warnings!.push(
-                        vscode.l10n.t('Connection "{0}": failed to decode Base64 password', name)
+                    result.errors!.push(
+                        vscode.l10n.t('Connection "{0}": failed to decode Base64 password — skipping', name)
                     );
+                    result.skipped++;
+                    return;
                 }
             } else if (encoding === 'crypt') {
                 result.warnings!.push(

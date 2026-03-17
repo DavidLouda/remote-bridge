@@ -74,7 +74,9 @@ export class PuTTYImporter {
         for (const encoded of sessionNames) {
             const sessionName = this._decodeSessionName(encoded);
             try {
-                const raw = cp.execSync(`reg query "${regKey}\\${encoded}"`, {
+                // Use execFileSync with an argument array to avoid shell injection
+                // (session names extracted from registry could contain ", &, | etc.)
+                const raw = cp.execFileSync('reg', ['query', `${regKey}\\${encoded}`], {
                     encoding: 'utf8',
                 });
                 const values = this._parseRegOutput(raw);

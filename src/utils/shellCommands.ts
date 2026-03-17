@@ -1,4 +1,4 @@
-import { RemoteOS } from '../types/connection';
+﻿import { RemoteOS } from '../types/connection';
 
 /**
  * Centralised OS-aware shell command builder.
@@ -19,8 +19,9 @@ import { RemoteOS } from '../types/connection';
  * - Linux / macOS: wraps in single quotes, escaping embedded `'`.
  * - Windows (PowerShell): wraps in single quotes, doubling embedded `'`.
  */
-export function esc(path: string, os: RemoteOS = 'linux'): string {
-    if (os === 'windows') {
+export function esc(path: string, os: RemoteOS = 'linux'): string {    if (/[\x00-\x1f\x7f]/.test(path)) {
+        throw new Error(`Path contains invalid control characters: ${JSON.stringify(path)}`);
+    }    if (os === 'windows') {
         return `'${path.replace(/'/g, "''")}'`;
     }
     return `'${path.replace(/'/g, "'\\''")}'`;
@@ -131,10 +132,13 @@ export function grepSearch(
     os: RemoteOS = 'linux',
     contextLines: number = 0,
     caseSensitive: boolean = false,
-    maxResults: number = 100
+    maxResults: number = 100,
+    excludePattern?: string
 ): string {
+    maxResults = Math.max(1, maxResults);
+    contextLines = Math.max(0, contextLines);
     const escapedPattern = os === 'windows'
-        ? pattern
+        ? pattern.replace(/'/g, "''")
         : pattern.replace(/'/g, "'\\''");
     const p = esc(path, os);
 
@@ -142,7 +146,10 @@ export function grepSearch(
         // PowerShell Select-String
         let cmd = `Get-ChildItem -LiteralPath ${p} -Recurse`;
         if (fileGlob) {
-            cmd += ` -Filter '${fileGlob}'`;
+            cmd += ` -Filter '${fileGlob.replace(/'/g, "''")}'`;
+        }
+        if (excludePattern) {
+            cmd += ` -Exclude '${excludePattern.replace(/'/g, "''")}'`;
         }
         const csFlag = caseSensitive ? '-CaseSensitive ' : '';
         const ctxFlag = contextLines > 0 ? `-Context ${contextLines},${contextLines} ` : '';
@@ -163,7 +170,10 @@ export function grepSearch(
         cmd += ` -C ${contextLines}`;
     }
     if (fileGlob) {
-        cmd += ` --include='${fileGlob}'`;
+        cmd += ` --include='${fileGlob.replace(/'/g, "'\\''")}'`;
+    }
+    if (excludePattern) {
+        cmd += ` --exclude-dir='${excludePattern.replace(/'/g, "'\\''")}'`;
     }
     cmd += ` '${escapedPattern}' ${p} | head -n ${maxResults}`;
     return cmd;
@@ -175,23 +185,26 @@ export function grepInFile(
     pattern: string,
     path: string,
     contextLines: number = 3,
-    os: RemoteOS = 'linux'
+    os: RemoteOS = 'linux',
+    maxResults: number = 50
 ): string {
+    maxResults = Math.max(1, maxResults);
+    contextLines = Math.max(0, contextLines);
     const escapedPattern = os === 'windows'
-        ? pattern
+        ? pattern.replace(/'/g, "''")
         : pattern.replace(/'/g, "'\\''");
     const p = esc(path, os);
 
     if (os === 'windows') {
         const ctxFlag = contextLines > 0 ? `-Context ${contextLines},${contextLines} ` : '';
-        return `$lines = Get-Content -LiteralPath ${p}; $lines.Count; Select-String -InputObject ($lines -join "\n") ${ctxFlag}-Pattern '${escapedPattern}' -AllMatches | ForEach-Object { $_.ToString() }`;
+        return `$lines = Get-Content -LiteralPath ${p}; $lines.Count; Select-String -InputObject ($lines -join "\n") ${ctxFlag}-Pattern '${escapedPattern}' -AllMatches | Select-Object -First ${maxResults} | ForEach-Object { $_.ToString() }`;
     }
     // Linux & macOS: line count + grep with context
     let cmd = `_t=$(wc -l < ${p}) && echo "$_t" && grep -n -I --color=never`;
     if (contextLines > 0) {
         cmd += ` -C ${contextLines}`;
     }
-    cmd += ` '${escapedPattern}' ${p}`;
+    cmd += ` -m ${maxResults} '${escapedPattern}' ${p}`;
     return cmd;
 }
 
@@ -268,6 +281,7 @@ export function findCmd(
     type?: 'file' | 'directory',
     excludePattern?: string
 ): string {
+    limit = Math.max(1, limit);
     const p = esc(path, os);
     if (os === 'windows') {
         const pat = namePattern.replace(/'/g, "''");
@@ -281,7 +295,7 @@ export function findCmd(
         return cmd;
     }
     const escapedPattern = namePattern.replace(/'/g, "'\\''");
-    let pruneList = '\( -name .git -o -name node_modules -o -name .svn -o -name __pycache__ -o -name .DS_Store \) -prune';
+    let pruneList = '\\( -name .git -o -name node_modules -o -name .svn -o -name __pycache__ -o -name .DS_Store \\) -prune';
     if (excludePattern) {
         const escapedExclude = excludePattern.replace(/'/g, "'\\''");
         pruneList += ` -o -path '${escapedExclude}' -prune`;
@@ -293,42 +307,4 @@ export function findCmd(
         typeFilter = ' -type d';
     }
     return `find ${p} -maxdepth 10 ${pruneList} -o${typeFilter} -name '${escapedPattern}' -print 2>/dev/null | head -n ${limit}`;
-}
-
-// ─── mysql ──────────────────────────────────────────────────────────
-
-/**
- * Build the base mysql command line.
- *
- * Uses `--no-defaults` instead of the previous `--defaults-file=<(echo '')`
- * to avoid bash process-substitution dependency. Works across bash, zsh,
- * and Windows (Git Bash / PowerShell with mysql in PATH).
- */
-export function mysqlCmd(dbArg: string, _os: RemoteOS = 'linux', user?: string, password?: string, host?: string): string {
-    const auth = mysqlAuthArgs(user, host);
-    const prefix = mysqlPwdPrefix(password);
-    return `${prefix}mysql --no-defaults${auth}${dbArg} 2>&1`;
-}
-
-/**
- * Build a mysql -e "..." command for inline SQL.
- */
-export function mysqlExecInline(sql: string, dbArg: string, _os: RemoteOS = 'linux', user?: string, password?: string, host?: string): string {
-    const auth = mysqlAuthArgs(user, host);
-    const prefix = mysqlPwdPrefix(password);
-    return `${prefix}mysql --no-defaults${auth} -e "${sql}"${dbArg} 2>&1`;
-}
-
-/** Build -u user -h host args. */
-function mysqlAuthArgs(user?: string, host?: string): string {
-    let args = '';
-    if (user) { args += ` -u '${user.replace(/'/g, "'\\''")}'`; }
-    if (host) { args += ` -h '${host.replace(/'/g, "'\\''")}'`; }
-    return args;
-}
-
-/** Build MYSQL_PWD='...' prefix to pass password via env var (hidden from ps). */
-function mysqlPwdPrefix(password?: string): string {
-    if (!password) { return ''; }
-    return `MYSQL_PWD='${password.replace(/'/g, "'\\''")}' `;
 }

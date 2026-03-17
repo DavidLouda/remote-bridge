@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { posix } from 'path';
 import { ConnectionManager } from '../../services/connectionManager';
 import { ConnectionPool } from '../../services/connectionPool';
 import { ConnectionConfig, ConnectionStatus } from '../../types/connection';
@@ -81,5 +82,57 @@ export abstract class BaseTool {
             return all[0].name;
         }
         return idOrName ?? 'unknown';
+    }
+
+    /**
+     * Validates that a remote path is within the connection's workspace root (remotePath).
+     *
+     * Uses posix.normalize() to resolve '..', '.', and duplicate slashes before checking,
+     * which prevents path traversal attacks (e.g. /workspace/../../../etc/passwd).
+     *
+     * When config.remotePath is '/' or empty, no restriction is applied (whole server is workspace).
+     *
+     * @throws Error if the path is outside the workspace root.
+     * @returns The normalized, validated path.
+     */
+    protected _ensureWithinWorkspace(inputPath: string, config: ConnectionConfig): string {
+        // Reject local file:// URIs and Windows-style paths — this tool is for remote servers only.
+        if (/^file:\/\/\//i.test(inputPath) || /^[A-Za-z]:[\\]/.test(inputPath) || /^[\\/]{2}[^\\/]/.test(inputPath)) {
+            throw new Error(
+                `Path "${inputPath}" is a local file path. This tool only works with remote server paths. Use VS Code native tools for local files.`
+            );
+        }
+
+        // .trim() — guard against invisible Unicode chars (e.g. NBSP, ZWSP) from user input.
+        const trimmedInput = inputPath.trim();
+
+        // Strip remote-bridge://UUID prefix if the agent included it — extract the bare server path.
+        let cleanPath = trimmedInput;
+        if (cleanPath.startsWith('remote-bridge://')) {
+            const afterScheme = cleanPath.substring('remote-bridge://'.length);
+            const slashIndex = afterScheme.indexOf('/');
+            cleanPath = slashIndex >= 0 ? afterScheme.substring(slashIndex) : '/';
+        }
+
+        const rootPath = (config.remotePath || '/').trim();
+        if (rootPath === '/') {
+            // Always normalize even for root — prevents path traversal via /../
+            return posix.normalize(cleanPath);
+        }
+
+        // Resolve relative paths against workspace root.
+        if (!cleanPath.startsWith('/')) {
+            cleanPath = rootPath.replace(/\/+$/, '') + '/' + cleanPath;
+        }
+
+        const normalized = posix.normalize(cleanPath);
+        const normalizedRoot = posix.normalize(rootPath).replace(/\/+$/, '');
+        if (normalized === normalizedRoot || normalized.startsWith(normalizedRoot + '/')) {
+            return normalized;
+        }
+        throw new Error(
+            `Path "${inputPath}" is outside the workspace root "${config.remotePath}". ` +
+            `(Normalized: "${normalized}" vs root: "${normalizedRoot}"). Use paths within the workspace root directory.`
+        );
     }
 }

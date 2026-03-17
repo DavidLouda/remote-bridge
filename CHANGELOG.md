@@ -5,6 +5,32 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-03-17
+
+After two releases of growing the AI toolset to 15 dedicated tools, it became clear that more tools is not always better — the agent would get tangled choosing between them and occasionally fight the extension's own safety rails. Version 3.0 strips it back to three universal, always-on tools and enforces what the agent should and should not do at the code level.
+
+### Added
+- **Proxy support** — SOCKS4, SOCKS5, and HTTP CONNECT proxy for SSH/SFTP and FTP/FTPS connections. Configure per connection in the connection form. Passwords stored in VS Code SecretStorage. Note: for FTP/FTPS, only the control connection is tunnelled through HTTP CONNECT proxy; SOCKS4/5 works fully for both.
+- **Change Permissions** — right-click any file or folder → **Change Permissions** to set Unix permissions in octal (e.g. `755`). Current mode is pre-filled and shown in symbolic notation (e.g. `rw-r--r--`). Supports SSH/SFTP and FTP/FTPS. Also available via the Command Palette.
+- **Dangerous command protection** — `#remoteRun` hard-blocks destructive commands (`halt`, `shutdown`, `reboot`, `rm -rf /`, `mkfs`, `dd`, fork bombs, `iptables -F` and others) before they reach the server.
+- **Read/search command redirection** — `#remoteRun` blocks `grep`, `cat`, `head`, `tail`, `find` and similar, directing the agent to `#remoteRead` / `#remoteSearch` instead.
+- **Agent skill** — built-in orchestration skill teaches the model when and how to use each tool correctly.
+- **`#remoteRead` improvements** — new `maxResults` parameter (default: 50); large files show a 50-line preview with an explicit prompt to use `search` instead of falling back to grep via `#remoteRun`.
+
+### Changed
+- **AI toolset reduced from 15 to 3** — only `#remoteRead`, `#remoteSearch`, and `#remoteRun` remain, all always-on. `remoteBridge.ai.enabled` removed. `#remoteSearch` now covers both content search (grep) and file-name search (find). Active connection is auto-detected — `#remoteConnections` removed.
+- **Chat participant renamed `@remote` → `@bridge`** — eliminates the VS Code reserved-name warning.
+
+### Fixed
+- **Shell injection removed** — unused MySQL helper functions deleted; one of them (`mysqlExecInline`) contained a SQL injection vulnerability (SQL interpolated into an unquoted bash string).
+- **Path validation hardened** — `file:///` check made case-insensitive; Windows UNC paths blocked; control characters in paths rejected.
+- **Shell escaping** — single quotes in grep patterns and file globs now properly escaped; `find` grouping operators fixed; numeric parameters (`maxResults`, `contextLines`) clamped to prevent negative values producing invalid shell syntax.
+- **Glob correctness** — `*` no longer crosses directory separators; `[!pattern]` negation now correctly produces `[^pattern]`.
+- **`excludePattern` in content search** — previously ignored in `#remoteSearch` grep mode; now maps to `--exclude-dir` / `-Exclude` on all platforms.
+- **Blocked commands skip confirmation** — commands matching a blocking rule are rejected before the "Execute on server?" dialog is shown. `dd of=` (disk write) added to the block list alongside `dd if=`.
+- **SSH keepalive `0` now correctly disables keepalive** — previously `keepaliveInterval: 0` was coerced to the default `10000 ms` due to a falsy `||` fallback.
+- **Redundant SSH connection timeout removed** — the manual `setTimeout` safety wrapper inside the SSH connect promise duplicated `ssh2`'s own `readyTimeout: 30000` and could in rare cases produce a confusing second error after the library had already rejected the promise.
+
 ## [2.0.0] - 2026-03-11
 
 ### Added
@@ -73,7 +99,7 @@ Initial public release.
 - Passwords and passphrases stored securely in VS Code SecretStorage
 - Optional AES-256-GCM master password with auto-lock
 - MySQL/MariaDB integration via SSH (query, modify, schema browser)
-- GitHub Copilot chat participant `@remote` with 15 LM tools for file operations, commands, and SQL
+- GitHub Copilot chat participant `@bridge` with 15 LM tools for file operations, commands, and SQL
 - Per-connection OS setting (Linux, macOS, Windows/PowerShell)
 - File and directory listing cache with configurable TTL
 - Connection pooling with idle timeout

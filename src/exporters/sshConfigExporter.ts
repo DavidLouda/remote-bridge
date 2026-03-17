@@ -22,7 +22,11 @@ export class SshConfigExporter {
                 continue;
             }
 
-            const hostAlias = conn.name.replace(/\s+/g, '-').replace(/[^\w\-_.]/g, '');
+            const hostAlias = (conn.name || conn.host).replace(/\s+/g, '-').replace(/[^\w\-_.]/g, '');
+            if (!hostAlias) {
+                skipped++;
+                continue;
+            }
             lines.push(`Host ${hostAlias}`);
             lines.push(`    HostName ${conn.host}`);
             lines.push(`    Port ${conn.port}`);

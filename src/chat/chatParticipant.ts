@@ -4,7 +4,7 @@ import { ConnectionPool } from '../services/connectionPool';
 import { ConnectionStatus } from '../types/connection';
 
 /**
- * Chat participant `@remote` for natural language interaction
+ * Chat participant `@bridge` for natural language interaction
  * with remote servers through GitHub Copilot.
  */
 export function registerChatParticipant(
@@ -32,31 +32,17 @@ export function registerChatParticipant(
         }
 
         // Default: use tool-calling mode — let the LLM decide which tools to invoke
-        // Provide context about available connections
-        const connections = connectionManager.getConnections();
-        const connectionInfo = connections
-            .map((c) => {
-                const status = pool.getStatus(c.id);
-                return `- "${c.name}" (${c.protocol}://${c.host}:${c.port}) [${status}]`;
-            })
-            .join('\n');
-
         response.markdown(
-            vscode.l10n.t('Connections:\n\n')
-        );
-        response.markdown('```\n' + connectionInfo + '\n```\n');
-        response.markdown(
-            '\n**Tips:**\n' +
-            '- To edit remote files, use `writeFile` with `search` + `content` (never rewrite entire files).\n' +
-            '- For MySQL auth errors, find credentials first: search config files (`configuration.php`, `wp-config.php`, `.env`) with `readFile`, then pass `user`/`password`/`host` to MySQL tools.\n' +
-            '- Never use local tools (`replace_string_in_file`, `multi_replace_string_in_file`, local grep/PowerShell) on remote files.\n'
+            '\n**Available tools:** `#remoteRun`, `#remoteRead`, `#remoteSearch`\n' +
+            '- Use `#remoteRead` with `search` to find code patterns in a file (runs grep server-side on SSH).\n' +
+            '- To edit remote files, open them via the Explorer and use VS Code native file editing tools on `remote-bridge://` workspace files.\n'
         );
 
         return {};
     };
 
     const participant = vscode.chat.createChatParticipant(
-        'remote',
+        'remote-bridge.bridge',
         handler
     );
     participant.iconPath = vscode.Uri.joinPath(

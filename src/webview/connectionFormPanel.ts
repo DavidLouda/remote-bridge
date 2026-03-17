@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase } from '../types/connection';
+import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase, secretKeyForProxyPassword } from '../types/connection';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
 import { SshAdapter } from '../adapters/sshAdapter';
@@ -254,6 +254,7 @@ export class ConnectionFormPanel {
             const protocol = data.protocol as ConnectionProtocol;
             let password = (data.password as string) || '';
             let passphrase = (data.passphrase as string) || '';
+            let proxyPassword = '';
 
             // When editing an existing connection, the password/passphrase fields
             // in the form are intentionally left empty (credentials live in
@@ -265,6 +266,7 @@ export class ConnectionFormPanel {
                 if (!passphrase) {
                     passphrase = (await this._secrets.get(secretKeyForPassphrase(this._editingId))) ?? '';
                 }
+                proxyPassword = (await this._secrets.get(secretKeyForProxyPassword(this._editingId))) ?? '';
             }
 
             const tempConfig: ConnectionConfig = {
@@ -275,12 +277,13 @@ export class ConnectionFormPanel {
 
             const getPassword = async () => password;
             const getPassphrase = async () => passphrase;
+            const getProxyPassword = async () => proxyPassword || undefined;
 
             let adapter: SshAdapter | FtpAdapter;
             if (protocol === 'ssh' || protocol === 'sftp') {
-                adapter = new SshAdapter(tempConfig, getPassword, getPassphrase);
+                adapter = new SshAdapter(tempConfig, getPassword, getPassphrase, getProxyPassword);
             } else {
-                adapter = new FtpAdapter(tempConfig, getPassword);
+                adapter = new FtpAdapter(tempConfig, getPassword, getProxyPassword);
             }
 
             try {
@@ -695,13 +698,13 @@ export class ConnectionFormPanel {
             <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintAllowSelfSigned">${s.hintAllowSelfSigned}</div>
         </div>
 
-        <!-- Proxy (hidden — not yet implemented) -->
-        <div class="form-group checkbox-group full-width hidden" style="display:none !important">
-            <input type="checkbox" id="useProxy" disabled>
+        <!-- Proxy -->
+        <div class="form-group checkbox-group full-width">
+            <input type="checkbox" id="useProxy">
             <label id="labelUseProxy" for="useProxy">${s.labelUseProxy}</label>
         </div>
 
-        <div id="proxyFields" class="full-width hidden" style="display:none !important">
+        <div id="proxyFields" class="full-width hidden">
             <div class="form-grid">
                 <div class="form-group">
                     <label id="labelProxyType" for="proxyType">${s.labelProxyType}</label>

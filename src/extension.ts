@@ -6,7 +6,6 @@ import { ConnectionPool } from './services/connectionPool';
 import { RemoteBridgeFileSystemProvider } from './providers/fileSystemProvider';
 import { ConnectionTreeProvider } from './providers/connectionTreeProvider';
 import { ActiveSessionsProvider } from './providers/activeSessionsProvider';
-import { RemoteBridgeFileDecorationProvider } from './providers/fileDecorationProvider';
 import { SshConfigImporter } from './importers/sshConfigImporter';
 import { WinSCPImporter } from './importers/winscpImporter';
 import { SshFsImporter } from './importers/sshFsImporter';
@@ -17,33 +16,20 @@ import { JsonExporter } from './exporters/jsonExporter';
 import { SshConfigExporter } from './exporters/sshConfigExporter';
 import { openSshTerminal } from './terminal/sshTerminalProvider';
 import { registerChatParticipant } from './chat/chatParticipant';
-import { ListFilesTool } from './chat/tools/listFilesTool';
 import { ReadFileTool } from './chat/tools/readFileTool';
-import { WriteFileTool } from './chat/tools/writeFileTool';
 import { SearchFilesTool } from './chat/tools/searchFilesTool';
 import { RunCommandTool } from './chat/tools/runCommandTool';
-import { DeleteFileTool } from './chat/tools/deleteFileTool';
-import { CreateDirectoryTool } from './chat/tools/createDirectoryTool';
-import { MysqlQueryTool } from './chat/tools/mysqlQueryTool';
-import { MysqlExecuteTool } from './chat/tools/mysqlExecuteTool';
-import { MysqlSchemaTool } from './chat/tools/mysqlSchemaTool';
-import { RenameFileTool } from './chat/tools/renameFileTool';
-import { StatFileTool } from './chat/tools/statFileTool';
-import { CopyFileTool } from './chat/tools/copyFileTool';
-import { FindFilesTool } from './chat/tools/findFilesTool';
-import { ListConnectionsTool } from './chat/tools/listConnectionsTool';
-import { GetChangedFilesTool } from './chat/tools/getChangedFilesTool';
-import { ClearDecorationsTool } from './chat/tools/clearDecorationsTool';
 import { StatusBarService } from './statusBar/statusBarService';
 import { TransferTracker } from './services/transferTracker';
 import { BackupService } from './services/backupService';
 import { SyncService } from './services/syncService';
-import { buildRemoteUri } from './utils/uriParser';
+import { buildRemoteUri, parseRemoteUri } from './utils/uriParser';
 import {
     createWorkspaceFile,
     addFolderToWorkspaceFile,
     isOurWorkspaceFile,
     openWorkspaceFile,
+    deleteWorkspaceFileForConnection,
 } from './utils/workspaceFileManager';
 import { ConnectionFormPanel } from './webview/connectionFormPanel';
 import {
@@ -341,7 +327,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     // Window-focus sync and periodic polling are now handled by SyncService.
 
-    // ─── Always-on LM Tools (available even when AI features are disabled) ─
+    // ─── LM Tools ───────────────────────────────────────────────
     context.subscriptions.push(
         vscode.lm.registerTool(
             'remote-bridge_runCommand',
@@ -350,134 +336,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     context.subscriptions.push(
         vscode.lm.registerTool(
-            'remote-bridge_listConnections',
-            new ListConnectionsTool(connectionManager, connectionPool)
+            'remote-bridge_searchFiles',
+            new SearchFilesTool(connectionManager, connectionPool)
+        )
+    );
+    context.subscriptions.push(
+        vscode.lm.registerTool(
+            'remote-bridge_readFile',
+            new ReadFileTool(connectionManager, connectionPool, cacheService)
         )
     );
 
-    // ─── AI Features (chat participant + full tool suite) ───────
-    const aiEnabled = vscode.workspace.getConfiguration('remoteBridge').get<boolean>('ai.enabled', false);
-    if (aiEnabled) {
-        // ─── File Decoration Provider ───────────────────────────
-        const decorationProvider = new RemoteBridgeFileDecorationProvider();
-        context.subscriptions.push(vscode.window.registerFileDecorationProvider(decorationProvider));
-        context.subscriptions.push(decorationProvider);
-
-        const chatDisposable = registerChatParticipant(
-            context,
-            connectionManager,
-            connectionPool
-        );
-        context.subscriptions.push(chatDisposable);
-
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_listFiles',
-                new ListFilesTool(connectionManager, connectionPool, cacheService)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_readFile',
-                new ReadFileTool(connectionManager, connectionPool, cacheService)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_writeFile',
-                new WriteFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_searchFiles',
-                new SearchFilesTool(connectionManager, connectionPool)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_deleteFile',
-                new DeleteFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_createDirectory',
-                new CreateDirectoryTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_mysqlQuery',
-                new MysqlQueryTool(connectionManager, connectionPool)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_mysqlExecute',
-                new MysqlExecuteTool(connectionManager, connectionPool)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_mysqlSchema',
-                new MysqlSchemaTool(connectionManager, connectionPool)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_renameFile',
-                new RenameFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_statFile',
-                new StatFileTool(connectionManager, connectionPool, cacheService)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_copyFile',
-                new CopyFileTool(connectionManager, connectionPool, cacheService, fsProvider, decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_findFiles',
-                new FindFilesTool(connectionManager, connectionPool)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_getChangedFiles',
-                new GetChangedFilesTool(decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.lm.registerTool(
-                'remote-bridge_clearDecorations',
-                new ClearDecorationsTool(decorationProvider)
-            )
-        );
-        context.subscriptions.push(
-            vscode.commands.registerCommand('remoteBridge.clearDecorations', () => {
-                decorationProvider.clearAll();
-            })
-        );
-    }
+    // ─── Chat Participant (always registered) ──────────────────
+    context.subscriptions.push(registerChatParticipant(context, connectionManager, connectionPool));
 
     // ─── Configuration Change Listener ──────────────────────────
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('remoteBridge.ai')) {
-                vscode.window.showInformationMessage(
-                    vscode.l10n.t('Reload VS Code to apply AI features setting change.'),
-                    vscode.l10n.t('Reload')
-                ).then((choice) => {
-                    if (choice) { vscode.commands.executeCommand('workbench.action.reloadWindow'); }
-                });
-            }
             if (e.affectsConfiguration('remoteBridge.cache')) {
                 const cfg = vscode.workspace.getConfiguration('remoteBridge');
                 cacheService.updateConfig(
@@ -558,6 +433,7 @@ function registerCommands(
                 for (const id of ids) {
                     await connectionPool.disconnect(id);
                     cacheService.invalidateConnection(id);
+                    await deleteWorkspaceFileForConnection(context.globalStorageUri, id);
                 }
                 await connectionManager.deleteConnections(ids);
             }
@@ -1305,9 +1181,69 @@ function registerCommands(
             treeProvider.refresh();
         })
     );
+
+    // Change Permissions
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.changePermissions', async (uri: vscode.Uri) => {
+            if (!uri || uri.scheme !== 'remote-bridge') {
+                vscode.window.showErrorMessage(vscode.l10n.t('Change Permissions requires a remote file or folder.'));
+                return;
+            }
+            const { connectionId, remotePath } = parseRemoteUri(uri);
+            const adapter = connectionPool.getConnectedAdapter(connectionId);
+            if (!adapter) {
+                vscode.window.showErrorMessage(vscode.l10n.t('Not connected. Please connect to the server first.'));
+                return;
+            }
+            if (!adapter.chmod || !adapter.getUnixMode) {
+                vscode.window.showWarningMessage(vscode.l10n.t('Permissions not available for this connection or protocol.'));
+                return;
+            }
+            const currentMode = await adapter.getUnixMode(remotePath);
+            const currentOctal = currentMode !== undefined ? (currentMode & 0o7777).toString(8).padStart(3, '0') : undefined;
+            const currentRwx = currentMode !== undefined ? modeToRwx(currentMode) : undefined;
+            const filename = remotePath.split('/').pop() || remotePath;
+            const newInput = await vscode.window.showInputBox({
+                title: vscode.l10n.t('Change Permissions \u2014 {0}', filename),
+                prompt: currentRwx
+                    ? vscode.l10n.t('Current permissions: {0} ({1})', currentOctal ?? '???', currentRwx)
+                    : vscode.l10n.t('Enter octal permissions'),
+                value: currentOctal,
+                placeHolder: vscode.l10n.t('e.g. 755 or 644'),
+                validateInput: (v) => {
+                    if (!/^[0-7]{3,4}$/.test(v.trim())) {
+                        return vscode.l10n.t('Invalid mode: use 3 or 4 octal digits (0\u20137), e.g. 755 or 0755');
+                    }
+                    return null;
+                },
+            });
+            if (!newInput) { return; }
+            const newMode = parseInt(newInput.trim(), 8);
+            try {
+                await adapter.chmod(remotePath, newMode);
+                cacheService.invalidatePath(connectionId, remotePath);
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Permissions changed to {0}', newInput.trim().padStart(3, '0'))
+                );
+            } catch (err) {
+                vscode.window.showErrorMessage(
+                    vscode.l10n.t('Failed to change permissions: {0}', String(err instanceof Error ? err.message : err))
+                );
+            }
+        })
+    );
 }
 
 // ─── Helper Functions ───────────────────────────────────────────
+
+function modeToRwx(mode: number): string {
+    const bits = 'rwxrwxrwx';
+    let result = '';
+    for (let i = 8; i >= 0; i--) {
+        result += (mode & (1 << i)) ? bits[8 - i] : '-';
+    }
+    return result;
+}
 
 /** Fire-and-forget variant used in event handlers. */
 function setEncryptionContextKeys(encryption: EncryptionService): void {

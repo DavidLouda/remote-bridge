@@ -5,6 +5,7 @@ import { RemoteAdapter } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
 import * as shell from '../utils/shellCommands';
+import { createProxySocket } from '../utils/proxyTunnel';
 
 /**
  * SSH/SFTP adapter using the ssh2 library.
@@ -25,6 +26,7 @@ export class SshAdapter implements RemoteAdapter {
         private readonly _config: ConnectionConfig,
         private readonly _getPassword: () => Promise<string | undefined>,
         private readonly _getPassphrase: () => Promise<string | undefined>,
+        private readonly _getProxyPassword: () => Promise<string | undefined>,
         private readonly _tracker?: TransferTracker
     ) {}
 
@@ -42,7 +44,9 @@ export class SshAdapter implements RemoteAdapter {
             host: this._config.host,
             port: this._config.port,
             username: this._config.username,
-            keepaliveInterval: this._config.keepaliveInterval * 1000 || 10000,
+            keepaliveInterval: this._config.keepaliveInterval != null && this._config.keepaliveInterval >= 0
+                ? this._config.keepaliveInterval * 1000
+                : 10000,
             keepaliveCountMax: 3,
             readyTimeout: 30000,
         };
@@ -85,12 +89,18 @@ export class SshAdapter implements RemoteAdapter {
                 break;
         }
 
-        return new Promise<void>((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                client.end();
-                reject(new Error(vscode.l10n.t('Connection timed out')));
-            }, 30000);
+        // If a proxy is configured, create the tunnel socket first
+        if (this._config.proxy) {
+            const proxyPassword = await this._getProxyPassword();
+            connectConfig.sock = await createProxySocket(
+                this._config.proxy,
+                proxyPassword,
+                this._config.host,
+                this._config.port
+            );
+        }
 
+        return new Promise<void>((resolve, reject) => {
             // Handle keyboard-interactive authentication prompts
             client.on('keyboard-interactive', (_name, _instructions, _instructionsLang, prompts, finish) => {
                 const responses: string[] = [];
@@ -113,7 +123,6 @@ export class SshAdapter implements RemoteAdapter {
             });
 
             client.on('ready', () => {
-                clearTimeout(timeoutId);
                 this._connected = true;
                 client.sftp((err, sftp) => {
                     if (err) {
@@ -126,7 +135,6 @@ export class SshAdapter implements RemoteAdapter {
             });
 
             client.on('error', (err) => {
-                clearTimeout(timeoutId);
                 this._connected = false;
                 this._sftp = null;
                 reject(err);
@@ -235,7 +243,10 @@ export class SshAdapter implements RemoteAdapter {
                 this._tracker?.recordDownload(result.length);
                 resolve(result);
             });
-            stream.on('error', (err: Error) => reject(this._mapSftpError(err, remotePath)));
+            stream.on('error', (err: Error) => {
+                stream.destroy();
+                reject(this._mapSftpError(err, remotePath));
+            });
         });
     }
 
@@ -250,7 +261,10 @@ export class SshAdapter implements RemoteAdapter {
                 this._tracker?.recordDownload(result.length);
                 resolve(result);
             });
-            stream.on('error', (err: Error) => reject(this._mapSftpError(err, remotePath)));
+            stream.on('error', (err: Error) => {
+                stream.destroy();
+                reject(this._mapSftpError(err, remotePath));
+            });
         });
     }
 
@@ -384,6 +398,10 @@ export class SshAdapter implements RemoteAdapter {
                     reject(err);
                     return;
                 }
+                if (!stream) {
+                    reject(new Error('SSH exec: no stream returned'));
+                    return;
+                }
 
                 let stdout = '';
                 let stderr = '';
@@ -410,6 +428,10 @@ export class SshAdapter implements RemoteAdapter {
             client.exec(command, (err, stream) => {
                 if (err) {
                     reject(err);
+                    return;
+                }
+                if (!stream) {
+                    reject(new Error('SSH exec: no stream returned'));
                     return;
                 }
 

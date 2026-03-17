@@ -9,6 +9,7 @@ import {
     ConnectionConfig,
 } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
+import { createProxySocket } from '../utils/proxyTunnel';
 
 /**
  * FTP/FTPS adapter using the basic-ftp library.
@@ -35,6 +36,7 @@ export class FtpAdapter implements RemoteAdapter {
     constructor(
         private readonly _config: ConnectionConfig,
         private readonly _getPassword: () => Promise<string | undefined>,
+        private readonly _getProxyPassword: () => Promise<string | undefined>,
         tracker?: TransferTracker
     ) {
         this._tracker = tracker;
@@ -57,6 +59,19 @@ export class FtpAdapter implements RemoteAdapter {
             const password = await this._getPassword();
 
             const isSecure = this._config.secure || this._config.protocol === 'ftps';
+
+            // If a proxy is configured, pre-connect through the tunnel and hand
+            // basic-ftp the already-connected socket instead of letting it dial directly.
+            if (this._config.proxy) {
+                const proxyPassword = await this._getProxyPassword();
+                const sock = await createProxySocket(
+                    this._config.proxy,
+                    proxyPassword,
+                    this._config.host,
+                    this._config.port
+                );
+                client.ftp.socket = sock as any;
+            }
 
             await client.access({
                 host: this._config.host,

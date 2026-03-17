@@ -12,6 +12,7 @@ interface ReadFileInput {
     endLine?: number;
     search?: string;
     contextLines?: number;
+    maxResults?: number;
     tail?: number;
 }
 
@@ -51,18 +52,21 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, path: remotePath, startLine, endLine, search, contextLines, tail } = options.input;
+        const { connectionName, path: originalPath, startLine, endLine, search, contextLines, maxResults, tail } = options.input;
 
         const config = this._resolveConnection(connectionName);
+        const remotePath = this._ensureWithinWorkspace(originalPath, config);
         const adapter = await this._pool.getAdapter(config);
 
         // ── Search mode: grep inside a single file ──
         if (search !== undefined) {
             const ctx = contextLines ?? 3;
 
+            const limit = maxResults ?? 50;
+
             if (adapter.supportsExec && adapter.exec) {
                 const os = config.os ?? 'linux';
-                const cmd = shell.grepInFile(search, remotePath, ctx, os);
+                const cmd = shell.grepInFile(search, remotePath, ctx, os, limit);
                 const result = await adapter.exec(cmd);
 
                 // grep exit 1 = no matches
@@ -93,11 +97,16 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
             const content = await this._getFileContent(config.id, remotePath, adapter);
             const allLines = content.split('\n');
             const totalLines = content.endsWith('\n') ? allLines.length - 1 : allLines.length;
+            // Guard against ReDoS: limit pattern length and always escape to literal string
+            // (LLM-supplied regex with nested quantifiers can cause catastrophic backtracking)
+            const safePattern = search.length <= 200
+                ? search
+                : search.slice(0, 200);
             let regex: RegExp;
             try {
-                regex = new RegExp(search, 'gi');
+                regex = new RegExp(safePattern, 'gi');
             } catch {
-                regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                regex = new RegExp(safePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
             }
 
             const matchIndices: number[] = [];
@@ -118,7 +127,7 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
 
             const blocks: string[] = [];
             const shown = new Set<number>();
-            for (const idx of matchIndices.slice(0, 50)) {
+            for (const idx of matchIndices.slice(0, limit)) {
                 const start = Math.max(0, idx - ctx);
                 const end = Math.min(allLines.length - 1, idx + ctx);
                 const blockLines: string[] = [];
@@ -245,6 +254,19 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
             ]);
         }
 
+        const MAX_FULL_READ_LINES = 2000;
+        const TRUNCATED_SHOW_LINES = 50;
+        if (totalLines > MAX_FULL_READ_LINES) {
+            const truncatedContent = allLines.slice(0, TRUNCATED_SHOW_LINES)
+                .map((line, i) => `${i + 1}: ${line}`)
+                .join('\n');
+            return new vscode.LanguageModelToolResult([
+                new vscode.LanguageModelTextPart(
+                    `\u26a0 FILE TOO LARGE (${totalLines} lines) — only first ${TRUNCATED_SHOW_LINES} lines shown below.\nTo find specific content: call this tool again with the \`search\` parameter (supports regex, e.g. search: "img|overflow|product"). Do NOT use runCommand with grep.\nTo read a range: use \`startLine\`/\`endLine\`. To read the entire file: set \`startLine: 1\`.\n\n[File: ${remotePath} | Total lines: ${totalLines} | Preview: first ${TRUNCATED_SHOW_LINES} lines]\n${truncatedContent}`
+                ),
+            ]);
+        }
+
         return new vscode.LanguageModelToolResult([
             new vscode.LanguageModelTextPart(
                 `[File: ${remotePath} | Total lines: ${totalLines}]\n${content}`
@@ -258,6 +280,13 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
         if (!content) {
             content = await adapter.readFile(remotePath);
             this._cache.setContent(cacheKey, content);
+        }
+        // Binary detection: check first 8 KB for null bytes
+        const checkLen = Math.min(content.length, 8192);
+        for (let i = 0; i < checkLen; i++) {
+            if (content[i] === 0) {
+                throw new Error(`File appears to be binary: ${remotePath}`);
+            }
         }
         return new TextDecoder().decode(content);
     }

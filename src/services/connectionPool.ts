@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { RemoteAdapter } from '../adapters/adapter';
 import { SshAdapter } from '../adapters/sshAdapter';
 import { FtpAdapter } from '../adapters/ftpAdapter';
-import { ConnectionConfig, ConnectionStatus } from '../types/connection';
+import { ConnectionConfig, ConnectionStatus, secretKeyForProxyPassword } from '../types/connection';
 import { TransferTracker } from './transferTracker';
 
 interface PoolEntry {
@@ -199,14 +199,16 @@ export class ConnectionPool implements vscode.Disposable {
             this._secretStorage.get(this._getSecretKey(config.id, 'password'));
         const getPassphrase = async () =>
             this._secretStorage.get(this._getSecretKey(config.id, 'passphrase'));
+        const getProxyPassword = async () =>
+            this._secretStorage.get(secretKeyForProxyPassword(config.id));
 
         switch (config.protocol) {
             case 'ssh':
             case 'sftp':
-                return new SshAdapter(config, getPassword, getPassphrase, this._tracker);
+                return new SshAdapter(config, getPassword, getPassphrase, getProxyPassword, this._tracker);
             case 'ftp':
             case 'ftps':
-                return new FtpAdapter(config, getPassword, this._tracker);
+                return new FtpAdapter(config, getPassword, getProxyPassword, this._tracker);
             default:
                 throw new Error(vscode.l10n.t('Unsupported protocol: {0}', config.protocol));
         }

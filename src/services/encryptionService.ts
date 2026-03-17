@@ -209,21 +209,27 @@ export class EncryptionService {
             verificationHash: newVerificationHash,
         };
 
-        // Re-encrypt store with new key
-        if (storeJson !== null) {
-            const reEncrypted = this._encrypt(storeJson, newKey);
-            await this._globalState.update(ENCRYPTED_STORE_KEY, reEncrypted);
-            await this._globalState.update(LOCAL_ENCRYPTED_STORE_KEY, reEncrypted);
-        }
+        try {
+            // Re-encrypt store with new key
+            if (storeJson !== null) {
+                const reEncrypted = this._encrypt(storeJson, newKey);
+                await this._globalState.update(ENCRYPTED_STORE_KEY, reEncrypted);
+                await this._globalState.update(LOCAL_ENCRYPTED_STORE_KEY, reEncrypted);
+            }
 
-        await this._globalState.update(ENCRYPTION_META_KEY, newMeta);
+            await this._globalState.update(ENCRYPTION_META_KEY, newMeta);
 
-        // Swap in new derived key
-        if (this._derivedKey) {
-            this._derivedKey.fill(0);
+            // Swap in new derived key
+            if (this._derivedKey) {
+                this._derivedKey.fill(0);
+            }
+            this._derivedKey = newKey;
+            this._lastVerificationHash = newVerificationHash;
+        } catch (err) {
+            // Ensure the new key is wiped from memory if any operation fails
+            newKey.fill(0);
+            throw err;
         }
-        this._derivedKey = newKey;
-        this._lastVerificationHash = newVerificationHash;
 
         return true;
     }

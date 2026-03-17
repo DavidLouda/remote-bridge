@@ -104,15 +104,14 @@
         updateAuthSections();
     }
 
-    // ─── Proxy toggle (disabled — proxy not yet implemented) ────
+    // ─── Proxy toggle ────────────────────────────────────────────
 
     const useProxyCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('useProxy'));
     const proxyFields = /** @type {HTMLElement} */ (document.getElementById('proxyFields'));
 
-    // Proxy UI is hidden; keep references so prefill doesn't throw.
-    // useProxyCheckbox.addEventListener('change', () => {
-    //     toggleVisibility(proxyFields, useProxyCheckbox.checked);
-    // });
+    useProxyCheckbox.addEventListener('change', () => {
+        toggleVisibility(proxyFields, useProxyCheckbox.checked);
+    });
 
     // ─── Browse for private key ─────────────────────────────────
 
@@ -152,7 +151,8 @@
         });
 
         testBtn.disabled = true;
-        testBtn.innerHTML = '<span class="spinner"></span>' + testingLabel;
+        testBtn.innerHTML = '<span class="spinner"></span>';
+        testBtn.appendChild(document.createTextNode('\u00a0' + testingLabel));
         hideStatus();
     });
 

@@ -10,59 +10,76 @@ interface RunCommandInput {
 
 function detectDedicatedToolAlternative(command: string): { blocked: boolean; guidance?: string } {
     const normalized = command.toLowerCase();
-    const rules: Array<{ pattern: RegExp; guidance: string }> = [
-        {
-            pattern: /(^|\s)(sed|awk|perl)\b|head\s+-|tail\s+-|\bcat\b/,
-            guidance: 'Use `remote-bridge_readFile` for reading and `remote-bridge_writeFile` for edits instead of sed/head/tail/cat.',
-        },
-        {
-            pattern: /\bpython\d*\b[\s\S]*<<|\becho\b[\s\S]*(>|>>)/,
-            guidance: 'Use `remote-bridge_writeFile` with `startLine`/`endLine` or `mode=insert` instead of heredoc or shell redirection edits.',
-        },
-        {
-            pattern: /(^|\s)grep\b/,
-            guidance: 'Use `remote-bridge_searchFiles` for content search instead of grep.',
-        },
-        {
-            pattern: /(^|\s)find\b/,
-            guidance: 'Use `remote-bridge_findFiles` for name-based file discovery instead of find.',
-        },
-        {
-            pattern: /(^|\s)rm\b/,
-            guidance: 'Use `remote-bridge_deleteFile` for deletions instead of rm.',
-        },
-        {
-            pattern: /(^|\s)mv\b/,
-            guidance: 'Use `remote-bridge_renameFile` for moves/renames instead of mv.',
-        },
-        {
-            pattern: /(^|\s)cp\b/,
-            guidance: 'Use `remote-bridge_copyFile` for copies instead of cp.',
-        },
-        {
-            pattern: /(^|\s)mkdir\b/,
-            guidance: 'Use `remote-bridge_createDirectory` for directory creation instead of mkdir.',
-        },
+
+    // SSH write commands are always blocked — you MUST edit files via VS Code native
+    // file editing tools on remote-bridge:// workspace files.
+    const writeRules: Array<RegExp> = [
+        /\bpython\d*\b.*\s+-c\b|\bpython\d*\b[\s\S]*<</,
+        /\becho\b[\s\S]*(>>?)|\bprintf\b[\s\S]*(>>?)|\btee\b/,
+        /\bsed\b.*\s+-i\b/,
     ];
 
-    const aiEnabled = vscode.workspace.getConfiguration('remoteBridge').get<boolean>('ai.enabled', true);
-    if (!aiEnabled) {
-        return { blocked: false };
+    if (writeRules.some((r) => r.test(normalized))) {
+        return {
+            blocked: true,
+            guidance: 'SSH file write commands are blocked. You MUST use VS Code native file editing tools on remote-bridge:// workspace files to modify files.',
+        };
     }
 
-    const matchedGuidance = rules
-        .filter((rule) => rule.pattern.test(normalized))
-        .map((rule) => rule.guidance);
+    // File reading/searching commands are blocked — use readFile and searchFiles tools instead.
+    const readSearchRules: Array<RegExp> = [
+        /^\s*grep\b/,
+        /\|\s*grep\b/,
+        /^\s*cat\b/,
+        /^\s*head\b/,
+        /^\s*tail\b/,
+        /^\s*sed\b.*\bp\b/,
+        /^\s*awk\b/,
+        /^\s*find\b/,
+        /^\s*less\b/,
+        /^\s*more\b/,
+        /^\s*wc\b/,
+    ];
 
-    if (matchedGuidance.length === 0) {
-        return { blocked: false };
+    if (readSearchRules.some((r) => r.test(normalized))) {
+        return {
+            blocked: true,
+            guidance: 'Use the dedicated readFile tool (with `search` parameter for grep, `tail` for tail, `startLine`/`endLine` for line ranges) and searchFiles tool (for find/grep across directories). Do NOT use runCommand for reading or searching files.',
+        };
     }
 
-    const uniqueGuidance = [...new Set(matchedGuidance)];
-    return {
-        blocked: true,
-        guidance: uniqueGuidance.join(' '),
-    };
+    // Dangerous/destructive commands are blocked — these could cause irreversible server damage.
+    const dangerousRules: Array<RegExp> = [
+        // System halt/reboot
+        /\bhalt\b/,
+        /\bshutdown\b/,
+        /\breboot\b/,
+        /\bpoweroff\b/,
+        /\binit\s+[06]\b/,
+        /\bsystemctl\b.*\b(poweroff|reboot|halt)\b/,
+        // Destructive filesystem
+        /\brm\s+(-\w*\s+)*-[a-z]*r[a-z]*f[a-z]*\s+(\/\*?|\/\s*$|\s*"\/"|'\/')/i,  // rm -rf / or rm -rf /*
+        /\bmkfs\b/,
+        /\bwipefs\b/,
+        /\bdd\b.*\b(if|of)=/,
+        // Fork bomb
+        /:\(\)\s*\{/,
+        // Firewall flush
+        /\biptables\s+-F\b/,
+        /\bufw\s+disable\b/,
+        // Kernel modules removal
+        /\brmmod\b/,
+        /\bmodprobe\s+-r\b/,
+    ];
+
+    if (dangerousRules.some((r) => r.test(normalized))) {
+        return {
+            blocked: true,
+            guidance: 'This command could cause irreversible damage to the server. If you need to perform this operation, ask the user to run it manually via SSH terminal.',
+        };
+    }
+
+    return { blocked: false };
 }
 
 /**
@@ -81,6 +98,13 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
         _token: vscode.CancellationToken
     ) {
         const connName = this._resolveConnectionName(options.input.connectionName);
+        // If this command will be rejected, skip the confirmation dialog — invoke() will return
+        // the block guidance immediately without executing anything on the server.
+        if (detectDedicatedToolAlternative(options.input.command).blocked) {
+            return {
+                invocationMessage: vscode.l10n.t('Running command on {0}...', connName),
+            };
+        }
         return {
             invocationMessage: vscode.l10n.t(
                 'Running command on {0}...',
@@ -112,7 +136,7 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(
                     vscode.l10n.t(
-                        'Command blocked: this looks like a file operation that has a dedicated Remote Bridge tool. {0}',
+                        'Command blocked: {0}',
                         policy.guidance ?? ''
                     )
                 ),

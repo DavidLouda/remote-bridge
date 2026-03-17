@@ -13,18 +13,19 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 |---|---|
 | **Protocols** | SSH, SFTP, FTP, FTPS |
 | **Auth** | Password, private key (PPK/PEM), SSH agent, FTPS/TLS |
+| **Proxy** | SOCKS4, SOCKS5, HTTP CONNECT — per-connection, credentials in SecretStorage |
 | **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
 | **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |
 | **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password encryption; optional cross-device sync via VS Code Settings Sync |
-| **AI (Copilot)** | `@remote` chat participant + 2 always-on tools (`runCommand`, `listConnections`) + 15 beta AI tools for file operations, SQL, and session change tracking (off by default) |
+| **AI (Copilot)** | `@bridge` chat participant + 3 tools (`runCommand`, `readFile`, `searchFiles`) |
 | **Multi-OS** | Per-connection OS setting — Linux, macOS, Windows (PowerShell) |
 | **Localization** | 12 languages: EN, CS, DE, FR, ES, PL, HU, SK, UK, ZH-CN, KO, JA |
 
 ## Features
 
 ### 🔌 Multi-Protocol Support
-- **SSH / SFTP** — Full file system access, terminal, command execution, and MySQL database operations via `ssh2`
+- **SSH / SFTP** — Full file system access, terminal, and command execution via `ssh2`
 - **FTP / FTPS** — Secure and plain FTP file browsing and transfers via `basic-ftp`
 
 ### 🖥️ Multi-OS Support
@@ -59,6 +60,7 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 - Optional **master password** to encrypt the entire connection store (AES-256-GCM + PBKDF2)
 - Optional **connection sync** — sync encrypted connections (including passwords) across devices via VS Code Settings Sync (requires master password)
 - Automatic **daily encrypted backups** — stored locally, never synced, with 7-day / 4-week retention
+- **Proxy support** — route connections through a SOCKS4, SOCKS5, or HTTP CONNECT proxy, configured per connection. Proxy credentials stored in VS Code SecretStorage alongside other secrets.
 
 ### 🖥️ SSH Terminal
 - Open an **interactive SSH shell** directly in the VS Code integrated terminal
@@ -66,59 +68,27 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 
 ### 🤖 AI Integration (GitHub Copilot)
 
-> **AI tools are disabled by default.** In practice, dedicated AI tools tend to complicate the agent's work — the agent gets stuck trying to use them even when a simple SSH command would be faster and more reliable. Without them, the agent accesses servers through `runCommand` using native SSH commands (`cat`, `grep`, `sed`, `find`, `mysql`…), which often produces better results. You can enable the dedicated tools in settings (`remoteBridge.ai.enabled`) if you prefer that approach.
-
-Chat participant `@remote` with commands:
+Chat participant `@bridge` with commands:
 - `/connect` — Connect to a server
 - `/ls` — List remote files
 - `/status` — Show connection status
 
-**Always-on tools** (available regardless of `ai.enabled`):
+**Tools (always-on, no configuration required):**
 
 | Tool | Reference | Description |
 |------|-----------|-------------|
 | Run Remote Command | `#remoteRun` | Execute shell commands on remote servers (SSH only) |
-| List Connections | `#remoteConnections` | List all saved connections with status |
+| Read Remote File | `#remoteRead` | Read file contents with efficient partial reads (line range, tail, search/grep within file with regex) |
+| Search / Find | `#remoteSearch` | Search file contents (grep) or find files by name (glob) — works on SSH and FTP |
 
-**AI tools (beta, off by default)** — enable via `remoteBridge.ai.enabled`:
+**Built-in safety rails:**
+- **Dangerous commands blocked** — `halt`, `shutdown`, `reboot`, `rm -rf /`, `mkfs`, `dd`, fork bombs and similar are rejected with a message asking the user to run them manually.
+- **Read/search commands redirected** — `grep`, `cat`, `head`, `tail`, `find` and similar are blocked and the agent is directed to use `#remoteRead` / `#remoteSearch` instead.
+- **SSH write commands blocked** — `echo >`, `sed -i`, `tee`, `python3 -c` are blocked; file editing uses VS Code's native tools on `remote-bridge://` workspace files.
 
-| Tool | Reference | Description |
-|------|-----------|-------------|
-| List Remote Files | `#remoteFiles` | List files and directories on a remote server |
-| Read Remote File | `#remoteRead` | Read file contents (supports efficient partial reads) |
-| Write Remote File | `#remoteWrite` | Write to files (full write, partial replace, insert, or search/replace) |
-| Search Remote Files | `#remoteSearch` | Search/grep file contents with regex support |
-| Delete Remote File | `#remoteDelete` | Delete files or directories (recursive) |
-| Create Remote Directory | `#remoteMkdir` | Create directories (auto-creates parents) |
-| Rename Remote File | `#remoteRename` | Rename or move files/directories |
-| File Info | `#remoteStat` | Get file metadata (type, size, dates, permissions) |
-| Copy Remote File | `#remoteCopy` | Copy files/directories (server-side on SSH) |
-| Find Remote Files | `#remoteFind` | Find files by name pattern (glob) |
-| Session Changes | `#remoteChanges` | List all files modified/created/renamed/deleted by the agent this session |
-| Clear Decorations | — | Reset session change tracking and remove Explorer badges |
-| MySQL Query | `#remoteSql` | Execute read-only SQL queries (SELECT, SHOW, DESCRIBE) |
-| MySQL Execute | `#remoteSqlExec` | Execute data-modifying SQL (INSERT, UPDATE, DELETE, DDL) |
-| MySQL Schema | `#remoteDbSchema` | Inspect database schema (databases, tables, columns) |
+> **Note:** All Remote Bridge tools are available **only in Agent mode**, the Copilot mode where the model autonomously executes multi-step tasks. In Ask, Edit, and Plan modes the tools are not invoked and will not appear. The `@bridge` chat participant and its commands (`/connect`, `/ls`, `/status`) work in any chat mode.
 
-#### File Decorations
-
-VS Code natively tracks file changes (e.g. git badges) and this works normally regardless of any Remote Bridge setting. However, when the AI agent modifies remote files via AI tools, native change tracking does **not** capture those changes — the agent operates through the extension's internal API, which bypasses the standard mechanisms. To compensate, Remote Bridge adds its own session-scoped decoration layer that marks what the agent touched. This is active only when `remoteBridge.ai.enabled` is `true`.
-
-| Badge | Color | Meaning |
-|-------|-------|---------|
-| **M** | Yellow | Modified / edited |
-| **A** | Green | Added / created |
-| **R** | Teal | Renamed or moved |
-| **D** | Red | Deleted |
-
-Badges propagate to parent folders for M and A changes. Use `remoteBridge.clearDecorations` (Command Palette) to reset tracking for the next task. When AI tools are enabled, the **`#remoteChanges`** tool lets the agent produce a text summary of all session changes before finishing a task.
-
-#### MySQL / MariaDB Integration
-- Query, modify, and inspect MySQL/MariaDB databases on remote servers via SSH
-- Schema browser: list databases → tables → columns, indexes, and CREATE TABLE statements
-- Read-only queries and data-modifying statements with user confirmation
-- All three MySQL tools accept optional `user`, `password`, and `host` parameters — useful when the SSH user doesn't have default MySQL access; passwords are passed securely via the `MYSQL_PWD` environment variable (hidden from the process list)
-- Uses the `mysql` CLI client on the remote server with `--no-defaults` — no local drivers needed, works across bash, zsh, and PowerShell
+> **Editing remote files:** Open them via the Explorer and use VS Code's built-in file editing tools on `remote-bridge://` workspace files — the same as editing any local file.
 
 ### 🌐 Localization
 
@@ -146,7 +116,6 @@ VS Code automatically selects the localization matching your display language.
 - **VS Code** `1.93.0` or later
 - For SSH/SFTP connections: an accessible SSH server
 - For FTP/FTPS: an accessible FTP server
-- For MySQL tools: `mysql` CLI client installed on the remote server
 
 ## Installation
 
@@ -195,10 +164,12 @@ When adding or editing a connection, you'll see a form with these sections:
 | SSH Agent | Uses `ssh-agent` / Pageant for key management |
 
 **Advanced (optional):**
-- Proxy support (HTTP, SOCKS4, SOCKS5)
+- **Proxy** — route the connection through a SOCKS4, SOCKS5, or HTTP CONNECT proxy; set host, port, and optional credentials
 - Keep-alive interval
 - TLS/FTPS toggle (for FTP connections)
 - **Allow self-signed TLS certificates** (FTPS only) — disables certificate verification; use only for servers with self-signed or invalid certs. The default is strict verification.
+
+> **Note:** For FTP/FTPS over an HTTP CONNECT proxy, only the control connection is tunnelled. SOCKS4/5 proxies tunnel all traffic fully.
 
 ### Sidebar Overview
 
@@ -244,6 +215,7 @@ The remote server appears as a folder in VS Code's Explorer. You can:
 - **Browse** directories like local files
 - **Open and edit** files — changes are saved back to the server automatically
 - **Create / rename / delete** files and folders via the Explorer context menu
+- **Change Permissions** — right-click any file or folder → **Change Permissions** to set Unix permissions in octal format (e.g. `755`). The current mode is pre-filled and shown in symbolic notation (e.g. `rw-r--r--`). Works on SSH/SFTP and FTP/FTPS.
 - **Drag & drop** files (upload/download is handled transparently)
 - **Search** across remote files using VS Code's built-in search (`Ctrl+Shift+F`)
 
@@ -268,16 +240,19 @@ Right-click a connected SSH/SFTP connection → **Open SSH Terminal** to get a f
 
 ### Using with GitHub Copilot
 
-If you have GitHub Copilot Chat, type `@remote` to interact with your servers:
+If you have GitHub Copilot Chat, type `@bridge` to interact with your servers:
 
 ```
-@remote /connect my-server
-@remote /ls /var/www
-@remote Show me the nginx config
-@remote Find all .log files larger than 100MB
+@bridge /connect my-server
+@bridge /ls /var/www
+@bridge Show me the nginx config
+@bridge Find all .log files larger than 100MB
+@bridge Why is the site returning 502? Check nginx and php-fpm logs.
 ```
 
 You can also reference tools directly with `#` in Copilot Chat — for example, type `#remoteRead` and Copilot will use it to read files when relevant.
+
+The `#remoteRead` tool supports regex search within files (parameter `search`), including alternation: e.g. `search: "img|overflow|max-width"` searches for any of those patterns in a single server-side grep pass.
 
 ### Command Palette
 
@@ -296,6 +271,7 @@ All commands are accessible via `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac):
 | Remote Bridge: Restore from Backup | Restore connections from an encrypted local backup |
 | Remote Bridge: Create Backup | Manually create an encrypted backup of current connections |
 | Remote Bridge: Show Connections | Focus the Remote Bridge sidebar |
+| Remote Bridge: Change Permissions | Set file or folder permissions in octal format (active when a remote file or folder is selected in the Explorer) |
 
 ## Importing Connections
 
@@ -396,7 +372,6 @@ If the backup was created with a different master password (e.g., after a passwo
 | `remoteBridge.pool.maxConnections` | `10` | Maximum concurrent connections |
 | `remoteBridge.security.syncConnections` | `false` | Sync encrypted connections across devices via VS Code Settings Sync (requires master password) |
 | `remoteBridge.watch.pollInterval` | `5` | File system watcher polling interval (seconds) |
-| `remoteBridge.ai.enabled` | `false` | Enable AI tools (beta). When disabled, agent uses SSH commands directly via `runCommand`. Requires reload. |
 
 ## Architecture
 

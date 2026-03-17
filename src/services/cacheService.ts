@@ -71,6 +71,7 @@ export class CacheService {
 
         // Don't cache if single entry exceeds max size
         if (content.byteLength > this._maxContentSizeBytes) {
+            console.warn(`[RemoteBridge] Cache: file content (${content.byteLength} B) exceeds max cache size (${this._maxContentSizeBytes} B) — skipping cache`);
             return;
         }
 
