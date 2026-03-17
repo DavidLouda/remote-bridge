@@ -4,3 +4,4 @@ dist/
 *.vsix
 .vscode-test/
 .playwright-mcp/
+.vscode/
