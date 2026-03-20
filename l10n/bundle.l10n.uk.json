@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "Дозволи недоступні для цього підключення або протоколу.",
   "Not connected. Please connect to the server first.": "Не підключено. Спочатку підключіться до сервера.",
   "Permissions changed to {0}": "Дозволи змінено на {0}",
+  "Full SSH Access": "Повний доступ SSH",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "Дозволяє агенту ШІ читати, шукати та виконувати команди за межами кореневого каталогу робочої області. Корисно для адміністрування сервера (встановлення пакетів, редагування конфігураційних файлів, керування службами). Деструктивні команди залишаються заблокованими.",
   "Failed to change permissions: {0}": "Не вдалося змінити дозволи: {0}"
 }

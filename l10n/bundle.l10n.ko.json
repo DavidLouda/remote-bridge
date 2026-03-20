@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "이 연결 또는 프로토콜에 권한을 사용할 수 없습니다.",
   "Not connected. Please connect to the server first.": "연결되지 않았습니다. 먼저 서버에 연결하세요.",
   "Permissions changed to {0}": "권한이 {0}(으)로 변경되었습니다",
+  "Full SSH Access": "전체 SSH 액세스",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "AI 에이전트가 워크스페이스 루트 외부에서 파일 읽기, 검색 및 명령 실행을 할 수 있도록 허용합니다. 서버 관리(패키지 설치, 구성 파일 편집, 서비스 관리)에 유용합니다. 파괴적인 명령은 계속 차단됩니다.",
   "Failed to change permissions: {0}": "권한 변경에 실패했습니다: {0}"
 }

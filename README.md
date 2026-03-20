@@ -18,7 +18,7 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
 | **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |
 | **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password encryption; optional cross-device sync via VS Code Settings Sync |
-| **AI (Copilot)** | `@bridge` chat participant + 3 tools (`runCommand`, `readFile`, `searchFiles`) |
+| **AI (Copilot)** | `@bridge` chat participant + 3 tools (`runCommand`, `readFile`, `searchFiles`); opt-in **Full SSH Access** mode per connection for server administration |
 | **Multi-OS** | Per-connection OS setting — Linux, macOS, Windows (PowerShell) |
 | **Localization** | 12 languages: EN, CS, DE, FR, ES, PL, HU, SK, UK, ZH-CN, KO, JA |
 
@@ -85,6 +85,8 @@ Chat participant `@bridge` with commands:
 - **Dangerous commands blocked** — `halt`, `shutdown`, `reboot`, `rm -rf /`, `mkfs`, `dd`, fork bombs and similar are rejected with a message asking the user to run them manually.
 - **Read/search commands redirected** — `grep`, `cat`, `head`, `tail`, `find` and similar are blocked and the agent is directed to use `#remoteRead` / `#remoteSearch` instead.
 - **SSH write commands blocked** — `echo >`, `sed -i`, `tee`, `python3 -c` are blocked; file editing uses VS Code's native tools on `remote-bridge://` workspace files.
+
+**Full SSH Access mode** (opt-in per connection): when enabled in the connection's Advanced settings, the agent can read, search, and write using direct shell commands anywhere on the server. Only destructive commands stay blocked. Intended for server administration tasks where the workspace-only restriction would be too limiting.
 
 > **Note:** All Remote Bridge tools are available **only in Agent mode**, the Copilot mode where the model autonomously executes multi-step tasks. In Ask, Edit, and Plan modes the tools are not invoked and will not appear. The `@bridge` chat participant and its commands (`/connect`, `/ls`, `/status`) work in any chat mode.
 
@@ -168,6 +170,7 @@ When adding or editing a connection, you'll see a form with these sections:
 - Keep-alive interval
 - TLS/FTPS toggle (for FTP connections)
 - **Allow self-signed TLS certificates** (FTPS only) — disables certificate verification; use only for servers with self-signed or invalid certs. The default is strict verification.
+- **Full SSH Access** (SSH/SFTP only) — allows the AI agent (`@bridge`) to read, search, and run commands outside the configured workspace root. Useful for server administration tasks: installing packages, editing system config files, managing services. Destructive commands remain blocked.
 
 > **Note:** For FTP/FTPS over an HTTP CONNECT proxy, only the control connection is tunnelled. SOCKS4/5 proxies tunnel all traffic fully.
 

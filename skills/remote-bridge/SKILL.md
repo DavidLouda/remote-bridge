@@ -51,11 +51,24 @@ Executes shell commands on the remote server via SSH.
 
 **Use for:** builds, tests, service management (`systemctl restart`), package management (`apt`, `composer`, `npm`), permissions (`chmod`, `chown`), git, diagnostics.
 
+**Default mode (Full SSH Access OFF):**
+Commands for reading or writing files are blocked — the extension redirects the agent to the dedicated tools.
+
 **Blocked — the extension returns an error instead of executing:**
 - Reading files (`cat`, `head`, `tail`) → use `remoteRead`
 - Searching files (`grep`, `find`, `awk`) → use `remoteRead` with `search` or `remoteSearch`
 - Writing/editing files (`echo >`, `sed -i`, `tee`) → use VS Code native file editing tools
 - Destructive/dangerous commands (`halt`, `shutdown`, `reboot`, `rm -rf /`, `mkfs`, `dd if=`, fork bombs, `iptables -F`) → ask the user to run these manually via SSH terminal
+
+**Full SSH Access mode (enabled per connection in Advanced settings):**
+When the connection has **Full SSH Access** enabled, read and write command restrictions are lifted. The agent can:
+- Read files directly (`cat /etc/nginx/nginx.conf`, `tail /var/log/syslog`)
+- Search files (`grep -r "error" /var/log/`, `find /etc -name "*.conf"`)
+- Write/edit files via shell commands (`sed -i`, `echo >> file`, `tee`)
+- Install packages, manage services, edit system configuration files outside the workspace root
+- Access any path on the server the SSH user is permitted to reach
+
+Destructive commands (`halt`, `shutdown`, `rm -rf /`, `mkfs`, `dd`, fork bombs, `iptables -F`) remain blocked even in Full SSH Access mode.
 
 ## Editing remote files — VS Code native tools
 
@@ -69,6 +82,7 @@ Remote files are mounted as `remote-bridge://` workspace files. To write, edit, 
 
 1. Always prefer `remoteRead` over reading through the filesystem provider — it runs server-side and is faster.
 2. Always use `remoteSearch` for multi-file searches — it runs grep/find server-side.
-3. Never use `remoteRun` to read, search, or write files.
-4. Never delegate file operations to subagents — they do not have access to Remote Bridge tools and fall back to slow generic VS Code tools.
-5. For large files: `remoteRead` with `search` first → get line numbers → `remoteRead` with `startLine`/`endLine`.
+3. In default mode: never use `remoteRun` to read, search, or write files.
+4. In Full SSH Access mode: you may use `remoteRun` to read, search, and write files directly via shell commands. This is appropriate for server administration tasks (installing software, editing system config, managing services).
+5. Never delegate file operations to subagents — they do not have access to Remote Bridge tools and fall back to slow generic VS Code tools.
+6. For large files: `remoteRead` with `search` first → get line numbers → `remoteRead` with `startLine`/`endLine`.

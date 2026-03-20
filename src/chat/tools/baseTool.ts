@@ -120,6 +120,15 @@ export abstract class BaseTool {
             return posix.normalize(cleanPath);
         }
 
+        // When full SSH access is enabled, skip workspace boundary check
+        // but still normalize the path to prevent traversal representations.
+        if (config.fullSshAccess) {
+            if (!cleanPath.startsWith('/')) {
+                cleanPath = rootPath.replace(/\/+$/, '') + '/' + cleanPath;
+            }
+            return posix.normalize(cleanPath);
+        }
+
         // Resolve relative paths against workspace root.
         if (!cleanPath.startsWith('/')) {
             cleanPath = rootPath.replace(/\/+$/, '') + '/' + cleanPath;

@@ -49,6 +49,7 @@
   "config.pool.maxConnections.description": "Maksymalna liczba jednoczesnych połączeń",
   "config.security.syncConnections.description": "(Beta) Dołącza dane uwierzytelniające do zaszyfrowanego magazynu, aby połączenia (w tym hasła) były synchronizowane między urządzeniami przez funkcję synchronizacji ustawień VS Code. Wymaga włączonego szyfrowania hasłem głównym. Na wszystkich urządzeniach musi być ustawione to samo hasło główne. Uwaga: ta funkcja może nie działać niezawodnie we wszystkich scenariuszach i zależy od aktywnej i poprawnie działającej synchronizacji VS Code.",
   "config.watch.pollInterval.description": "Interwał odpytywania dla obserwatorów systemu plików (w milisekundach)",
+  "config.files.temporaryWritePermission.description": "Gdy włączone, rozszerzenie tymczasowo dodaje uprawnienie do zapisu do zdalnych plików tylko do odczytu przed zapisem, a następnie przywraca oryginalne uprawnienia. Obsługiwane dla SSH/SFTP i FTP/FTPS.",
 
   "chat.command.connect.description": "Połącz się ze zdalnym serwerem po nazwie",
   "chat.command.ls.description": "Wyświetl pliki na zdalnym serwerze",

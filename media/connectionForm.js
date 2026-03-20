@@ -22,6 +22,7 @@
     const authMethodSelect = /** @type {HTMLSelectElement} */ (document.getElementById('authMethod'));
     const secureCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('secure'));
     const allowSelfSignedCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('allowSelfSigned'));
+    const fullSshAccessCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('fullSshAccess'));
 
     // Conditional sections
     const passwordSection = /** @type {HTMLElement} */ (document.getElementById('passwordSection'));
@@ -29,6 +30,7 @@
     const agentSection = /** @type {HTMLElement} */ (document.getElementById('agentSection'));
     const secureSection = /** @type {HTMLElement} */ (document.getElementById('secureSection'));
     const allowSelfSignedSection = /** @type {HTMLElement} */ (document.getElementById('allowSelfSignedSection'));
+    const fullSshAccessSection = /** @type {HTMLElement} */ (document.getElementById('fullSshAccessSection'));
 
     // Buttons
     const saveBtn = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
@@ -70,6 +72,9 @@
         // SSH-only auth methods
         const isSsh = protocol === 'ssh' || protocol === 'sftp';
         updateAuthMethodOptions(isSsh);
+
+        // Show/hide SSH-only fields
+        toggleVisibility(fullSshAccessSection, isSsh);
 
         updateAuthSections();
     });
@@ -219,6 +224,7 @@
             keepaliveInterval: parseInt(getVal('keepaliveInterval'), 10) || 10,
             secure: secureCheckbox.checked,
             allowSelfSigned: allowSelfSignedCheckbox.checked,
+            fullSshAccess: fullSshAccessCheckbox.checked,
             os: /** @type {HTMLSelectElement} */ (document.getElementById('os')).value,
 
             // Auth-specific
@@ -265,6 +271,7 @@
         setVal('keepaliveInterval', String(data.keepaliveInterval ?? 10));
         secureCheckbox.checked = !!data.secure;
         allowSelfSignedCheckbox.checked = !!data.allowSelfSigned;
+        fullSshAccessCheckbox.checked = !!data.fullSshAccess;
         /** @type {HTMLSelectElement} */ (document.getElementById('os')).value = data.os || 'linux';
 
         setVal('privateKeyPath', data.privateKeyPath || '');
@@ -287,6 +294,7 @@
         toggleVisibility(secureSection, isFtp);
         toggleVisibility(allowSelfSignedSection, isFtp);
         const isSsh = data.protocol === 'ssh' || data.protocol === 'sftp';
+        toggleVisibility(fullSshAccessSection, isSsh);
         updateAuthMethodOptions(isSsh);
         updateAuthSections();
     }

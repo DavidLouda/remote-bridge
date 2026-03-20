@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "此连接或协议不支持权限操作。",
   "Not connected. Please connect to the server first.": "未连接。请先连接到服务器。",
   "Permissions changed to {0}": "权限已更改为 {0}",
+  "Full SSH Access": "完整 SSH 访问",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "允许 AI 助手在工作区根目录之外读取、搜索和执行命令。适用于服务器管理任务（安装软件包、编辑配置文件、管理服务）。破坏性命令仍然被阻止。",
   "Failed to change permissions: {0}": "更改权限失败: {0}"
 }

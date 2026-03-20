@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "この接続またはプロトコルでは権限は利用できません。",
   "Not connected. Please connect to the server first.": "接続されていません。最初にサーバーに接続してください。",
   "Permissions changed to {0}": "権限を {0} に変更しました",
+  "Full SSH Access": "フルSSHアクセス",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "AIエージェントがワークスペースのルート外でファイルの読み取り、検索、コマンドの実行を行えるようにします。サーバー管理（パッケージのインストール、設定ファイルの編集、サービスの管理）に役立ちます。破壊的なコマンドは引き続きブロックされます。",
   "Failed to change permissions: {0}": "権限の変更に失敗しました: {0}"
 }

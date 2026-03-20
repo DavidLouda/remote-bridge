@@ -291,17 +291,35 @@ export class SshAdapter implements RemoteAdapter {
         // (typically 0o666), ignoring the file's existing permissions.
         const originalMode = await this.getUnixMode(remotePath);
 
-        return new Promise((resolve, reject) => {
-            const stream = originalMode !== undefined
-                ? sftp.createWriteStream(remotePath, { mode: originalMode })
-                : sftp.createWriteStream(remotePath);
-            stream.on('close', () => {
-                this._tracker?.recordUpload(content.length);
-                resolve();
+        // Temporary write permission: if the file is read-only and the setting
+        // is enabled, temporarily add the owner-write bit before writing, then
+        // restore the original mode in a finally block.
+        const needsTemporaryWrite =
+            originalMode !== undefined &&
+            (originalMode & 0o200) === 0 &&
+            vscode.workspace.getConfiguration('remoteBridge.files').get<boolean>('temporaryWritePermission', false);
+
+        if (needsTemporaryWrite) {
+            await this.chmod(remotePath, originalMode! | 0o200);
+        }
+
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const stream = originalMode !== undefined
+                    ? sftp.createWriteStream(remotePath, { mode: originalMode })
+                    : sftp.createWriteStream(remotePath);
+                stream.on('close', () => {
+                    this._tracker?.recordUpload(content.length);
+                    resolve();
+                });
+                stream.on('error', (err: Error) => reject(this._mapSftpError(err, remotePath)));
+                stream.end(Buffer.from(content));
             });
-            stream.on('error', (err: Error) => reject(this._mapSftpError(err, remotePath)));
-            stream.end(Buffer.from(content));
-        });
+        } finally {
+            if (needsTemporaryWrite) {
+                await this.chmod(remotePath, originalMode!).catch(() => { /* best-effort restore */ });
+            }
+        }
     }
 
     async delete(remotePath: string, options: { recursive: boolean }): Promise<void> {

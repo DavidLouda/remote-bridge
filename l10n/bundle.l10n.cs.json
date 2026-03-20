@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "Oprávnění nejsou dostupná pro toto připojení nebo protokol.",
   "Not connected. Please connect to the server first.": "Nepřipojeno. Nejprve se připojte k serveru.",
   "Permissions changed to {0}": "Oprávnění změněna na {0}",
-  "Failed to change permissions: {0}": "Nepodařilo se změnit oprávnění: {0}"
+  "Failed to change permissions: {0}": "Nepodařilo se změnit oprávnění: {0}",
+  "Full SSH Access": "Plný přístup SSH",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "Povoluje AI agentovi čtení, vyhledávání a spouštění příkazů mimo kořenový adresář pracovního prostoru. Vhodné pro správu serveru (instalace balíčků, úpravy konfiguračních souborů, správa služeb). Destruktivní příkazy zůstávají zablokované."
 }

@@ -57,6 +57,13 @@ export interface ConnectionConfig {
     allowSelfSigned?: boolean;
     /** Remote server operating system (default: 'linux') */
     os?: RemoteOS;
+    /**
+     * When true, the AI agent (chat tools) is allowed to operate outside the workspace root.
+     * Enables reads, searches, and command execution anywhere on the server the SSH user can access.
+     * Destructive commands (shutdown, rm -rf /, mkfs, …) remain blocked regardless.
+     * Only meaningful for SSH/SFTP connections.
+     */
+    fullSshAccess?: boolean;
     /** Epoch ms of the last modification. Used for sync merge conflict resolution. */
     updatedAt?: number;
 }

@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "Az engedélyek nem érhetők el ehhez a kapcsolathoz vagy protokollhoz.",
   "Not connected. Please connect to the server first.": "Nincs kapcsolat. Először csatlakozzon a kiszolgálóhoz.",
   "Permissions changed to {0}": "Engedélyek módosítva: {0}",
+  "Full SSH Access": "Teljes SSH-hozzáférés",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "Lehetővé teszi az AI-ügynök számára, hogy a munkaterület gyökérkönyvtárán kívül is olvasson, keressen és parancsokat hajtson végre. Hasznos szerverkezeléshez (csomagok telepítése, konfigurációs fájlok szerkesztése, szolgáltatások kezelése). A romboló parancsok továbbra is blokkolva maradnak.",
   "Failed to change permissions: {0}": "Nem sikerült módosítani az engedélyeket: {0}"
 }

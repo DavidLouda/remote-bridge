@@ -8,47 +8,50 @@ interface RunCommandInput {
     command: string;
 }
 
-function detectDedicatedToolAlternative(command: string): { blocked: boolean; guidance?: string } {
+function detectDedicatedToolAlternative(command: string, fullSshAccess?: boolean): { blocked: boolean; guidance?: string } {
     const normalized = command.toLowerCase();
 
-    // SSH write commands are always blocked — you MUST edit files via VS Code native
-    // file editing tools on remote-bridge:// workspace files.
-    const writeRules: Array<RegExp> = [
-        /\bpython\d*\b.*\s+-c\b|\bpython\d*\b[\s\S]*<</,
-        /\becho\b[\s\S]*(>>?)|\bprintf\b[\s\S]*(>>?)|\btee\b/,
-        /\bsed\b.*\s+-i\b/,
-    ];
+    // SSH write commands — blocked unless full SSH access is enabled on the connection.
+    // When fullSshAccess is true, the agent may modify files anywhere on the server.
+    if (!fullSshAccess) {
+        const writeRules: Array<RegExp> = [
+            /\bpython\d*\b.*\s+-c\b|\bpython\d*\b[\s\S]*<</,
+            /\becho\b[\s\S]*(>>?)|\bprintf\b[\s\S]*(>>?)|\btee\b/,
+            /\bsed\b.*\s+-i\b/,
+        ];
 
-    if (writeRules.some((r) => r.test(normalized))) {
-        return {
-            blocked: true,
-            guidance: 'SSH file write commands are blocked. You MUST use VS Code native file editing tools on remote-bridge:// workspace files to modify files.',
-        };
+        if (writeRules.some((r) => r.test(normalized))) {
+            return {
+                blocked: true,
+                guidance: 'SSH file write commands are blocked. You MUST use VS Code native file editing tools on remote-bridge:// workspace files to modify files.',
+            };
+        }
+
+        // File reading/searching commands — blocked unless full SSH access is enabled.
+        // Use readFile and searchFiles tools instead (they run server-side and are workspace-aware).
+        const readSearchRules: Array<RegExp> = [
+            /^\s*grep\b/,
+            /\|\s*grep\b/,
+            /^\s*cat\b/,
+            /^\s*head\b/,
+            /^\s*tail\b/,
+            /^\s*sed\b.*\bp\b/,
+            /^\s*awk\b/,
+            /^\s*find\b/,
+            /^\s*less\b/,
+            /^\s*more\b/,
+            /^\s*wc\b/,
+        ];
+
+        if (readSearchRules.some((r) => r.test(normalized))) {
+            return {
+                blocked: true,
+                guidance: 'Use the dedicated readFile tool (with `search` parameter for grep, `tail` for tail, `startLine`/`endLine` for line ranges) and searchFiles tool (for find/grep across directories). Do NOT use runCommand for reading or searching files.',
+            };
+        }
     }
 
-    // File reading/searching commands are blocked — use readFile and searchFiles tools instead.
-    const readSearchRules: Array<RegExp> = [
-        /^\s*grep\b/,
-        /\|\s*grep\b/,
-        /^\s*cat\b/,
-        /^\s*head\b/,
-        /^\s*tail\b/,
-        /^\s*sed\b.*\bp\b/,
-        /^\s*awk\b/,
-        /^\s*find\b/,
-        /^\s*less\b/,
-        /^\s*more\b/,
-        /^\s*wc\b/,
-    ];
-
-    if (readSearchRules.some((r) => r.test(normalized))) {
-        return {
-            blocked: true,
-            guidance: 'Use the dedicated readFile tool (with `search` parameter for grep, `tail` for tail, `startLine`/`endLine` for line ranges) and searchFiles tool (for find/grep across directories). Do NOT use runCommand for reading or searching files.',
-        };
-    }
-
-    // Dangerous/destructive commands are blocked — these could cause irreversible server damage.
+    // Dangerous/destructive commands are ALWAYS blocked — even with full SSH access.
     const dangerousRules: Array<RegExp> = [
         // System halt/reboot
         /\bhalt\b/,
@@ -98,9 +101,17 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
         _token: vscode.CancellationToken
     ) {
         const connName = this._resolveConnectionName(options.input.connectionName);
+        // Determine if full SSH access is enabled so blocked-command detection is accurate.
+        let fullSshAccess = false;
+        try {
+            const config = this._resolveConnection(options.input.connectionName);
+            fullSshAccess = !!config.fullSshAccess;
+        } catch {
+            // Connection may not be resolvable at prepare time — fall back to strict mode.
+        }
         // If this command will be rejected, skip the confirmation dialog — invoke() will return
         // the block guidance immediately without executing anything on the server.
-        if (detectDedicatedToolAlternative(options.input.command).blocked) {
+        if (detectDedicatedToolAlternative(options.input.command, fullSshAccess).blocked) {
             return {
                 invocationMessage: vscode.l10n.t('Running command on {0}...', connName),
             };
@@ -131,7 +142,8 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
 
         const { connectionName, command } = options.input;
 
-        const policy = detectDedicatedToolAlternative(command);
+        const config = this._resolveConnection(connectionName);
+        const policy = detectDedicatedToolAlternative(command, config.fullSshAccess);
         if (policy.blocked) {
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(
@@ -143,7 +155,6 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
             ]);
         }
 
-        const config = this._resolveConnection(connectionName);
         const adapter = await this._pool.getAdapter(config);
 
         if (!adapter.supportsExec || !adapter.exec) {

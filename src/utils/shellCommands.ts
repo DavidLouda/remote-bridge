@@ -227,14 +227,26 @@ export function tailRead(
 /**
  * Build a command that appends stdin content to the end of a file.
  * Expects the caller to pipe content via stdin (execWithStdin).
+ * When `temporaryWrite` is true, the owner-write bit is added before appending
+ * and the original permissions are restored afterward.
  */
 export function writeAppend(
     path: string,
-    os: RemoteOS = 'linux'
+    os: RemoteOS = 'linux',
+    temporaryWrite: boolean = false
 ): string {
     const p = esc(path, os);
     if (os === 'windows') {
+        if (temporaryWrite) {
+            return `$_ro = (Get-Item -LiteralPath ${p}).IsReadOnly; Set-ItemProperty -LiteralPath ${p} -Name IsReadOnly -Value $false; $input | Add-Content -LiteralPath ${p}; if ($_ro) { Set-ItemProperty -LiteralPath ${p} -Name IsReadOnly -Value $true }`;
+        }
         return `$input | Add-Content -LiteralPath ${p}`;
+    }
+    if (temporaryWrite) {
+        if (os === 'macos') {
+            return `_perms=$(stat -f '%Lp' ${p}) && chmod u+w ${p} && cat >> ${p}; chmod "$_perms" ${p} 2>/dev/null`;
+        }
+        return `_perms=$(stat -c '%a' ${p}) && chmod u+w ${p} && cat >> ${p}; chmod "$_perms" ${p} 2>/dev/null`;
     }
     return `cat >> ${p}`;
 }

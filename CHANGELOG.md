@@ -5,6 +5,12 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-03-20
+
+### Added
+- **Full SSH Access per connection** — new per-connection option in the Advanced section of the connection form (SSH/SFTP only). When enabled, the AI agent (`@bridge`) can read, search, and run commands anywhere on the server — not just within the configured workspace root. Enables server administration tasks such as installing packages (`apt install`, `composer`, `npm`), editing system configuration files (`/etc/nginx/nginx.conf`, `/etc/cron.d/…`), managing services, and inspecting logs outside the project directory. Destructive commands (`halt`, `shutdown`, `reboot`, `rm -rf /`, `mkfs`, `dd`, fork bombs, `iptables -F`) remain blocked regardless of this setting.
+- **Temporary Write Permission** — new opt-in setting `remoteBridge.files.temporaryWritePermission` (default `false`). When enabled, saving a read-only remote file (owner-write bit not set) automatically and temporarily elevates permissions (`chmod u+w`) before the write and restores the original mode in a `finally` block afterward — even if the write fails. Supported for SSH/SFTP (via SFTP `chmod`) and FTP/FTPS (via `SITE CHMOD`). On FTP servers that do not support `SITE CHMOD`, a clear error is shown instead of silently failing. The `writeAppend` shell helper gains the same guard for SSH connections.
+
 ## [3.0.0] - 2026-03-17
 
 After two releases of growing the AI toolset to 15 dedicated tools, it became clear that more tools is not always better — the agent would get tangled choosing between them and occasionally fight the extension's own safety rails. Version 3.0 strips it back to three universal, always-on tools and enforces what the agent should and should not do at the code level.

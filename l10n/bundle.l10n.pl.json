@@ -263,5 +263,7 @@
   "Permissions not available for this connection or protocol.": "Uprawnienia nie są dostępne dla tego połączenia lub protokołu.",
   "Not connected. Please connect to the server first.": "Brak połączenia. Najpierw połącz się z serwerem.",
   "Permissions changed to {0}": "Uprawnienia zmienione na {0}",
+  "Full SSH Access": "Pełny dostęp SSH",
+  "Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.": "Zezwala agentowi AI na odczyt, wyszukiwanie i wykonywanie poleceń poza katalogiem głównym obszaru roboczego. Przydatne do administracji serwerem (instalacja pakietów, edycja plików konfiguracyjnych, zarządzanie usługami). Destrukcyjne polecenia pozostają zablokowane.",
   "Failed to change permissions: {0}": "Nie udało się zmienić uprawnień: {0}"
 }

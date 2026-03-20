@@ -371,6 +371,13 @@ export class ConnectionFormPanel {
             }
         }
 
+        // SSH/SFTP-specific
+        if (protocol === 'ssh' || protocol === 'sftp') {
+            if (data.fullSshAccess) {
+                config.fullSshAccess = true;
+            }
+        }
+
         // Operating system
         const os = data.os as string;
         if (os === 'macos' || os === 'windows') {
@@ -437,6 +444,8 @@ export class ConnectionFormPanel {
             labelSecure: vscode.l10n.t('Use TLS (FTPS)'),
             labelAllowSelfSigned: vscode.l10n.t('Allow self-signed TLS certificates'),
             hintAllowSelfSigned: vscode.l10n.t('Disable certificate verification. Use only for servers with self-signed certificates.'),
+            labelFullSshAccess: vscode.l10n.t('Full SSH Access'),
+            hintFullSshAccess: vscode.l10n.t('Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.'),
             labelUseProxy: vscode.l10n.t('Use Proxy'),
             labelProxyType: vscode.l10n.t('Proxy Type'),
             labelProxyHost: vscode.l10n.t('Proxy Host'),
@@ -501,6 +510,8 @@ export class ConnectionFormPanel {
             labelSecure: escapeHtml(vscode.l10n.t('Use TLS (FTPS)')),
             labelAllowSelfSigned: escapeHtml(vscode.l10n.t('Allow self-signed TLS certificates')),
             hintAllowSelfSigned: escapeHtml(vscode.l10n.t('Disable certificate verification. Use only for servers with self-signed certificates.')),
+            labelFullSshAccess: escapeHtml(vscode.l10n.t('Full SSH Access')),
+            hintFullSshAccess: escapeHtml(vscode.l10n.t('Allow the AI agent to read, search, and run commands outside the workspace root. Useful for server administration (installing packages, editing config files, managing services). Destructive commands remain blocked.')),
             labelUseProxy: escapeHtml(vscode.l10n.t('Use Proxy')),
             labelProxyType: escapeHtml(vscode.l10n.t('Proxy Type')),
             labelProxyHost: escapeHtml(vscode.l10n.t('Proxy Host')),
@@ -696,6 +707,13 @@ export class ConnectionFormPanel {
             <input type="checkbox" id="allowSelfSigned">
             <label id="labelAllowSelfSigned" for="allowSelfSigned">${s.labelAllowSelfSigned}</label>
             <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintAllowSelfSigned">${s.hintAllowSelfSigned}</div>
+        </div>
+
+        <!-- SSH-only: Full SSH access for agent -->
+        <div id="fullSshAccessSection" class="form-group checkbox-group full-width hidden">
+            <input type="checkbox" id="fullSshAccess">
+            <label id="labelFullSshAccess" for="fullSshAccess">${s.labelFullSshAccess}</label>
+            <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintFullSshAccess">${s.hintFullSshAccess}</div>
         </div>
 
         <!-- Proxy -->

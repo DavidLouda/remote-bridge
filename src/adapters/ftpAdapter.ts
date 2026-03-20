@@ -256,6 +256,29 @@ export class FtpAdapter implements RemoteAdapter {
             // via SITE CHMOD after the upload if the server supports it.
             const originalMode = await this._getUnixModeRaw(client, remotePath);
 
+            // Temporary write permission: if the file is read-only and the setting
+            // is enabled, temporarily add the owner-write bit before uploading, then
+            // restore the original mode in a finally block.
+            const needsTemporaryWrite =
+                originalMode !== undefined &&
+                (originalMode & 0o200) === 0 &&
+                vscode.workspace.getConfiguration('remoteBridge.files').get<boolean>('temporaryWritePermission', false);
+
+            if (needsTemporaryWrite) {
+                const tmpModeStr = (originalMode! | 0o200).toString(8).padStart(3, '0');
+                // Use send() so that an unsupported SITE CHMOD produces a clear error.
+                try {
+                    await client.send(`SITE CHMOD ${tmpModeStr} ${remotePath}`);
+                } catch {
+                    throw new Error(
+                        vscode.l10n.t(
+                            'File is read-only and the server does not support changing permissions (SITE CHMOD): {0}',
+                            remotePath
+                        )
+                    );
+                }
+            }
+
             // Auto-create parent directories (FTP doesn't do this implicitly)
             const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
             if (parentDir !== '/') {
@@ -263,13 +286,16 @@ export class FtpAdapter implements RemoteAdapter {
                 await client.cd('/');
             }
 
-            const readable = Readable.from(Buffer.from(content));
-            await client.uploadFrom(readable, remotePath);
-            this._tracker?.recordUpload(content.length);
-
-            if (originalMode !== undefined) {
-                const modeStr = originalMode.toString(8).padStart(3, '0');
-                await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+            try {
+                const readable = Readable.from(Buffer.from(content));
+                await client.uploadFrom(readable, remotePath);
+                this._tracker?.recordUpload(content.length);
+            } finally {
+                // Always restore the original mode (best-effort).
+                if (originalMode !== undefined) {
+                    const modeStr = originalMode.toString(8).padStart(3, '0');
+                    await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+                }
             }
         });
     }
