@@ -52,6 +52,12 @@ function detectDedicatedToolAlternative(command: string, fullSshAccess?: boolean
     }
 
     // Dangerous/destructive commands are ALWAYS blocked — even with full SSH access.
+    // Strip shell comment lines before checking — prevents false positives when comment
+    // text mentions keywords like "reboot", "shutdown", etc. (e.g. sed commands with
+    // context comments, or multi-line scripts explaining what they do).
+    const withoutComments = command.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+    const dangerousNormalized = withoutComments.toLowerCase();
+
     const dangerousRules: Array<RegExp> = [
         // System halt/reboot
         /\bhalt\b/,
@@ -75,7 +81,7 @@ function detectDedicatedToolAlternative(command: string, fullSshAccess?: boolean
         /\bmodprobe\s+-r\b/,
     ];
 
-    if (dangerousRules.some((r) => r.test(normalized))) {
+    if (dangerousRules.some((r) => r.test(dangerousNormalized))) {
         return {
             blocked: true,
             guidance: 'This command could cause irreversible damage to the server. If you need to perform this operation, ask the user to run it manually via SSH terminal.',
@@ -150,7 +156,7 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
                     vscode.l10n.t(
                         'Command blocked: {0}',
                         policy.guidance ?? ''
-                    )
+                    ) + this._modeNote(config)
                 ),
             ]);
         }
@@ -184,8 +190,9 @@ export class RunCommandTool extends BaseTool implements vscode.LanguageModelTool
             vscode.l10n.t('Exit code: {0}', String(result.exitCode))
         );
 
+        const modeNote = this._modeNote(config);
         return new vscode.LanguageModelToolResult([
-            new vscode.LanguageModelTextPart(parts.join('\n\n')),
+            new vscode.LanguageModelTextPart(parts.join('\n\n') + modeNote),
         ]);
     }
 }

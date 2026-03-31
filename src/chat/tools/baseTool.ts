@@ -85,6 +85,16 @@ export abstract class BaseTool {
     }
 
     /**
+     * Returns a short note about the connection mode (Full SSH Access) to include
+     * in tool results so the language model knows which commands are allowed.
+     */
+    protected _modeNote(config: ConnectionConfig): string {
+        return config.fullSshAccess
+            ? '\n[Connection mode: Full SSH Access — shell read/write/edit commands via remoteRun are allowed on this connection]'
+            : '';
+    }
+
+    /**
      * Validates that a remote path is within the connection's workspace root (remotePath).
      *
      * Uses posix.normalize() to resolve '..', '.', and duplicate slashes before checking,
@@ -141,7 +151,8 @@ export abstract class BaseTool {
         }
         throw new Error(
             `Path "${inputPath}" is outside the workspace root "${config.remotePath}". ` +
-            `(Normalized: "${normalized}" vs root: "${normalizedRoot}"). Use paths within the workspace root directory.`
+            `(Normalized: "${normalized}" vs root: "${normalizedRoot}"). ` +
+            `Use paths within the workspace root directory, or enable Full SSH Access in the connection's Advanced settings to access any path on the server.`
         );
     }
 }

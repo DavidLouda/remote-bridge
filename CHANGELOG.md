@@ -5,6 +5,13 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2026-03-31
+
+### Fixed
+- **False-positive dangerous-command block** — shell comment lines (lines starting with `#`) are now stripped before checking commands against the dangerous-keyword list. Previously a multi-line script whose comment contained words like `reboot` or `shutdown` (e.g. `# Device needs reboot to apply firmware`) was incorrectly blocked, even though the actual command (e.g. `sed -n '…p' /file.py`) was completely harmless.
+- **Full SSH Access — agent mode awareness** — the AI agent now receives a note in `remoteRun` results indicating that Full SSH Access is active, so it no longer self-limits write/read commands based on static assumptions. `remoteRead` and `remoteSearch` tool descriptions clarified to mention Full SSH Access path bypass. "Path outside workspace root" errors now include a hint about enabling Full SSH Access.
+- **Agent skill — `remote-bridge://` URI guidance** — the skill now explicitly instructs the agent to use `remote-bridge://` URIs when creating or editing files, preventing accidental creation of local files instead of remote ones.
+
 ## [3.1.0] - 2026-03-20
 
 ### Added
