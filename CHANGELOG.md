@@ -5,6 +5,12 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-03-31
+
+### Added
+- **Jump Host (ProxyJump) support** *(Beta — currently under testing)* — connect to servers that are only accessible through a bastion / jump host using standard SSH port forwarding. Configure per connection in **Advanced → Use Jump Host (ProxyJump)**. Supported authentication methods on the jump host: Password, Private Key, SSH Agent. Jump host passwords and passphrases are stored in VS Code SecretStorage. Mutually exclusive with Proxy.
+- **SSH Config import — ProxyJump** — importing `~/.ssh/config` entries with `ProxyJump` now maps them to a Jump Host configuration automatically (first hop only for multi-hop chains).
+
 ## [3.1.1] - 2026-03-31
 
 ### Fixed

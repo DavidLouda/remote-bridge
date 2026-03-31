@@ -14,6 +14,7 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 | **Protocols** | SSH, SFTP, FTP, FTPS |
 | **Auth** | Password, private key (PPK/PEM), SSH agent, FTPS/TLS |
 | **Proxy** | SOCKS4, SOCKS5, HTTP CONNECT — per-connection, credentials in SecretStorage |
+| **Jump Host (Beta)** | SSH ProxyJump / bastion host — per-connection, supports Password / Private Key / SSH Agent auth |
 | **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
 | **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |

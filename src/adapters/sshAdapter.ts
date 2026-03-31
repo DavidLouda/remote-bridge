@@ -6,6 +6,7 @@ import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '..
 import { TransferTracker } from '../services/transferTracker';
 import * as shell from '../utils/shellCommands';
 import { createProxySocket } from '../utils/proxyTunnel';
+import { createJumpSocket } from '../utils/jumpTunnel';
 
 /**
  * SSH/SFTP adapter using the ssh2 library.
@@ -15,6 +16,7 @@ export class SshAdapter implements RemoteAdapter {
     private _client: Client | null = null;
     private _sftp: SFTPWrapper | null = null;
     private _connected = false;
+    private _jumpClient: Client | null = null;
 
     private readonly _onDidDisconnect = new vscode.EventEmitter<void>();
     readonly onDidDisconnect = this._onDidDisconnect.event;
@@ -27,7 +29,9 @@ export class SshAdapter implements RemoteAdapter {
         private readonly _getPassword: () => Promise<string | undefined>,
         private readonly _getPassphrase: () => Promise<string | undefined>,
         private readonly _getProxyPassword: () => Promise<string | undefined>,
-        private readonly _tracker?: TransferTracker
+        private readonly _tracker?: TransferTracker,
+        private readonly _getJumpPassword: () => Promise<string | undefined> = async () => undefined,
+        private readonly _getJumpPassphrase: () => Promise<string | undefined> = async () => undefined
     ) {}
 
     // ─── Connection ──────────────────────────────────────────────
@@ -100,6 +104,20 @@ export class SshAdapter implements RemoteAdapter {
             );
         }
 
+        // If a jump host is configured, open an SSH-forwarded channel to the target
+        if (this._config.jumpHost) {
+            const { stream, jumpClient } = await createJumpSocket(
+                this._config.jumpHost,
+                this._getJumpPassword,
+                this._getJumpPassphrase,
+                this._config.host,
+                this._config.port
+            );
+            this._jumpClient = jumpClient;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            connectConfig.sock = stream as any;
+        }
+
         return new Promise<void>((resolve, reject) => {
             // Handle keyboard-interactive authentication prompts
             client.on('keyboard-interactive', (_name, _instructions, _instructionsLang, prompts, finish) => {
@@ -165,6 +183,10 @@ export class SshAdapter implements RemoteAdapter {
             this._client = null;
         }
         this._sftp = null;
+        if (this._jumpClient) {
+            this._jumpClient.end();
+            this._jumpClient = null;
+        }
     }
 
     isConnected(): boolean {

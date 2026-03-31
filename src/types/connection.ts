@@ -20,6 +20,16 @@ export interface ProxyConfig {
     password?: string;
 }
 
+export interface JumpHostConfig {
+    host: string;
+    port: number;
+    username: string;
+    authMethod: AuthMethod;
+    privateKeyPath?: string;
+    hasPassphrase?: boolean;
+    agent?: string;
+}
+
 export interface ConnectionConfig {
     /** Unique identifier (UUID v4) */
     id: string;
@@ -47,6 +57,8 @@ export interface ConnectionConfig {
     agent?: string;
     /** Proxy configuration */
     proxy?: ProxyConfig;
+    /** SSH Jump Host (ProxyJump) — SSH/SFTP only. Mutually exclusive with proxy. */
+    jumpHost?: JumpHostConfig;
     /** Keep-alive interval in seconds (0 = disabled) */
     keepaliveInterval: number;
     /** Sort order within its folder */
@@ -103,6 +115,8 @@ export interface ConnectionSecrets {
     password?: string;
     passphrase?: string;
     proxyPassword?: string;
+    jumpPassword?: string;
+    jumpPassphrase?: string;
 }
 
 export interface ConnectionStore {
@@ -238,4 +252,12 @@ export function secretKeyForPassphrase(connectionId: string): string {
 
 export function secretKeyForProxyPassword(connectionId: string): string {
     return `remote-bridge.connection.${connectionId}.proxyPassword`;
+}
+
+export function secretKeyForJumpPassword(connectionId: string): string {
+    return `remote-bridge.connection.${connectionId}.jumpPassword`;
+}
+
+export function secretKeyForJumpPassphrase(connectionId: string): string {
+    return `remote-bridge.connection.${connectionId}.jumpPassphrase`;
 }

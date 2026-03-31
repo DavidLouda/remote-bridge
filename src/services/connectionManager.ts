@@ -9,6 +9,8 @@ import {
     secretKeyForPassword,
     secretKeyForPassphrase,
     secretKeyForProxyPassword,
+    secretKeyForJumpPassword,
+    secretKeyForJumpPassphrase,
 } from '../types/connection';
 import { EncryptionService } from './encryptionService';
 import { BackupService } from './backupService';
@@ -414,9 +416,13 @@ export class ConnectionManager implements vscode.Disposable {
             const pw = await this._secrets.get(secretKeyForPassword(conn.id));
             const pp = await this._secrets.get(secretKeyForPassphrase(conn.id));
             const proxy = await this._secrets.get(secretKeyForProxyPassword(conn.id));
+            const jumpPw = await this._secrets.get(secretKeyForJumpPassword(conn.id));
+            const jumpPp = await this._secrets.get(secretKeyForJumpPassphrase(conn.id));
             if (pw) { entry.password = pw; }
             if (pp) { entry.passphrase = pp; }
             if (proxy) { entry.proxyPassword = proxy; }
+            if (jumpPw) { entry.jumpPassword = jumpPw; }
+            if (jumpPp) { entry.jumpPassphrase = jumpPp; }
             if (Object.keys(entry).length > 0) {
                 secrets[conn.id] = entry;
             }
@@ -452,6 +458,16 @@ export class ConnectionManager implements vscode.Disposable {
             if (entry.proxyPassword) {
                 if (forceOverwrite || !(await this._secrets.get(secretKeyForProxyPassword(id)))) {
                     await this._secrets.store(secretKeyForProxyPassword(id), entry.proxyPassword);
+                }
+            }
+            if (entry.jumpPassword) {
+                if (forceOverwrite || !(await this._secrets.get(secretKeyForJumpPassword(id)))) {
+                    await this._secrets.store(secretKeyForJumpPassword(id), entry.jumpPassword);
+                }
+            }
+            if (entry.jumpPassphrase) {
+                if (forceOverwrite || !(await this._secrets.get(secretKeyForJumpPassphrase(id)))) {
+                    await this._secrets.store(secretKeyForJumpPassphrase(id), entry.jumpPassphrase);
                 }
             }
         }
@@ -504,7 +520,9 @@ export class ConnectionManager implements vscode.Disposable {
         config: Omit<ConnectionConfig, 'id' | 'sortOrder'>,
         password?: string,
         passphrase?: string,
-        proxyPassword?: string
+        proxyPassword?: string,
+        jumpPassword?: string,
+        jumpPassphrase?: string
     ): Promise<ConnectionConfig> {
         const store = this._requireStore();
 
@@ -539,6 +557,12 @@ export class ConnectionManager implements vscode.Disposable {
         if (proxyPassword) {
             await this._secrets.store(secretKeyForProxyPassword(id), proxyPassword);
         }
+        if (jumpPassword) {
+            await this._secrets.store(secretKeyForJumpPassword(id), jumpPassword);
+        }
+        if (jumpPassphrase) {
+            await this._secrets.store(secretKeyForJumpPassphrase(id), jumpPassphrase);
+        }
 
         await this._saveCore();
         this._onDidChange.fire();
@@ -550,7 +574,9 @@ export class ConnectionManager implements vscode.Disposable {
         updates: Partial<Omit<ConnectionConfig, 'id'>>,
         password?: string,
         passphrase?: string,
-        proxyPassword?: string
+        proxyPassword?: string,
+        jumpPassword?: string,
+        jumpPassphrase?: string
     ): Promise<void> {
         const store = this._requireStore();
         const index = store.connections.findIndex((c) => c.id === id);
@@ -582,6 +608,20 @@ export class ConnectionManager implements vscode.Disposable {
                 await this._secrets.delete(secretKeyForProxyPassword(id));
             }
         }
+        if (jumpPassword !== undefined) {
+            if (jumpPassword) {
+                await this._secrets.store(secretKeyForJumpPassword(id), jumpPassword);
+            } else {
+                await this._secrets.delete(secretKeyForJumpPassword(id));
+            }
+        }
+        if (jumpPassphrase !== undefined) {
+            if (jumpPassphrase) {
+                await this._secrets.store(secretKeyForJumpPassphrase(id), jumpPassphrase);
+            } else {
+                await this._secrets.delete(secretKeyForJumpPassphrase(id));
+            }
+        }
 
         await this._saveCore();
         this._onDidChange.fire();
@@ -597,6 +637,8 @@ export class ConnectionManager implements vscode.Disposable {
         await this._secrets.delete(secretKeyForPassword(id));
         await this._secrets.delete(secretKeyForPassphrase(id));
         await this._secrets.delete(secretKeyForProxyPassword(id));
+        await this._secrets.delete(secretKeyForJumpPassword(id));
+        await this._secrets.delete(secretKeyForJumpPassphrase(id));
 
         await this._saveCore();
         this._onDidChange.fire();
@@ -623,6 +665,8 @@ export class ConnectionManager implements vscode.Disposable {
             await this._secrets.delete(secretKeyForPassword(id));
             await this._secrets.delete(secretKeyForPassphrase(id));
             await this._secrets.delete(secretKeyForProxyPassword(id));
+            await this._secrets.delete(secretKeyForJumpPassword(id));
+            await this._secrets.delete(secretKeyForJumpPassphrase(id));
         }
 
         await this._saveCore();
@@ -639,12 +683,16 @@ export class ConnectionManager implements vscode.Disposable {
         const password = await this._secrets.get(secretKeyForPassword(id));
         const passphrase = await this._secrets.get(secretKeyForPassphrase(id));
         const proxyPassword = await this._secrets.get(secretKeyForProxyPassword(id));
+        const jumpPassword = await this._secrets.get(secretKeyForJumpPassword(id));
+        const jumpPassphrase = await this._secrets.get(secretKeyForJumpPassphrase(id));
 
         return this.addConnection(
             { ...rest, name: vscode.l10n.t('{0} (copy)', original.name) },
             password ?? undefined,
             passphrase ?? undefined,
-            proxyPassword ?? undefined
+            proxyPassword ?? undefined,
+            jumpPassword ?? undefined,
+            jumpPassphrase ?? undefined
         );
     }
 

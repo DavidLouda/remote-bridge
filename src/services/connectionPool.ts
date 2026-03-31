@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { RemoteAdapter } from '../adapters/adapter';
 import { SshAdapter } from '../adapters/sshAdapter';
 import { FtpAdapter } from '../adapters/ftpAdapter';
-import { ConnectionConfig, ConnectionStatus, secretKeyForProxyPassword } from '../types/connection';
+import { ConnectionConfig, ConnectionStatus, secretKeyForProxyPassword, secretKeyForJumpPassword, secretKeyForJumpPassphrase } from '../types/connection';
 import { TransferTracker } from './transferTracker';
 
 interface PoolEntry {
@@ -201,11 +201,15 @@ export class ConnectionPool implements vscode.Disposable {
             this._secretStorage.get(this._getSecretKey(config.id, 'passphrase'));
         const getProxyPassword = async () =>
             this._secretStorage.get(secretKeyForProxyPassword(config.id));
+        const getJumpPassword = async () =>
+            this._secretStorage.get(secretKeyForJumpPassword(config.id));
+        const getJumpPassphrase = async () =>
+            this._secretStorage.get(secretKeyForJumpPassphrase(config.id));
 
         switch (config.protocol) {
             case 'ssh':
             case 'sftp':
-                return new SshAdapter(config, getPassword, getPassphrase, getProxyPassword, this._tracker);
+                return new SshAdapter(config, getPassword, getPassphrase, getProxyPassword, this._tracker, getJumpPassword, getJumpPassphrase);
             case 'ftp':
             case 'ftps':
                 return new FtpAdapter(config, getPassword, getProxyPassword, this._tracker);

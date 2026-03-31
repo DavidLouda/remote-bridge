@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase, secretKeyForProxyPassword } from '../types/connection';
+import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase, secretKeyForProxyPassword, secretKeyForJumpPassword, secretKeyForJumpPassphrase } from '../types/connection';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
 import { SshAdapter } from '../adapters/sshAdapter';
@@ -203,6 +203,11 @@ export class ConnectionFormPanel {
                 delete configData.proxy.password;
             }
 
+            // Extract jump host secrets from form data
+            const jumpData = data.jumpHost as Record<string, unknown> | undefined;
+            const jumpPassword = jumpData?.password as string | undefined;
+            const jumpPassphrase = jumpData?.passphrase as string | undefined;
+
             if (editingId) {
                 // Edit existing
                 await this._connectionManager.updateConnection(
@@ -210,7 +215,9 @@ export class ConnectionFormPanel {
                     configData,
                     password,
                     passphrase,
-                    proxyPassword
+                    proxyPassword,
+                    jumpPassword,
+                    jumpPassphrase
                 );
             } else {
                 // Create new
@@ -218,7 +225,9 @@ export class ConnectionFormPanel {
                     configData,
                     password,
                     passphrase,
-                    proxyPassword
+                    proxyPassword,
+                    jumpPassword,
+                    jumpPassphrase
                 );
             }
 
@@ -255,6 +264,8 @@ export class ConnectionFormPanel {
             let password = (data.password as string) || '';
             let passphrase = (data.passphrase as string) || '';
             let proxyPassword = '';
+            let jumpPassword = '';
+            let jumpPassphrase = '';
 
             // When editing an existing connection, the password/passphrase fields
             // in the form are intentionally left empty (credentials live in
@@ -267,6 +278,8 @@ export class ConnectionFormPanel {
                     passphrase = (await this._secrets.get(secretKeyForPassphrase(this._editingId))) ?? '';
                 }
                 proxyPassword = (await this._secrets.get(secretKeyForProxyPassword(this._editingId))) ?? '';
+                jumpPassword = (await this._secrets.get(secretKeyForJumpPassword(this._editingId))) ?? '';
+                jumpPassphrase = (await this._secrets.get(secretKeyForJumpPassphrase(this._editingId))) ?? '';
             }
 
             const tempConfig: ConnectionConfig = {
@@ -278,10 +291,12 @@ export class ConnectionFormPanel {
             const getPassword = async () => password;
             const getPassphrase = async () => passphrase;
             const getProxyPassword = async () => proxyPassword || undefined;
+            const getJumpPassword = async () => jumpPassword || undefined;
+            const getJumpPassphrase = async () => jumpPassphrase || undefined;
 
             let adapter: SshAdapter | FtpAdapter;
             if (protocol === 'ssh' || protocol === 'sftp') {
-                adapter = new SshAdapter(tempConfig, getPassword, getPassphrase, getProxyPassword);
+                adapter = new SshAdapter(tempConfig, getPassword, getPassphrase, getProxyPassword, undefined, getJumpPassword, getJumpPassphrase);
             } else {
                 adapter = new FtpAdapter(tempConfig, getPassword, getProxyPassword);
             }
@@ -399,6 +414,27 @@ export class ConnectionFormPanel {
             }
         }
 
+        // Jump Host (SSH/SFTP only, mutually exclusive with proxy)
+        if ((protocol === 'ssh' || protocol === 'sftp') && data.jumpHost && typeof data.jumpHost === 'object') {
+            const j = data.jumpHost as Record<string, unknown>;
+            if (j.host && j.port) {
+                const jumpAuthMethod = (j.authMethod as string) || 'password';
+                config.jumpHost = {
+                    host: (j.host as string).trim(),
+                    port: Number(j.port),
+                    username: (j.username as string) || '',
+                    authMethod: jumpAuthMethod as ConnectionConfig['authMethod'],
+                };
+                if (jumpAuthMethod === 'key') {
+                    config.jumpHost.privateKeyPath = (j.privateKeyPath as string) || undefined;
+                    config.jumpHost.hasPassphrase = !!j.hasPassphrase;
+                }
+                if (jumpAuthMethod === 'agent') {
+                    config.jumpHost.agent = (j.agent as string) || undefined;
+                }
+            }
+        }
+
         return config;
     }
 
@@ -453,6 +489,18 @@ export class ConnectionFormPanel {
             labelProxyUsername: vscode.l10n.t('Proxy Username'),
             labelProxyPassword: vscode.l10n.t('Proxy Password'),
             labelOs: vscode.l10n.t('Operating System'),
+
+            labelUseJumpHost: vscode.l10n.t('Use Jump Host (ProxyJump)'),
+            hintUseJumpHost: vscode.l10n.t('Connect through a bastion / jump server using SSH port forwarding. Cannot be combined with proxy.'),
+            labelJumpHost: vscode.l10n.t('Jump Host'),
+            labelJumpPort: vscode.l10n.t('Jump Port'),
+            labelJumpUsername: vscode.l10n.t('Jump Username'),
+            labelJumpAuthMethod: vscode.l10n.t('Jump Auth Method'),
+            labelJumpPassword: vscode.l10n.t('Jump Password'),
+            labelJumpPrivateKey: vscode.l10n.t('Jump Private Key Path'),
+            labelJumpHasPassphrase: vscode.l10n.t('Jump key has a passphrase'),
+            labelJumpPassphrase: vscode.l10n.t('Jump Passphrase'),
+            labelJumpAgent: vscode.l10n.t('Jump Agent Socket'),
 
             hintRemotePath: vscode.l10n.t('Default directory opened when connecting'),
             hintAgent: vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows'),
@@ -519,6 +567,18 @@ export class ConnectionFormPanel {
             labelProxyUsername: escapeHtml(vscode.l10n.t('Proxy Username')),
             labelProxyPassword: escapeHtml(vscode.l10n.t('Proxy Password')),
             labelOs: escapeHtml(vscode.l10n.t('Operating System')),
+
+            labelUseJumpHost: escapeHtml(vscode.l10n.t('Use Jump Host (ProxyJump)')),
+            hintUseJumpHost: escapeHtml(vscode.l10n.t('Connect through a bastion / jump server using SSH port forwarding. Cannot be combined with proxy.')),
+            labelJumpHost: escapeHtml(vscode.l10n.t('Jump Host')),
+            labelJumpPort: escapeHtml(vscode.l10n.t('Jump Port')),
+            labelJumpUsername: escapeHtml(vscode.l10n.t('Jump Username')),
+            labelJumpAuthMethod: escapeHtml(vscode.l10n.t('Jump Auth Method')),
+            labelJumpPassword: escapeHtml(vscode.l10n.t('Jump Password')),
+            labelJumpPrivateKey: escapeHtml(vscode.l10n.t('Jump Private Key Path')),
+            labelJumpHasPassphrase: escapeHtml(vscode.l10n.t('Jump key has a passphrase')),
+            labelJumpPassphrase: escapeHtml(vscode.l10n.t('Jump Passphrase')),
+            labelJumpAgent: escapeHtml(vscode.l10n.t('Jump Agent Socket')),
 
             hintRemotePath: escapeHtml(vscode.l10n.t('Default directory opened when connecting')),
             hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows')),
@@ -751,6 +811,69 @@ export class ConnectionFormPanel {
                 <div class="form-group full-width">
                     <label id="labelProxyPassword" for="proxyPassword">${s.labelProxyPassword}</label>
                     <input type="password" id="proxyPassword">
+                </div>
+            </div>
+        </div>
+
+        <!-- SSH-only: Jump Host (ProxyJump) -->
+        <div id="jumpHostSection" class="form-group checkbox-group full-width hidden">
+            <input type="checkbox" id="useJumpHost">
+            <label id="labelUseJumpHost" for="useJumpHost">${s.labelUseJumpHost}</label>
+            <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintUseJumpHost">${s.hintUseJumpHost}</div>
+        </div>
+
+        <div id="jumpHostFields" class="full-width hidden">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label id="labelJumpHost" for="jumpHost">${s.labelJumpHost}</label>
+                    <input type="text" id="jumpHost" placeholder="${s.phHost}">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelJumpPort" for="jumpPort">${s.labelJumpPort}</label>
+                    <input type="number" id="jumpPort" value="22" min="1" max="65535">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelJumpUsername" for="jumpUsername">${s.labelJumpUsername}</label>
+                    <input type="text" id="jumpUsername">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelJumpAuthMethod" for="jumpAuthMethod">${s.labelJumpAuthMethod}</label>
+                    <select id="jumpAuthMethod">
+                        <option value="password">${s.optPassword}</option>
+                        <option value="key">${s.optKey}</option>
+                        <option value="agent">${s.optAgent}</option>
+                    </select>
+                </div>
+
+                <!-- Jump password -->
+                <div id="jumpPasswordSection" class="form-group full-width">
+                    <label id="labelJumpPassword" for="jumpPassword">${s.labelJumpPassword}</label>
+                    <input type="password" id="jumpPassword">
+                </div>
+
+                <!-- Jump key -->
+                <div id="jumpKeySection" class="form-group full-width hidden">
+                    <label id="labelJumpPrivateKey" for="jumpPrivateKeyPath">${s.labelJumpPrivateKey}</label>
+                    <input type="text" id="jumpPrivateKeyPath" placeholder="${s.phKey}">
+                </div>
+
+                <div id="jumpHasPassphraseSection" class="form-group checkbox-group full-width hidden">
+                    <input type="checkbox" id="jumpHasPassphrase">
+                    <label id="labelJumpHasPassphrase" for="jumpHasPassphrase">${s.labelJumpHasPassphrase}</label>
+                </div>
+
+                <div id="jumpPassphraseSection" class="form-group full-width hidden">
+                    <label id="labelJumpPassphrase" for="jumpPassphrase">${s.labelJumpPassphrase}</label>
+                    <input type="password" id="jumpPassphrase">
+                </div>
+
+                <!-- Jump agent -->
+                <div id="jumpAgentSection" class="form-group full-width hidden">
+                    <label id="labelJumpAgent" for="jumpAgent">${s.labelJumpAgent}</label>
+                    <input type="text" id="jumpAgent" placeholder="${s.phAgent}">
                 </div>
             </div>
         </div>

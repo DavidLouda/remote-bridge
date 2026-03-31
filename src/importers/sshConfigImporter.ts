@@ -8,6 +8,7 @@ import {
     ConnectionProtocol,
     DEFAULT_PORTS,
     ImportResult,
+    JumpHostConfig,
 } from '../types/connection';
 
 /**
@@ -103,14 +104,36 @@ export class SshConfigImporter {
                     connection.privateKeyPath = String(keyPath).replace(/^~/, os.homedir());
                 }
 
-                // Handle ProxyJump — SSH jump proxies are not supported yet.
-                // Log a warning and skip the ProxyJump value.
+                // Handle ProxyJump — parse and map to jumpHost config.
+                // Format: [user@]host[:port]  or  comma-separated (take first hop only)
                 const proxyJump = computed['ProxyJump'];
                 if (proxyJump) {
-                    result.warnings = result.warnings ?? [];
-                    result.warnings.push(
-                        vscode.l10n.t('Host "{0}" uses ProxyJump ({1}) which is not yet supported and was skipped.', hostPattern, String(proxyJump))
-                    );
+                    const raw = String(proxyJump).split(',')[0].trim(); // first hop only
+                    const userHostPort = raw.replace(/^ssh:\/\//, '');
+                    let jumpUser: string | undefined;
+                    let jumpHostPort = userHostPort;
+
+                    if (userHostPort.includes('@')) {
+                        const at = userHostPort.lastIndexOf('@');
+                        jumpUser = userHostPort.slice(0, at);
+                        jumpHostPort = userHostPort.slice(at + 1);
+                    }
+
+                    let jumpHostname = jumpHostPort;
+                    let jumpPort = 22;
+                    const colonIdx = jumpHostPort.lastIndexOf(':');
+                    if (colonIdx > 0) {
+                        jumpHostname = jumpHostPort.slice(0, colonIdx);
+                        jumpPort = parseInt(jumpHostPort.slice(colonIdx + 1), 10) || 22;
+                    }
+
+                    const jumpConfig: JumpHostConfig = {
+                        host: jumpHostname,
+                        port: jumpPort,
+                        username: jumpUser || connection.username,
+                        authMethod: 'key',
+                    };
+                    connection.jumpHost = jumpConfig;
                 }
 
                 result.imported.push(connection as ConnectionConfig);

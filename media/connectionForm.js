@@ -75,6 +75,11 @@
 
         // Show/hide SSH-only fields
         toggleVisibility(fullSshAccessSection, isSsh);
+        toggleVisibility(jumpHostSection, isSsh);
+        if (!isSsh) {
+            useJumpHostCheckbox.checked = false;
+            toggleVisibility(jumpHostFields, false);
+        }
 
         updateAuthSections();
     });
@@ -116,7 +121,41 @@
 
     useProxyCheckbox.addEventListener('change', () => {
         toggleVisibility(proxyFields, useProxyCheckbox.checked);
+        // Mutually exclusive with jump host
+        if (useProxyCheckbox.checked && useJumpHostCheckbox.checked) {
+            useJumpHostCheckbox.checked = false;
+            toggleVisibility(jumpHostFields, false);
+        }
     });
+
+    // ─── Jump Host toggle ────────────────────────────────────────
+
+    const useJumpHostCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('useJumpHost'));
+    const jumpHostSection = /** @type {HTMLElement} */ (document.getElementById('jumpHostSection'));
+    const jumpHostFields = /** @type {HTMLElement} */ (document.getElementById('jumpHostFields'));
+    const jumpAuthMethodSelect = /** @type {HTMLSelectElement} */ (document.getElementById('jumpAuthMethod'));
+    const jumpHasPassphraseCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('jumpHasPassphrase'));
+
+    useJumpHostCheckbox.addEventListener('change', () => {
+        toggleVisibility(jumpHostFields, useJumpHostCheckbox.checked);
+        // Mutually exclusive with proxy
+        if (useJumpHostCheckbox.checked && useProxyCheckbox.checked) {
+            useProxyCheckbox.checked = false;
+            toggleVisibility(proxyFields, false);
+        }
+    });
+
+    jumpAuthMethodSelect.addEventListener('change', updateJumpAuthSections);
+    jumpHasPassphraseCheckbox.addEventListener('change', updateJumpAuthSections);
+
+    function updateJumpAuthSections() {
+        const method = jumpAuthMethodSelect.value;
+        toggleVisibility(document.getElementById('jumpPasswordSection'), method === 'password');
+        toggleVisibility(document.getElementById('jumpKeySection'), method === 'key');
+        toggleVisibility(document.getElementById('jumpHasPassphraseSection'), method === 'key');
+        toggleVisibility(document.getElementById('jumpPassphraseSection'), method === 'key' && jumpHasPassphraseCheckbox.checked);
+        toggleVisibility(document.getElementById('jumpAgentSection'), method === 'agent');
+    }
 
     // ─── Browse for private key ─────────────────────────────────
 
@@ -236,6 +275,9 @@
 
             // Proxy
             proxy: /** @type {any} */ (undefined),
+
+            // Jump host
+            jumpHost: /** @type {any} */ (undefined),
         };
 
         if (useProxyCheckbox.checked) {
@@ -248,6 +290,25 @@
                     port: proxyPort,
                     username: getVal('proxyUsername') || undefined,
                     password: getVal('proxyPassword') || undefined,
+                };
+            }
+        }
+
+        if (useJumpHostCheckbox.checked) {
+            const jumpHost = getVal('jumpHost');
+            const jumpPort = parseInt(getVal('jumpPort'), 10) || 22;
+            if (jumpHost) {
+                const jumpAuthMethod = jumpAuthMethodSelect.value;
+                data.jumpHost = {
+                    host: jumpHost,
+                    port: jumpPort,
+                    username: getVal('jumpUsername') || undefined,
+                    authMethod: jumpAuthMethod,
+                    password: jumpAuthMethod === 'password' ? (getVal('jumpPassword') || undefined) : undefined,
+                    privateKeyPath: jumpAuthMethod === 'key' ? (getVal('jumpPrivateKeyPath') || undefined) : undefined,
+                    hasPassphrase: jumpAuthMethod === 'key' ? jumpHasPassphraseCheckbox.checked : false,
+                    passphrase: (jumpAuthMethod === 'key' && jumpHasPassphraseCheckbox.checked) ? (getVal('jumpPassphrase') || undefined) : undefined,
+                    agent: jumpAuthMethod === 'agent' ? (getVal('jumpAgent') || undefined) : undefined,
                 };
             }
         }
@@ -287,6 +348,19 @@
             setVal('proxyUsername', data.proxy.username || '');
         }
 
+        if (data.jumpHost) {
+            useJumpHostCheckbox.checked = true;
+            toggleVisibility(jumpHostFields, true);
+            setVal('jumpHost', data.jumpHost.host || '');
+            setVal('jumpPort', String(data.jumpHost.port || 22));
+            setVal('jumpUsername', data.jumpHost.username || '');
+            jumpAuthMethodSelect.value = data.jumpHost.authMethod || 'password';
+            setVal('jumpPrivateKeyPath', data.jumpHost.privateKeyPath || '');
+            jumpHasPassphraseCheckbox.checked = !!data.jumpHost.hasPassphrase;
+            setVal('jumpAgent', data.jumpHost.agent || '');
+            updateJumpAuthSections();
+        }
+
         portManuallyChanged = !!data.id; // Preserve port only when editing an existing connection
 
         // Trigger UI updates
@@ -295,6 +369,7 @@
         toggleVisibility(allowSelfSignedSection, isFtp);
         const isSsh = data.protocol === 'ssh' || data.protocol === 'sftp';
         toggleVisibility(fullSshAccessSection, isSsh);
+        toggleVisibility(jumpHostSection, isSsh);
         updateAuthMethodOptions(isSsh);
         updateAuthSections();
     }
