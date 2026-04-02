@@ -71,4 +71,10 @@ export interface RemoteAdapter extends vscode.Disposable {
 
     /** Set Unix file mode bits. Silently no-ops if not supported by the protocol. */
     chmod?(remotePath: string, mode: number): Promise<void>;
+
+    /**
+     * Copy a file or directory to a new location on the same server, preserving permissions.
+     * If not implemented, the FileSystemProvider falls back to read + write (permissions not preserved).
+     */
+    copy?(src: string, dst: string, options: { overwrite: boolean }): Promise<void>;
 }

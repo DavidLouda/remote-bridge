@@ -279,7 +279,9 @@ export function copyCmd(
             ? `Copy-Item -LiteralPath ${s} -Destination ${d} -Recurse -Force`
             : `Copy-Item -LiteralPath ${s} -Destination ${d} -Force`;
     }
-    const flag = recursive ? '-a' : '';
+    const flag = recursive
+        ? (os === 'macos' ? '-Rp' : '-a')
+        : '-p';
     return `cp ${flag} ${s} ${d} 2>&1`.replace(/  +/g, ' ');
 }
 

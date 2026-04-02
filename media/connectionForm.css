@@ -306,3 +306,44 @@ button:disabled {
         flex-wrap: wrap;
     }
 }
+
+/* ─── Permission Matrix ──────────────────────────────────────────── */
+
+.permission-matrix {
+    display: grid;
+    grid-template-columns: auto repeat(3, 32px);
+    gap: 5px 6px;
+    align-items: center;
+    margin-top: 6px;
+    width: fit-content;
+}
+
+.perm-col-header {
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 500;
+    color: var(--vscode-descriptionForeground);
+    user-select: none;
+}
+
+.perm-row-label {
+    font-size: 0.88em;
+    color: var(--vscode-foreground);
+    padding-right: 6px;
+    user-select: none;
+}
+
+.permission-matrix input[type="checkbox"] {
+    justify-self: center;
+    width: auto;
+    accent-color: var(--vscode-checkbox-background, var(--vscode-focusBorder));
+    cursor: pointer;
+}
+
+.perm-display {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 0.88em;
+    color: var(--vscode-textPreformat-foreground, var(--vscode-descriptionForeground));
+    margin-top: 5px;
+    letter-spacing: 0.04em;
+}

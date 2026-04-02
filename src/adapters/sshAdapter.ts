@@ -329,7 +329,9 @@ export class SshAdapter implements RemoteAdapter {
             await new Promise<void>((resolve, reject) => {
                 const stream = originalMode !== undefined
                     ? sftp.createWriteStream(remotePath, { mode: originalMode })
-                    : sftp.createWriteStream(remotePath);
+                    : this._config.newFileMode !== undefined
+                        ? sftp.createWriteStream(remotePath, { mode: this._config.newFileMode })
+                        : sftp.createWriteStream(remotePath);
                 stream.on('close', () => {
                     this._tracker?.recordUpload(content.length);
                     resolve();
@@ -424,7 +426,30 @@ export class SshAdapter implements RemoteAdapter {
                         }
                     });
                 });
+                if (this._config.newDirectoryMode !== undefined) {
+                    await this.chmod(current, this._config.newDirectoryMode).catch(() => { /* best-effort */ });
+                }
             }
+        }
+    }
+
+    async copy(src: string, dst: string, options: { overwrite: boolean }): Promise<void> {
+        const destinationExists = await this._exists(dst);
+        if (destinationExists) {
+            if (!options.overwrite) {
+                throw vscode.FileSystemError.FileExists(dst);
+            }
+            const destinationStat = await this.stat(dst);
+            await this.delete(dst, { recursive: destinationStat.type === vscode.FileType.Directory });
+        }
+
+        const os = this._config.os ?? 'linux';
+        const stat = await this.stat(src);
+        const recursive = stat.type === vscode.FileType.Directory;
+        const cmd = shell.copyCmd(src, dst, recursive, os);
+        const result = await this.exec(cmd);
+        if (result.exitCode !== 0) {
+            throw new Error(result.stderr || vscode.l10n.t('Copy failed'));
         }
     }
 

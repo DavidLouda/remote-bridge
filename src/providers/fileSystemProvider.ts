@@ -246,6 +246,31 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
         ]);
     }
 
+    async copy(source: vscode.Uri, destination: vscode.Uri, options: { overwrite: boolean }): Promise<void> {
+        const src = parseRemoteUri(source);
+        const dst = parseRemoteUri(destination);
+
+        if (src.connectionId !== dst.connectionId) {
+            throw vscode.FileSystemError.NoPermissions(
+                vscode.l10n.t('Cannot copy files between different connections')
+            );
+        }
+
+        const adapter = await this._getAdapter(src.connectionId);
+        if (adapter.copy) {
+            await adapter.copy(src.remotePath, dst.remotePath, options);
+        } else {
+            // Fallback: read + write (permissions not preserved)
+            const content = await adapter.readFile(src.remotePath);
+            await adapter.writeFile(dst.remotePath, content, { create: true, overwrite: options.overwrite });
+        }
+
+        this._cache.invalidatePath(dst.connectionId, dst.remotePath);
+        this._onDidChangeFile.fire([
+            { type: vscode.FileChangeType.Created, uri: destination },
+        ]);
+    }
+
     async createDirectory(uri: vscode.Uri): Promise<void> {
         const { connectionId, remotePath } = parseRemoteUri(uri);
 

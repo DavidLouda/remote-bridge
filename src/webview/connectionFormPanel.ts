@@ -435,6 +435,14 @@ export class ConnectionFormPanel {
             }
         }
 
+        // File / directory permissions. Keep explicit undefined so edits can clear previous values.
+        config.newFileMode = typeof data.newFileMode === 'number' && data.newFileMode > 0
+            ? data.newFileMode
+            : undefined;
+        config.newDirectoryMode = typeof data.newDirectoryMode === 'number' && data.newDirectoryMode > 0
+            ? data.newDirectoryMode
+            : undefined;
+
         return config;
     }
 
@@ -501,6 +509,19 @@ export class ConnectionFormPanel {
             labelJumpHasPassphrase: vscode.l10n.t('Jump key has a passphrase'),
             labelJumpPassphrase: vscode.l10n.t('Jump Passphrase'),
             labelJumpAgent: vscode.l10n.t('Jump Agent Socket'),
+
+            sectionPermissions: vscode.l10n.t('Default Permissions'),
+            labelNewFileMode: vscode.l10n.t('New File Permissions'),
+            hintNewFileMode: vscode.l10n.t('Unix permissions applied when creating new files. Leave all unchecked to use the server default (umask).'),
+            labelNewDirectoryMode: vscode.l10n.t('New Directory Permissions'),
+            hintNewDirectoryMode: vscode.l10n.t('Unix permissions applied when creating new directories. Leave all unchecked to use the server default (umask).'),
+            labelOwner: vscode.l10n.t('Owner'),
+            labelGroup: vscode.l10n.t('Group'),
+            labelOther: vscode.l10n.t('Other'),
+            labelRead: vscode.l10n.t('Read'),
+            labelWrite: vscode.l10n.t('Write'),
+            labelExecute: vscode.l10n.t('Execute'),
+            labelPermissionsNone: vscode.l10n.t('(server default)'),
 
             hintRemotePath: vscode.l10n.t('Default directory opened when connecting'),
             hintAgent: vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows'),
@@ -579,6 +600,19 @@ export class ConnectionFormPanel {
             labelJumpHasPassphrase: escapeHtml(vscode.l10n.t('Jump key has a passphrase')),
             labelJumpPassphrase: escapeHtml(vscode.l10n.t('Jump Passphrase')),
             labelJumpAgent: escapeHtml(vscode.l10n.t('Jump Agent Socket')),
+
+            sectionPermissions: escapeHtml(vscode.l10n.t('Default Permissions')),
+            labelNewFileMode: escapeHtml(vscode.l10n.t('New File Permissions')),
+            hintNewFileMode: escapeHtml(vscode.l10n.t('Unix permissions applied when creating new files. Leave all unchecked to use the server default (umask).')),
+            labelNewDirectoryMode: escapeHtml(vscode.l10n.t('New Directory Permissions')),
+            hintNewDirectoryMode: escapeHtml(vscode.l10n.t('Unix permissions applied when creating new directories. Leave all unchecked to use the server default (umask).')),
+            labelOwner: escapeHtml(vscode.l10n.t('Owner')),
+            labelGroup: escapeHtml(vscode.l10n.t('Group')),
+            labelOther: escapeHtml(vscode.l10n.t('Other')),
+            labelRead: escapeHtml(vscode.l10n.t('Read')),
+            labelWrite: escapeHtml(vscode.l10n.t('Write')),
+            labelExecute: escapeHtml(vscode.l10n.t('Execute')),
+            labelPermissionsNone: escapeHtml(vscode.l10n.t('(server default)')),
 
             hintRemotePath: escapeHtml(vscode.l10n.t('Default directory opened when connecting')),
             hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows')),
@@ -875,6 +909,67 @@ export class ConnectionFormPanel {
                     <label id="labelJumpAgent" for="jumpAgent">${s.labelJumpAgent}</label>
                     <input type="text" id="jumpAgent" placeholder="${s.phAgent}">
                 </div>
+            </div>
+        </div>
+
+        <!-- Default file / directory permissions -->
+        <div class="full-width" style="margin-top: 4px;">
+            <h3 id="sectionPermissions" style="margin: 0 0 10px; font-size: 0.95em; font-weight: 600; color: var(--vscode-foreground);">${s.sectionPermissions}</h3>
+
+            <!-- New File Permissions -->
+            <div class="form-group full-width" style="margin-bottom: 14px;">
+                <label id="labelNewFileMode">${s.labelNewFileMode}</label>
+                <div class="hint" id="hintNewFileMode">${s.hintNewFileMode}</div>
+                <div class="permission-matrix" id="fileModeMatrix">
+                    <span></span>
+                    <span class="perm-col-header">${s.labelRead}</span>
+                    <span class="perm-col-header">${s.labelWrite}</span>
+                    <span class="perm-col-header">${s.labelExecute}</span>
+
+                    <span class="perm-row-label">${s.labelOwner}</span>
+                    <input type="checkbox" id="fm_ur" data-mode="file" data-bit="256">
+                    <input type="checkbox" id="fm_uw" data-mode="file" data-bit="128">
+                    <input type="checkbox" id="fm_ux" data-mode="file" data-bit="64">
+
+                    <span class="perm-row-label">${s.labelGroup}</span>
+                    <input type="checkbox" id="fm_gr" data-mode="file" data-bit="32">
+                    <input type="checkbox" id="fm_gw" data-mode="file" data-bit="16">
+                    <input type="checkbox" id="fm_gx" data-mode="file" data-bit="8">
+
+                    <span class="perm-row-label">${s.labelOther}</span>
+                    <input type="checkbox" id="fm_or" data-mode="file" data-bit="4">
+                    <input type="checkbox" id="fm_ow" data-mode="file" data-bit="2">
+                    <input type="checkbox" id="fm_ox" data-mode="file" data-bit="1">
+                </div>
+                <div class="perm-display" id="fileModeDisplay">${s.labelPermissionsNone}</div>
+            </div>
+
+            <!-- New Directory Permissions -->
+            <div class="form-group full-width">
+                <label id="labelNewDirectoryMode">${s.labelNewDirectoryMode}</label>
+                <div class="hint" id="hintNewDirectoryMode">${s.hintNewDirectoryMode}</div>
+                <div class="permission-matrix" id="dirModeMatrix">
+                    <span></span>
+                    <span class="perm-col-header">${s.labelRead}</span>
+                    <span class="perm-col-header">${s.labelWrite}</span>
+                    <span class="perm-col-header">${s.labelExecute}</span>
+
+                    <span class="perm-row-label">${s.labelOwner}</span>
+                    <input type="checkbox" id="dm_ur" data-mode="dir" data-bit="256">
+                    <input type="checkbox" id="dm_uw" data-mode="dir" data-bit="128">
+                    <input type="checkbox" id="dm_ux" data-mode="dir" data-bit="64">
+
+                    <span class="perm-row-label">${s.labelGroup}</span>
+                    <input type="checkbox" id="dm_gr" data-mode="dir" data-bit="32">
+                    <input type="checkbox" id="dm_gw" data-mode="dir" data-bit="16">
+                    <input type="checkbox" id="dm_gx" data-mode="dir" data-bit="8">
+
+                    <span class="perm-row-label">${s.labelOther}</span>
+                    <input type="checkbox" id="dm_or" data-mode="dir" data-bit="4">
+                    <input type="checkbox" id="dm_ow" data-mode="dir" data-bit="2">
+                    <input type="checkbox" id="dm_ox" data-mode="dir" data-bit="1">
+                </div>
+                <div class="perm-display" id="dirModeDisplay">${s.labelPermissionsNone}</div>
             </div>
         </div>
 

@@ -5,6 +5,15 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-04-02
+
+### Added
+- **Per-connection default permissions for new files and directories** — the connection form now includes a permission matrix for newly created files and directories. Leave all boxes unchecked to keep the server default (`umask`); otherwise the selected Unix mode is applied on create for SSH/SFTP and FTP/FTPS connections.
+
+### Fixed
+- **Copy now preserves permissions** — duplicating files and directories through the VS Code file system provider now keeps the source mode instead of falling back to the server default. SSH/SFTP uses native remote copy, FTP/FTPS performs a recursive copy and reapplies source permissions.
+- **Configured permission defaults can now be cleared when editing a connection** — removing all permission checkboxes correctly resets the stored per-connection default instead of silently keeping the previous mode.
+
 ## [3.2.0] - 2026-03-31
 
 ### Added

@@ -171,7 +171,9 @@ When adding or editing a connection, you'll see a form with these sections:
 - Keep-alive interval
 - TLS/FTPS toggle (for FTP connections)
 - **Allow self-signed TLS certificates** (FTPS only) — disables certificate verification; use only for servers with self-signed or invalid certs. The default is strict verification.
+- **Jump Host (ProxyJump)** (SSH/SFTP only, Beta) — connect through a bastion / jump host using SSH port forwarding. Supports Password, Private Key, and SSH Agent authentication on the jump host. Cannot be combined with Proxy.
 - **Full SSH Access** (SSH/SFTP only) — allows the AI agent (`@bridge`) to read, search, and run commands outside the configured workspace root. Useful for server administration tasks: installing packages, editing system config files, managing services. Destructive commands remain blocked.
+- **Default permissions** — configure per-connection Unix permissions for newly created files and directories using a checkbox matrix. Leave all boxes unchecked to use the server default (`umask`).
 
 > **Note:** For FTP/FTPS over an HTTP CONNECT proxy, only the control connection is tunnelled. SOCKS4/5 proxies tunnel all traffic fully.
 
@@ -220,6 +222,8 @@ The remote server appears as a folder in VS Code's Explorer. You can:
 - **Open and edit** files — changes are saved back to the server automatically
 - **Create / rename / delete** files and folders via the Explorer context menu
 - **Change Permissions** — right-click any file or folder → **Change Permissions** to set Unix permissions in octal format (e.g. `755`). The current mode is pre-filled and shown in symbolic notation (e.g. `rw-r--r--`). Works on SSH/SFTP and FTP/FTPS.
+- **Preserve permissions on duplicate/copy** — copied remote files and folders keep the source permissions when the server/protocol supports reading and applying Unix modes.
+- **Apply default permissions on create** — newly created files and directories use the per-connection defaults from the connection form when configured; otherwise the server default (`umask`) is used.
 - **Drag & drop** files (upload/download is handled transparently)
 - **Search** across remote files using VS Code's built-in search (`Ctrl+Shift+F`)
 

@@ -76,6 +76,18 @@ export interface ConnectionConfig {
      * Only meaningful for SSH/SFTP connections.
      */
     fullSshAccess?: boolean;
+    /**
+     * Unix mode bits for newly created files (e.g. 0o644).
+     * When undefined, the server default (subject to umask) is used.
+     * Applies to SSH/SFTP and FTP/FTPS connections.
+     */
+    newFileMode?: number;
+    /**
+     * Unix mode bits for newly created directories (e.g. 0o755).
+     * When undefined, the server default (subject to umask) is used.
+     * Applies to SSH/SFTP and FTP/FTPS connections.
+     */
+    newDirectoryMode?: number;
     /** Epoch ms of the last modification. Used for sync merge conflict resolution. */
     updatedAt?: number;
 }

@@ -276,5 +276,19 @@
   "Jump Private Key Path": "Cesta k soukromému klíči Jump Hostu",
   "Jump key has a passphrase": "Klíč Jump Hostu má heslo",
   "Jump Passphrase": "Heslo klíče Jump Hostu",
-  "Jump Agent Socket": "Socket SSH agenta Jump Hostu"
+  "Jump Agent Socket": "Socket SSH agenta Jump Hostu",
+  "Default Permissions": "Výchozí oprávnění",
+  "New File Permissions": "Oprávnění nových souborů",
+  "Unix permissions applied when creating new files. Leave all unchecked to use the server default (umask).": "Unixová oprávnění použitá při vytváření nových souborů. Ponechte vše odškrtnuté, aby se použilo výchozí nastavení serveru (umask).",
+  "New Directory Permissions": "Oprávnění nových adresářů",
+  "Unix permissions applied when creating new directories. Leave all unchecked to use the server default (umask).": "Unixová oprávnění použitá při vytváření nových adresářů. Ponechte vše odškrtnuté, aby se použilo výchozí nastavení serveru (umask).",
+  "Owner": "Vlastník",
+  "Group": "Skupina",
+  "Other": "Ostatní",
+  "Read": "Čtení",
+  "Write": "Zápis",
+  "Execute": "Spuštění",
+  "(server default)": "(výchozí serveru)",
+  "Cannot copy files between different connections": "Nelze kopírovat soubory mezi různými připojeními",
+  "Copy failed": "Kopírování selhalo"
 }

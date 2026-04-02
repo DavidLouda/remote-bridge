@@ -295,6 +295,10 @@ export class FtpAdapter implements RemoteAdapter {
                 if (originalMode !== undefined) {
                     const modeStr = originalMode.toString(8).padStart(3, '0');
                     await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+                } else if (this._config.newFileMode !== undefined) {
+                    // New file: apply the configured default permissions.
+                    const modeStr = this._config.newFileMode.toString(8).padStart(3, '0');
+                    await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
                 }
             }
         });
@@ -345,6 +349,10 @@ export class FtpAdapter implements RemoteAdapter {
             await client.ensureDir(remotePath);
             // ensureDir changes CWD, go back to root
             await client.cd('/');
+            if (this._config.newDirectoryMode !== undefined) {
+                const modeStr = this._config.newDirectoryMode.toString(8).padStart(3, '0');
+                await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+            }
         });
     }
 
@@ -359,6 +367,43 @@ export class FtpAdapter implements RemoteAdapter {
             const modeStr = mode.toString(8).padStart(3, '0');
             await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
         });
+    }
+
+    async copy(src: string, dst: string, options: { overwrite: boolean }): Promise<void> {
+        const srcStat = await this.stat(src);
+
+        if (srcStat.type === vscode.FileType.Directory) {
+            const destinationExists = await this._enqueue((client) => this._existsRaw(client, dst));
+            if (destinationExists) {
+                if (!options.overwrite) {
+                    throw vscode.FileSystemError.FileExists(dst);
+                }
+                await this.delete(dst, { recursive: true });
+            }
+
+            await this.mkdir(dst);
+            const srcMode = await this.getUnixMode(src);
+            if (srcMode !== undefined) {
+                await this.chmod(dst, srcMode);
+            }
+
+            const entries = await this.readDirectory(src);
+            for (const entry of entries) {
+                const childSrc = `${src === '/' ? '' : src}/${entry.name}`;
+                const childDst = `${dst === '/' ? '' : dst}/${entry.name}`;
+                await this.copy(childSrc, childDst, { overwrite: false });
+            }
+            return;
+        }
+
+        const [content, srcMode] = await Promise.all([
+            this.readFile(src),
+            this.getUnixMode(src),
+        ]);
+        await this.writeFile(dst, content, { create: true, overwrite: options.overwrite });
+        if (srcMode !== undefined) {
+            await this.chmod(dst, srcMode);
+        }
     }
 
     async exec(_command: string): Promise<ExecResult> {

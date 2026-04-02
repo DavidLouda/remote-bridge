@@ -163,6 +163,58 @@
         vscode.postMessage({ type: 'browseKey' });
     });
 
+    // ─── Permission matrix ──────────────────────────────────────
+
+    const fileModeDisplay = /** @type {HTMLElement} */ (document.getElementById('fileModeDisplay'));
+    const dirModeDisplay = /** @type {HTMLElement} */ (document.getElementById('dirModeDisplay'));
+    /** Localized text shown when no bits are selected */
+    let labelPermissionsNone = '(server default)';
+
+    /**
+     * Compute octal mode from checkbox data-bit attributes.
+     * @param {string} modeType  'file' or 'dir'
+     * @returns {number}  0 if nothing checked
+     */
+    function calcMode(modeType) {
+        let mode = 0;
+        document.querySelectorAll(`input[data-mode="${modeType}"]`).forEach((cb) => {
+            const checkbox = /** @type {HTMLInputElement} */ (cb);
+            if (checkbox.checked) {
+                mode |= parseInt(checkbox.dataset.bit || '0', 10);
+            }
+        });
+        return mode;
+    }
+
+    /**
+     * Convert numeric mode to rwxrwxrwx string.
+     * @param {number} mode
+     * @returns {string}
+     */
+    function modeToString(mode) {
+        const bits = 'rwxrwxrwx';
+        let result = '';
+        for (let i = 8; i >= 0; i--) {
+            result += (mode >> i) & 1 ? bits[8 - i] : '-';
+        }
+        const octal = mode.toString(8).padStart(3, '0');
+        return result + '  (' + octal + ')';
+    }
+
+    function updatePermissionDisplay() {
+        const fileMode = calcMode('file');
+        fileModeDisplay.textContent = fileMode ? modeToString(fileMode) : labelPermissionsNone;
+        const dirMode = calcMode('dir');
+        dirModeDisplay.textContent = dirMode ? modeToString(dirMode) : labelPermissionsNone;
+    }
+
+    document.querySelectorAll('.permission-matrix input[type="checkbox"]').forEach((cb) => {
+        cb.addEventListener('change', updatePermissionDisplay);
+    });
+
+    // Initial display update
+    updatePermissionDisplay();
+
     // ─── Save ───────────────────────────────────────────────────
 
     saveBtn.addEventListener('click', () => {
@@ -245,6 +297,10 @@
                 if (msg.labels?.testingBtn) {
                     testingLabel = msg.labels.testingBtn;
                 }
+                if (msg.labels?.labelPermissionsNone) {
+                    labelPermissionsNone = msg.labels.labelPermissionsNone;
+                    updatePermissionDisplay();
+                }
                 break;
         }
     });
@@ -252,6 +308,7 @@
     // ─── Form data collection ───────────────────────────────────
 
     function collectFormData() {
+        /** @type {Record<string, unknown>} */
         const data = {
             name: getVal('name'),
             protocol: protocolSelect.value,
@@ -278,6 +335,8 @@
 
             // Jump host
             jumpHost: /** @type {any} */ (undefined),
+            newFileMode: undefined,
+            newDirectoryMode: undefined,
         };
 
         if (useProxyCheckbox.checked) {
@@ -311,6 +370,15 @@
                     agent: jumpAuthMethod === 'agent' ? (getVal('jumpAgent') || undefined) : undefined,
                 };
             }
+        }
+
+        const fileMode = calcMode('file');
+        if (fileMode) {
+            data.newFileMode = fileMode;
+        }
+        const dirMode = calcMode('dir');
+        if (dirMode) {
+            data.newDirectoryMode = dirMode;
         }
 
         return data;
@@ -362,6 +430,19 @@
         }
 
         portManuallyChanged = !!data.id; // Preserve port only when editing an existing connection
+
+        // Prefill permission checkboxes
+        /** @param {string} modeType @param {number|undefined} mode */
+        function setPermMode(modeType, mode) {
+            document.querySelectorAll(`input[data-mode="${modeType}"]`).forEach((cb) => {
+                const checkbox = /** @type {HTMLInputElement} */ (cb);
+                const bit = parseInt(checkbox.dataset.bit || '0', 10);
+                checkbox.checked = !!mode && (mode & bit) !== 0;
+            });
+        }
+        setPermMode('file', data.newFileMode);
+        setPermMode('dir', data.newDirectoryMode);
+        updatePermissionDisplay();
 
         // Trigger UI updates
         const isFtp = data.protocol === 'ftp' || data.protocol === 'ftps';
@@ -447,7 +528,7 @@
             if (el) {
                 if (el.tagName === 'BUTTON') {
                     el.textContent = /** @type {string} */ (text);
-                } else if (el.tagName === 'LABEL' || el.tagName === 'H1' || el.tagName === 'H2') {
+                } else if (el.tagName === 'LABEL' || el.tagName === 'H1' || el.tagName === 'H2' || el.tagName === 'H3') {
                     // Keep the <span class="required">*</span> inside labels
                     const req = el.querySelector('.required');
                     el.textContent = /** @type {string} */ (text);
@@ -479,7 +560,7 @@
         if (el) el.value = val;
     }
 
-    /** @param {HTMLElement} el @param {boolean} show */
+    /** @param {HTMLElement | null} el @param {boolean} show */
     function toggleVisibility(el, show) {
         if (el) {
             el.classList.toggle('hidden', !show);

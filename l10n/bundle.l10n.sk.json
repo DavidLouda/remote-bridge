@@ -276,5 +276,19 @@
   "Jump Private Key Path": "Cesta k privátnemu kľúču Jump Hostu",
   "Jump key has a passphrase": "Kľúč Jump Hostu má prístupovú frázu",
   "Jump Passphrase": "Prístupová fráza kľúča Jump Hostu",
-  "Jump Agent Socket": "Socket SSH agenta Jump Hostu"
+  "Jump Agent Socket": "Socket SSH agenta Jump Hostu",
+  "Default Permissions": "Predvolené oprávnenia",
+  "New File Permissions": "Oprávnenia nových súborov",
+  "Unix permissions applied when creating new files. Leave all unchecked to use the server default (umask).": "Unixové oprávnenia aplicované pri vytváraní nových súborov. Ponechajte všetko odškrtnuté, aby sa použilo predvolené nastavenie servera (umask).",
+  "New Directory Permissions": "Oprávnenia nových adresárov",
+  "Unix permissions applied when creating new directories. Leave all unchecked to use the server default (umask).": "Unixové oprávnenia aplicované pri vytváraní nových adresárov. Ponechajte všetko odškrtnuté, aby sa použilo predvolené nastavenie servera (umask).",
+  "Owner": "Vlastník",
+  "Group": "Skupina",
+  "Other": "Ostatní",
+  "Read": "Čítanie",
+  "Write": "Zápis",
+  "Execute": "Spustenie",
+  "(server default)": "(predvolené servera)",
+  "Cannot copy files between different connections": "Nie je možné kopírovať súbory medzi rôznymi pripojeniami",
+  "Copy failed": "Kopírovanie zlyhalo"
 }
