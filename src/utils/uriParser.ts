@@ -11,6 +11,16 @@ export interface ParsedRemoteUri {
     remotePath: string;
 }
 
+export function normalizeRemotePath(remotePath: string): string {
+    if (!remotePath || remotePath === '/') {
+        return '/';
+    }
+
+    const withLeadingSlash = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+    const trimmed = withLeadingSlash.replace(/\/+$/, '');
+    return trimmed || '/';
+}
+
 /**
  * Parse a remote-bridge:// URI into its components.
  */
@@ -24,8 +34,7 @@ export function parseRemoteUri(uri: vscode.Uri): ParsedRemoteUri {
         throw new Error('Missing connection ID in URI');
     }
 
-    // Ensure path starts with /
-    const remotePath = uri.path || '/';
+    const remotePath = normalizeRemotePath(uri.path || '/');
 
     return { connectionId, remotePath };
 }
@@ -34,8 +43,7 @@ export function parseRemoteUri(uri: vscode.Uri): ParsedRemoteUri {
  * Build a remote-bridge:// URI from connection ID and remote path.
  */
 export function buildRemoteUri(connectionId: string, remotePath: string): vscode.Uri {
-    // Normalize path to always start with /
-    const normalizedPath = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+    const normalizedPath = normalizeRemotePath(remotePath);
     return vscode.Uri.parse(`remote-bridge://${connectionId}${normalizedPath}`);
 }
 
@@ -43,10 +51,11 @@ export function buildRemoteUri(connectionId: string, remotePath: string): vscode
  * Get the parent directory path from a remote path.
  */
 export function getParentPath(remotePath: string): string {
-    if (remotePath === '/' || remotePath === '') {
+    const normalizedPath = normalizeRemotePath(remotePath);
+    if (normalizedPath === '/') {
         return '/';
     }
-    const trimmed = remotePath.endsWith('/') ? remotePath.slice(0, -1) : remotePath;
+    const trimmed = normalizedPath;
     const lastSlash = trimmed.lastIndexOf('/');
     return lastSlash <= 0 ? '/' : trimmed.substring(0, lastSlash);
 }
@@ -55,10 +64,11 @@ export function getParentPath(remotePath: string): string {
  * Get the file/directory name from a remote path.
  */
 export function getBaseName(remotePath: string): string {
-    if (remotePath === '/' || remotePath === '') {
+    const normalizedPath = normalizeRemotePath(remotePath);
+    if (normalizedPath === '/') {
         return '';
     }
-    const trimmed = remotePath.endsWith('/') ? remotePath.slice(0, -1) : remotePath;
+    const trimmed = normalizedPath;
     const lastSlash = trimmed.lastIndexOf('/');
     return trimmed.substring(lastSlash + 1);
 }
@@ -67,9 +77,11 @@ export function getBaseName(remotePath: string): string {
  * Join two path segments.
  */
 export function joinRemotePath(base: string, segment: string): string {
-    const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const normalizedBase = normalizeRemotePath(base);
     const normalizedSegment = segment.startsWith('/') ? segment.slice(1) : segment;
-    return `${normalizedBase}/${normalizedSegment}`;
+    return normalizedBase === '/'
+        ? `/${normalizedSegment}`
+        : `${normalizedBase}/${normalizedSegment}`;
 }
 
 /**

@@ -248,6 +248,7 @@ export class SshAdapter implements RemoteAdapter {
                         size: entry.attrs.size,
                         mtime: (entry.attrs.mtime || 0) * 1000,
                         ctime: (entry.attrs.mtime || 0) * 1000,
+                        permissions: this._mapPermissions(entry.attrs),
                     }))
                 );
             });

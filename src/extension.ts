@@ -283,9 +283,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const connId = wf.uri.authority;
             const conn = connectionManager.getConnections().find(c => c.id === connId);
             if (!conn) { continue; }
-            connectionPool.getAdapter(conn).catch(() => {
-                // Reconnect failed silently — FileSystemProvider will surface errors on access
-            });
+            connectionPool.getAdapter(conn).then(
+                () => fsProvider.readDirectory(wf.uri).catch(() => {
+                    // Cache warm-up failed silently — FileSystemProvider will surface errors on access
+                }),
+                () => {
+                    // Reconnect failed silently — FileSystemProvider will surface errors on access
+                }
+            );
         }
     })();
 

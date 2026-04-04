@@ -135,32 +135,16 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async stat(remotePath: string): Promise<RemoteFileStat> {
-        return this._enqueue(async (client) => {
-            try {
-                // Try to get size (works for files)
-                const size = await client.size(remotePath);
-                const lastMod = await client.lastMod(remotePath).catch(() => new Date(0));
-                return {
-                    type: vscode.FileType.File,
-                    ctime: lastMod.getTime(),
-                    mtime: lastMod.getTime(),
-                    size,
-                };
-            } catch {
-                // If size fails, it might be a directory — try listing it
-                try {
-                    await client.list(remotePath);
-                    return {
-                        type: vscode.FileType.Directory,
-                        ctime: 0,
-                        mtime: 0,
-                        size: 0,
-                    };
-                } catch {
-                    throw vscode.FileSystemError.FileNotFound(remotePath);
-                }
-            }
-        });
+        if (remotePath === '/' || remotePath === '') {
+            return {
+                type: vscode.FileType.Directory,
+                ctime: 0,
+                mtime: 0,
+                size: 0,
+            };
+        }
+
+        return this._enqueue((client) => this._statRaw(client, remotePath));
     }
 
     async readDirectory(remotePath: string): Promise<RemoteFileInfo[]> {
@@ -346,9 +330,8 @@ export class FtpAdapter implements RemoteAdapter {
 
     async mkdir(remotePath: string): Promise<void> {
         return this._enqueue(async (client) => {
-            await client.ensureDir(remotePath);
-            // ensureDir changes CWD, go back to root
-            await client.cd('/');
+            // Use direct MKD — single control command, does not change CWD.
+            await client.send('MKD ' + remotePath);
             if (this._config.newDirectoryMode !== undefined) {
                 const modeStr = this._config.newDirectoryMode.toString(8).padStart(3, '0');
                 await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
@@ -423,8 +406,15 @@ export class FtpAdapter implements RemoteAdapter {
         return this._client;
     }
 
-    /** Raw stat without going through the queue (for use inside _enqueue callbacks) */
+    /**
+     * Raw stat without going through the queue (for use inside _enqueue callbacks).
+     * Uses SIZE for files and falls back to listing the parent directory for
+     * directory detection — never changes CWD.
+     */
     private async _statRaw(client: FTPClient, remotePath: string): Promise<RemoteFileStat> {
+        if (remotePath === '/' || remotePath === '') {
+            return { type: vscode.FileType.Directory, ctime: 0, mtime: 0, size: 0 };
+        }
         try {
             const size = await client.size(remotePath);
             const lastMod = await client.lastMod(remotePath).catch(() => new Date(0));
@@ -435,17 +425,21 @@ export class FtpAdapter implements RemoteAdapter {
                 size,
             };
         } catch {
-            try {
-                await client.list(remotePath);
-                return {
-                    type: vscode.FileType.Directory,
-                    ctime: 0,
-                    mtime: 0,
-                    size: 0,
-                };
-            } catch {
+            // SIZE failed — check the parent listing to distinguish
+            // "directory" from "does not exist" without changing CWD.
+            const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
+            const baseName = remotePath.substring(remotePath.lastIndexOf('/') + 1);
+            const entries = await client.list(parentDir);
+            const entry = entries.find(e => e.name === baseName);
+            if (!entry) {
                 throw vscode.FileSystemError.FileNotFound(remotePath);
             }
+            return {
+                type: this._mapFtpFileType(entry),
+                ctime: 0,
+                mtime: entry.modifiedAt ? entry.modifiedAt.getTime() : 0,
+                size: entry.size,
+            };
         }
     }
 

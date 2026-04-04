@@ -5,6 +5,13 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-04-04
+
+### Fixed
+- **Explorer folder expansion is faster** — watched folders now refresh the in-memory listing cache, so reopening them avoids an unnecessary extra roundtrip.
+- **FTP file and directory operations are more reliable** — `stat`, `mkdir`, and existence checks no longer change the FTP working directory, preventing stale state that could cause timeouts, "file already exists" errors, or server disconnects.
+- **FTP startup is faster after reopening a workspace** — opening the FTP root skips a redundant probe, and auto-reconnected workspaces now prewarm the root listing cache.
+
 ## [3.3.0] - 2026-04-02
 
 ### Added

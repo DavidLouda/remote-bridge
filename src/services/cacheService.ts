@@ -1,4 +1,5 @@
 import { RemoteFileStat } from '../types/connection';
+import { getParentPath, normalizeRemotePath } from '../utils/uriParser';
 
 interface CacheEntry<T> {
     value: T;
@@ -103,13 +104,14 @@ export class CacheService {
      * Invalidate all cache entries for a specific path (and parent directory).
      */
     invalidatePath(connectionId: string, remotePath: string): void {
-        const key = this._makeKey(connectionId, remotePath);
+        const normalizedPath = normalizeRemotePath(remotePath);
+        const key = this._makeKey(connectionId, normalizedPath);
         this._statCache.delete(key);
         this._evictContent(key);
         this._dirCache.delete(key);
 
         // Also invalidate parent directory listing
-        const parentPath = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
+        const parentPath = getParentPath(normalizedPath);
         const parentKey = this._makeKey(connectionId, parentPath);
         this._dirCache.delete(parentKey);
     }
@@ -156,7 +158,7 @@ export class CacheService {
     // ─── Private Helpers ────────────────────────────────────────────
 
     private _makeKey(connectionId: string, remotePath: string): string {
-        return `${connectionId}:${remotePath}`;
+        return `${connectionId}:${normalizeRemotePath(remotePath)}`;
     }
 
     private _get<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
