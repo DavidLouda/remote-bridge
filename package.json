@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "3.3.1",
+  "version": "3.4.0",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
@@ -510,6 +510,11 @@
           "type": "boolean",
           "default": false,
           "description": "%config.files.temporaryWritePermission.description%"
+        },
+        "remoteBridge.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.debug.description%"
         }
       }
     },

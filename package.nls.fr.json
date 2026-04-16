@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.fr.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.fr.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.fr.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.fr.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.fr.md",
+  "config.debug.description": "Activer la journalisation de débogage dans le canal de sortie Remote Bridge. Journalise les données de performance, les événements de synchronisation, les diagnostics du cache et le dialogue du protocole FTP."
 }

@@ -2,8 +2,35 @@ import * as vscode from 'vscode';
 import { ConnectionPool } from '../services/connectionPool';
 import { ConnectionManager } from '../services/connectionManager';
 import { CacheService } from '../services/cacheService';
-import { getParentPath, parseRemoteUri } from '../utils/uriParser';
+import { PerfLogger } from '../services/perfLogger';
+import { buildRemoteUri, getParentPath, normalizeRemotePath, parseRemoteUri } from '../utils/uriParser';
 import { ConnectionStatus } from '../types/connection';
+
+const WATCH_SKIP_BACKOFF_MS = 60_000;
+const WATCH_PROBE_SKIP_BACKOFF_MS = 5 * 60_000;
+
+const WATCH_PROBE_BASENAMES = new Set([
+    'pom.xml',
+    'build.gradle',
+    'pyproject.toml',
+    'setup.cfg',
+    'tox.ini',
+    '.pep8',
+    '.pylintrc',
+    'pylintrc',
+    '.mypy.ini',
+    '.flake8',
+]);
+
+const WATCH_PROBE_PREFIXES = [
+    '/.vscode',
+    '/.github',
+    '/.claude',
+    '/.devcontainer',
+    '/.agents',
+    '/.git',
+    '/node_modules',
+];
 
 /**
  * VS Code FileSystemProvider for the `remote-bridge://` scheme.
@@ -18,13 +45,17 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
     readonly onDidChangeFile = this._onDidChangeFile.event;
 
     private readonly _watchers = new Map<string, { interval: ReturnType<typeof setInterval>; dispose: () => void; refCount: number }>();
+    private readonly _pendingStats = new Map<string, Promise<vscode.FileStat>>();
+    private readonly _pendingDirectories = new Map<string, Promise<[string, vscode.FileType][]>>();
+    private readonly _pendingFiles = new Map<string, Promise<Uint8Array>>();
     private readonly _pathMutationVersions = new Map<string, number>();
     private _mutationVersion = 0;
 
     constructor(
         private readonly _pool: ConnectionPool,
         private readonly _connectionManager: ConnectionManager,
-        private readonly _cache: CacheService
+        private readonly _cache: CacheService,
+        private readonly _perf?: PerfLogger
     ) {}
 
     // ─── FileSystemProvider Implementation ──────────────────────
@@ -48,11 +79,18 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
             });
         }
 
-        const pollInterval = vscode.workspace
+        const basePollInterval = vscode.workspace
             .getConfiguration('remoteBridge.watch')
             .get<number>('pollInterval', 5) * 1000;
+        const { connectionId } = parseRemoteUri(uri);
+        const config = this._connectionManager.getConnection(connectionId);
+        const pollInterval = config && (config.protocol === 'ftp' || config.protocol === 'ftps')
+            ? Math.max(basePollInterval, 30000)
+            : basePollInterval;
 
         let lastSnapshot = new Map<string, number>();
+        let watchMode: 'unknown' | 'directory' | 'skip' = 'unknown';
+        let nextResolveAt = 0;
 
         const interval = setInterval(async () => {
             try {
@@ -66,6 +104,43 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
                 const adapter = this._pool.getConnectedAdapter(connectionId);
                 if (!adapter) {
                     return;
+                }
+
+                // Many VS Code and extension watchers target files or missing paths.
+                // Poll only confirmed directories; back off for everything else.
+                if (watchMode !== 'directory') {
+                    const now = Date.now();
+                    if (now < nextResolveAt) {
+                        return;
+                    }
+
+                    if (this._cache.getNotFound(cacheKey)) {
+                        watchMode = 'skip';
+                    } else {
+                        const cachedStat = this._cache.getStat(cacheKey);
+                        if (cachedStat) {
+                            watchMode = (cachedStat.type & vscode.FileType.Directory) !== 0 ? 'directory' : 'skip';
+                        } else {
+                            try {
+                                const stat = await adapter.stat(remotePath);
+                                this._cache.setStat(cacheKey, stat);
+                                watchMode = (stat.type & vscode.FileType.Directory) !== 0 ? 'directory' : 'skip';
+                            } catch (err) {
+                                if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+                                    this._cache.setNotFound(cacheKey);
+                                }
+                                watchMode = 'skip';
+                            }
+                        }
+                    }
+
+                    if (watchMode !== 'directory') {
+                        nextResolveAt = now + this._getWatchSkipBackoffMs(remotePath);
+                        this._logPerf(connectionId, `fsp watch ${remotePath} -> skipping until ${new Date(nextResolveAt).toISOString()}`);
+                        return;
+                    }
+
+                    this._logPerf(connectionId, `fsp watch ${remotePath} -> resolved as directory`);
                 }
 
                 const entries = await adapter.readDirectory(remotePath);
@@ -115,6 +190,8 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
                     this._onDidChangeFile.fire(changes);
                 }
             } catch {
+                watchMode = 'unknown';
+                nextResolveAt = Date.now() + this._getWatchSkipBackoffMs(parseRemoteUri(uri).remotePath);
                 // Ignore polling errors silently
             }
         }, pollInterval);
@@ -130,40 +207,119 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
     }
 
     async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+        const start = Date.now();
         const { connectionId, remotePath } = parseRemoteUri(uri);
         const cacheKey = this._cache.makeKey(connectionId, remotePath);
+
+        if (this._cache.getNotFound(cacheKey)) {
+            this._logPerf(connectionId, `fsp stat ${remotePath} -> cached not-found (${Date.now() - start}ms)`);
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
 
         // Check cache first
         const cached = this._cache.getStat(cacheKey);
         if (cached) {
+            this._logPerf(connectionId, `fsp stat ${remotePath} -> cache hit (${Date.now() - start}ms)`);
             return cached;
         }
 
-        const adapter = await this._getAdapter(connectionId);
-        const stat = await adapter.stat(remotePath);
+        const pending = this._pendingStats.get(cacheKey);
+        if (pending) {
+            this._logPerf(connectionId, `fsp stat ${remotePath} -> pending hit (${Date.now() - start}ms)`);
+            return pending;
+        }
 
-        this._cache.setStat(cacheKey, stat);
-        return stat;
+        const request = (async () => {
+            try {
+                await this._awaitProbeContext(connectionId, remotePath, cacheKey);
+                if (this._cache.getNotFound(cacheKey)) {
+                    this._logPerf(connectionId, `fsp stat ${remotePath} -> inferred not-found (${Date.now() - start}ms)`);
+                    throw vscode.FileSystemError.FileNotFound(uri);
+                }
+
+                const adapter = await this._getAdapter(connectionId, `stat ${remotePath}`);
+                const adapterStart = Date.now();
+                const stat = await adapter.stat(remotePath);
+
+                this._cache.setStat(cacheKey, stat);
+                this._logPerf(connectionId, `fsp stat ${remotePath} -> cache miss, adapter ${Date.now() - adapterStart}ms, total ${Date.now() - start}ms`);
+                return stat;
+            } catch (err) {
+                if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+                    this._cache.setNotFound(cacheKey);
+                }
+                this._logPerf(connectionId, `fsp stat ${remotePath} -> failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
+                throw err;
+            } finally {
+                this._pendingStats.delete(cacheKey);
+            }
+        })();
+
+        this._pendingStats.set(cacheKey, request);
+        return request;
     }
 
     async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
+        const start = Date.now();
         const { connectionId, remotePath } = parseRemoteUri(uri);
         const cacheKey = this._cache.makeKey(connectionId, remotePath);
+
+        if (this._cache.getNotFound(cacheKey)) {
+            this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> cached not-found (${Date.now() - start}ms)`);
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
 
         // Check cache first
         const cached = this._cache.getDirectory(cacheKey);
         if (cached) {
+            this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> cache hit (${Date.now() - start}ms, ${cached.length} entries)`);
             return cached as [string, vscode.FileType][];
         }
 
-        const adapter = await this._getAdapter(connectionId);
-        const entries = await adapter.readDirectory(remotePath);
-        return this._cacheDirectoryEntries(connectionId, remotePath, cacheKey, entries);
+        const pending = this._pendingDirectories.get(cacheKey);
+        if (pending) {
+            this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> pending hit (${Date.now() - start}ms)`);
+            return pending;
+        }
+
+        const request = (async () => {
+            try {
+                await this._awaitProbeContext(connectionId, remotePath, cacheKey);
+                if (this._cache.getNotFound(cacheKey)) {
+                    this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> inferred not-found (${Date.now() - start}ms)`);
+                    throw vscode.FileSystemError.FileNotFound(uri);
+                }
+
+                const adapter = await this._getAdapter(connectionId, `readDirectory ${remotePath}`);
+                const adapterStart = Date.now();
+                const entries = await adapter.readDirectory(remotePath);
+                const result = this._cacheDirectoryEntries(connectionId, remotePath, cacheKey, entries);
+                this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> cache miss, adapter ${Date.now() - adapterStart}ms, total ${Date.now() - start}ms, ${result.length} entries`);
+                return result;
+            } catch (err) {
+                if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+                    this._cache.setNotFound(cacheKey);
+                }
+                this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
+                throw err;
+            } finally {
+                this._pendingDirectories.delete(cacheKey);
+            }
+        })();
+
+        this._pendingDirectories.set(cacheKey, request);
+        return request;
     }
 
     async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+        const start = Date.now();
         const { connectionId, remotePath } = parseRemoteUri(uri);
         const cacheKey = this._cache.makeKey(connectionId, remotePath);
+
+        if (this._cache.getNotFound(cacheKey)) {
+            this._logPerf(connectionId, `fsp readFile ${remotePath} -> cached not-found (0ms)`);
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
 
         // Check cache first
         const cached = this._cache.getContent(cacheKey);
@@ -171,11 +327,37 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
             return cached;
         }
 
-        const adapter = await this._getAdapter(connectionId);
-        const content = await adapter.readFile(remotePath);
+        const pending = this._pendingFiles.get(cacheKey);
+        if (pending) {
+            this._logPerf(connectionId, `fsp readFile ${remotePath} -> pending hit (0ms)`);
+            return pending;
+        }
 
-        this._cache.setContent(cacheKey, content);
-        return content;
+        const request = (async () => {
+            try {
+                await this._awaitProbeContext(connectionId, remotePath, cacheKey);
+                if (this._cache.getNotFound(cacheKey)) {
+                    this._logPerf(connectionId, `fsp readFile ${remotePath} -> inferred not-found (${Date.now() - start}ms)`);
+                    throw vscode.FileSystemError.FileNotFound(uri);
+                }
+
+                const adapter = await this._getAdapter(connectionId, `readFile ${remotePath}`);
+                const content = await adapter.readFile(remotePath);
+
+                this._cache.setContent(cacheKey, content);
+                return content;
+            } catch (err) {
+                if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+                    this._cache.setNotFound(cacheKey);
+                }
+                throw err;
+            } finally {
+                this._pendingFiles.delete(cacheKey);
+            }
+        })();
+
+        this._pendingFiles.set(cacheKey, request);
+        return request;
     }
 
     async writeFile(
@@ -200,7 +382,6 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
 
     async delete(uri: vscode.Uri, options: { recursive: boolean }): Promise<void> {
         const { connectionId, remotePath } = parseRemoteUri(uri);
-        this._recordMutation(connectionId, remotePath);
 
         const adapter = await this._getAdapter(connectionId);
         await adapter.delete(remotePath, options);
@@ -296,7 +477,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
      * auto-connects on demand (e.g. when VS Code restarts with
      * workspace folders from a previous session).
      */
-    private async _getAdapter(connectionId: string) {
+    private async _getAdapter(connectionId: string, reason = 'unknown') {
         const config = this._connectionManager.getConnection(connectionId);
         if (!config) {
             throw vscode.FileSystemError.Unavailable(
@@ -304,9 +485,15 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
             );
         }
 
+        const start = Date.now();
+        const wasConnected = this._pool.isConnected(connectionId);
+
         try {
-            return await this._pool.getAdapter(config);
+            const adapter = await this._pool.getAdapter(config);
+            this._logPerf(connectionId, `fsp getAdapter ${reason} -> ${wasConnected ? 'reuse' : 'connect'} (${Date.now() - start}ms)`);
+            return adapter;
         } catch (err) {
+            this._logPerf(connectionId, `fsp getAdapter ${reason} -> failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
             const message =
                 err instanceof Error ? err.message : String(err);
             throw vscode.FileSystemError.Unavailable(
@@ -353,11 +540,128 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
         return this._pathMutationVersions.get(cacheKey) ?? 0;
     }
 
+    private _getWatchSkipBackoffMs(remotePath: string): number {
+        return this._isLikelyProbePath(remotePath)
+            ? WATCH_PROBE_SKIP_BACKOFF_MS
+            : WATCH_SKIP_BACKOFF_MS;
+    }
+
+    private async _awaitProbeContext(connectionId: string, remotePath: string, cacheKey: string): Promise<void> {
+        const config = this._connectionManager.getConnection(connectionId);
+        if (!config || (config.protocol !== 'ftp' && config.protocol !== 'ftps')) {
+            return;
+        }
+
+        if (!this._isLikelyProbePath(remotePath)) {
+            return;
+        }
+
+        const rootPath = normalizeRemotePath(config.remotePath || '/');
+        if (remotePath === rootPath) {
+            return;
+        }
+
+        await Promise.resolve();
+
+        const rootCacheKey = this._cache.makeKey(connectionId, rootPath);
+        let pendingRootDirectory = this._pendingDirectories.get(rootCacheKey);
+        if (!this._cache.getDirectory(rootCacheKey) && !pendingRootDirectory) {
+            pendingRootDirectory = this.readDirectory(buildRemoteUri(connectionId, rootPath));
+        }
+
+        if (pendingRootDirectory) {
+            try {
+                await pendingRootDirectory;
+            } catch {
+                // Ignore root listing failures and fall back to adapter access.
+            }
+        }
+
+        if (this._inferNotFoundFromCachedAncestors(connectionId, rootPath, remotePath)) {
+            this._cache.setNotFound(cacheKey);
+        }
+    }
+
+    private _inferNotFoundFromCachedAncestors(connectionId: string, rootPath: string, remotePath: string): boolean {
+        const normalizedRootPath = normalizeRemotePath(rootPath);
+        const normalizedRemotePath = normalizeRemotePath(remotePath);
+
+        if (normalizedRemotePath === normalizedRootPath) {
+            return false;
+        }
+
+        const rootPrefix = normalizedRootPath === '/' ? '/' : `${normalizedRootPath}/`;
+        if (!normalizedRemotePath.startsWith(rootPrefix)) {
+            return false;
+        }
+
+        const relativePath = normalizedRootPath === '/'
+            ? normalizedRemotePath.slice(1)
+            : normalizedRemotePath.slice(rootPrefix.length);
+        if (!relativePath) {
+            return false;
+        }
+
+        const segments = relativePath.split('/').filter(Boolean);
+        let currentPath = normalizedRootPath;
+
+        for (let index = 0; index < segments.length; index++) {
+            const directoryKey = this._cache.makeKey(connectionId, currentPath);
+            const directoryEntries = this._cache.getDirectory(directoryKey);
+            if (!directoryEntries) {
+                return false;
+            }
+
+            const segment = segments[index];
+            const entry = directoryEntries.find(([name]) => name === segment);
+            if (!entry) {
+                return true;
+            }
+
+            const isLastSegment = index === segments.length - 1;
+            const entryType = entry[1];
+            if (!isLastSegment && (entryType & vscode.FileType.Directory) === 0) {
+                return true;
+            }
+
+            currentPath = currentPath === '/' ? `/${segment}` : `${currentPath}/${segment}`;
+        }
+
+        return false;
+    }
+
+    private _isLikelyProbePath(remotePath: string): boolean {
+        const normalizedPath = remotePath.toLowerCase();
+
+        for (const prefix of WATCH_PROBE_PREFIXES) {
+            if (normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)) {
+                return true;
+            }
+        }
+
+        const baseName = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+        return WATCH_PROBE_BASENAMES.has(baseName);
+    }
+
+    private _logPerf(connectionId: string, message: string): void {
+        if (!this._perf) {
+            return;
+        }
+        const config = this._connectionManager.getConnection(connectionId);
+        if (!config) {
+            return;
+        }
+        this._perf.log(`${config.protocol.toUpperCase()} ${config.name}@${config.host}`, message);
+    }
+
     dispose(): void {
         for (const watcher of this._watchers.values()) {
             watcher.dispose();
         }
         this._watchers.clear();
+        this._pendingStats.clear();
+        this._pendingDirectories.clear();
+        this._pendingFiles.clear();
         this._pathMutationVersions.clear();
         this._onDidChangeFile.dispose();
     }

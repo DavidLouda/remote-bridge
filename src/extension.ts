@@ -23,6 +23,7 @@ import { StatusBarService } from './statusBar/statusBarService';
 import { TransferTracker } from './services/transferTracker';
 import { BackupService } from './services/backupService';
 import { SyncService } from './services/syncService';
+import { PerfLogger } from './services/perfLogger';
 import { buildRemoteUri, parseRemoteUri } from './utils/uriParser';
 import {
     createWorkspaceFile,
@@ -151,16 +152,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         10,
         config.get<number>('cache.maxSize', 10)
     );
+    cacheService.setDebug(config.get<boolean>('debug', false));
     context.subscriptions.push({ dispose: () => cacheService.dispose() });
 
     transferTracker = new TransferTracker();
     context.subscriptions.push(transferTracker);
 
+    // ─── Output Channel ──────────────────────────────────────────
+    const outputChannel = vscode.window.createOutputChannel('Remote Bridge');
+    context.subscriptions.push(outputChannel);
+    const perfLogger = new PerfLogger(outputChannel);
+
+    const debugEnabled = config.get<boolean>('debug', false);
+    perfLogger.setEnabled(debugEnabled);
+
     connectionPool = new ConnectionPool(
         context.secrets,
         (id, type) =>
             type === 'password' ? secretKeyForPassword(id) : secretKeyForPassphrase(id),
-        transferTracker
+        transferTracker,
+        perfLogger,
+        debugEnabled
     );
     context.subscriptions.push(connectionPool);
 
@@ -168,14 +180,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     connectionManager = new ConnectionManager(encryptionService, context.secrets, backupService);
     context.subscriptions.push(connectionManager);
 
-    // ─── Output Channel ──────────────────────────────────────────
-    const outputChannel = vscode.window.createOutputChannel('Remote Bridge');
-    context.subscriptions.push(outputChannel);
-
     await connectionManager.load();
 
     // ─── SyncService ─────────────────────────────────────────────
     syncService = new SyncService(connectionManager, encryptionService, outputChannel);
+    syncService.setDebug(debugEnabled);
     context.subscriptions.push(syncService);
     syncService.startPeriodicSync();
     // Schedule retry if sync is active — Settings Sync may deliver data after activation.
@@ -209,7 +218,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const fsProvider = new RemoteBridgeFileSystemProvider(
         connectionPool,
         connectionManager,
-        cacheService
+        cacheService,
+        perfLogger
     );
     context.subscriptions.push(
         vscode.workspace.registerFileSystemProvider('remote-bridge', fsProvider, {
@@ -366,11 +376,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     cfg.get<number>('cache.maxSize', 10)
                 );
             }
-            if (e.affectsConfiguration('remoteBridge.pool') || e.affectsConfiguration('remoteBridge.watch') || e.affectsConfiguration('remoteBridge.security')) {
-                // These settings are read on-demand (pool.maxConnections,
-                // pool.idleTimeout, watch.pollInterval, security.idleTimeout)
-                // so no explicit reconfiguration is needed — just log the change.
-                console.log('[Remote Bridge] Configuration changed — new values will be used on next operation');
+            if (e.affectsConfiguration('remoteBridge.debug')) {
+                const dbg = vscode.workspace.getConfiguration('remoteBridge').get<boolean>('debug', false);
+                perfLogger.setEnabled(dbg);
+                syncService.setDebug(dbg);
+                connectionPool.setDebug(dbg);
+                cacheService.setDebug(dbg);
             }
         })
     );

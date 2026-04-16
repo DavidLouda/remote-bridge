@@ -9,7 +9,43 @@ import {
     ConnectionConfig,
 } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
+import { PerfLogger } from '../services/perfLogger';
 import { createProxySocket } from '../utils/proxyTunnel';
+
+type QueuePriority = 'high' | 'normal' | 'low';
+
+interface QueuedOperation {
+    operation: string;
+    client: FTPClient;
+    queuedAt: number;
+    priority: QueuePriority;
+    run: (client: FTPClient) => Promise<unknown>;
+    resolve: (value: unknown) => void;
+    reject: (reason?: unknown) => void;
+}
+
+const LOW_PRIORITY_PROBE_BASENAMES = new Set([
+    'pom.xml',
+    'build.gradle',
+    'pyproject.toml',
+    'setup.cfg',
+    'tox.ini',
+    '.pep8',
+    '.pylintrc',
+    'pylintrc',
+    '.mypy.ini',
+    '.flake8',
+]);
+
+const LOW_PRIORITY_PROBE_PREFIXES = [
+    '/.vscode',
+    '/.github',
+    '/.claude',
+    '/.devcontainer',
+    '/.agents',
+    '/.git',
+    '/node_modules',
+];
 
 /**
  * FTP/FTPS adapter using the basic-ftp library.
@@ -22,8 +58,12 @@ export class FtpAdapter implements RemoteAdapter {
     private _client: FTPClient | null = null;
     private _connected = false;
 
-    /** Serialization queue for FTP operations */
-    private _queue: Promise<unknown> = Promise.resolve();
+    /** Priority queues for serialized FTP operations */
+    private readonly _highPriorityQueue: QueuedOperation[] = [];
+    private readonly _normalPriorityQueue: QueuedOperation[] = [];
+    private readonly _lowPriorityQueue: QueuedOperation[] = [];
+    private _queueRunning = false;
+    private _queueDrainScheduled = false;
 
     private readonly _onDidDisconnect = new vscode.EventEmitter<void>();
     readonly onDidDisconnect = this._onDidDisconnect.event;
@@ -37,7 +77,9 @@ export class FtpAdapter implements RemoteAdapter {
         private readonly _config: ConnectionConfig,
         private readonly _getPassword: () => Promise<string | undefined>,
         private readonly _getProxyPassword: () => Promise<string | undefined>,
-        tracker?: TransferTracker
+        tracker?: TransferTracker,
+        private readonly _perf?: PerfLogger,
+        private readonly _debug: boolean = false
     ) {
         this._tracker = tracker;
     }
@@ -49,11 +91,14 @@ export class FtpAdapter implements RemoteAdapter {
             return;
         }
 
+        const start = Date.now();
+        this._logPerf('connect start');
+
         // Pass timeout (ms) to the constructor — this sets the timeout on
         // the actual connected socket, not on a premature dummy socket.
         const timeoutMs = 30000;
         const client = new FTPClient(timeoutMs);
-        client.ftp.verbose = false;
+        client.ftp.verbose = this._debug;
 
         try {
             const password = await this._getPassword();
@@ -84,6 +129,7 @@ export class FtpAdapter implements RemoteAdapter {
 
             this._client = client;
             this._connected = true;
+            this._logPerf(`connect complete (${Date.now() - start}ms)`);
 
             // Monitor connection state on the CONNECTED socket
             const socket = client.ftp.socket;
@@ -99,6 +145,7 @@ export class FtpAdapter implements RemoteAdapter {
                 this._connected = false;
             });
         } catch (err) {
+            this._logPerf(`connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
             client.close();
             throw err;
         }
@@ -123,15 +170,168 @@ export class FtpAdapter implements RemoteAdapter {
      * basic-ftp throws "Client is closed because User launched a task
      * while another one is still running" when operations overlap.
      */
-    private _enqueue<T>(fn: (client: FTPClient) => Promise<T>): Promise<T> {
+    private _enqueue<T>(operation: string, fn: (client: FTPClient) => Promise<T>): Promise<T> {
         const client = this._requireClient();
-        const next = this._queue.then(
-            () => fn(client),
-            () => fn(client)  // run even if the previous op failed
-        );
-        // Keep the queue going regardless of success/failure
-        this._queue = next.catch(() => {});
-        return next;
+        const priority = this._inferQueuePriority(operation);
+
+        return new Promise<T>((resolve, reject) => {
+            this._pushQueuedOperation({
+                operation,
+                client,
+                queuedAt: Date.now(),
+                priority,
+                run: (activeClient) => fn(activeClient),
+                resolve: resolve as (value: unknown) => void,
+                reject,
+            });
+            this._scheduleQueueDrain();
+        });
+    }
+
+    private _pushQueuedOperation(task: QueuedOperation): void {
+        switch (task.priority) {
+            case 'high':
+                this._highPriorityQueue.push(task);
+                break;
+            case 'low':
+                this._lowPriorityQueue.push(task);
+                break;
+            case 'normal':
+            default:
+                this._normalPriorityQueue.push(task);
+                break;
+        }
+    }
+
+    private _scheduleQueueDrain(): void {
+        if (this._queueRunning || this._queueDrainScheduled) {
+            return;
+        }
+
+        this._queueDrainScheduled = true;
+        queueMicrotask(() => {
+            this._queueDrainScheduled = false;
+            void this._drainQueue();
+        });
+    }
+
+    private async _drainQueue(): Promise<void> {
+        if (this._queueRunning) {
+            return;
+        }
+
+        this._queueRunning = true;
+
+        try {
+            for (;;) {
+                const task = this._shiftQueuedOperation();
+                if (!task) {
+                    return;
+                }
+
+                try {
+                    const result = await this._executeQueuedOperation(
+                        task.operation,
+                        task.client,
+                        task.queuedAt,
+                        task.priority,
+                        task.run
+                    );
+                    task.resolve(result);
+                } catch (err) {
+                    task.reject(err);
+                }
+            }
+        } finally {
+            this._queueRunning = false;
+            if (this._hasQueuedOperations()) {
+                this._scheduleQueueDrain();
+            }
+        }
+    }
+
+    private _shiftQueuedOperation(): QueuedOperation | undefined {
+        return this._highPriorityQueue.shift()
+            ?? this._normalPriorityQueue.shift()
+            ?? this._lowPriorityQueue.shift();
+    }
+
+    private _hasQueuedOperations(): boolean {
+        return this._highPriorityQueue.length > 0
+            || this._normalPriorityQueue.length > 0
+            || this._lowPriorityQueue.length > 0;
+    }
+
+    private async _executeQueuedOperation<T>(
+        operation: string,
+        client: FTPClient,
+        queuedAt: number,
+        priority: QueuePriority,
+        fn: (client: FTPClient) => Promise<T>
+    ): Promise<T> {
+        const waitMs = Date.now() - queuedAt;
+        const start = Date.now();
+
+        try {
+            const result = await fn(client);
+            this._logPerf(`${operation} -> priority ${priority}, queue ${waitMs}ms, run ${Date.now() - start}ms`);
+            return result;
+        } catch (err) {
+            this._logPerf(`${operation} -> priority ${priority}, queue ${waitMs}ms, failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
+            throw err;
+        }
+    }
+
+    private _inferQueuePriority(operation: string): QueuePriority {
+        if (
+            operation.startsWith('readDirectory ')
+            || operation.startsWith('writeFile ')
+            || operation.startsWith('delete ')
+            || operation.startsWith('rename ')
+            || operation.startsWith('mkdir ')
+            || operation.startsWith('chmod ')
+        ) {
+            return 'high';
+        }
+
+        const remotePath = this._extractOperationPath(operation);
+        if (
+            remotePath
+            && this._isLowPriorityProbePath(remotePath)
+            && (
+                operation.startsWith('stat ')
+                || operation.startsWith('readFile ')
+                || operation.startsWith('readFileRange ')
+                || operation.startsWith('exists ')
+            )
+        ) {
+            return 'low';
+        }
+
+        return 'normal';
+    }
+
+    private _extractOperationPath(operation: string): string | undefined {
+        if (operation.startsWith('rename ')) {
+            const separator = operation.indexOf(' -> ');
+            return separator >= 0 ? operation.slice(separator + 4) : undefined;
+        }
+
+        const firstSpace = operation.indexOf(' ');
+        return firstSpace >= 0 ? operation.slice(firstSpace + 1) : undefined;
+    }
+
+    private _isLowPriorityProbePath(remotePath: string): boolean {
+        const normalizedPath = remotePath.toLowerCase();
+
+        for (const prefix of LOW_PRIORITY_PROBE_PREFIXES) {
+            if (normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)) {
+                return true;
+            }
+        }
+
+        const baseName = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+        return LOW_PRIORITY_PROBE_BASENAMES.has(baseName);
     }
 
     async stat(remotePath: string): Promise<RemoteFileStat> {
@@ -144,12 +344,17 @@ export class FtpAdapter implements RemoteAdapter {
             };
         }
 
-        return this._enqueue((client) => this._statRaw(client, remotePath));
+        return this._enqueue(`stat ${remotePath}`, (client) => this._statRaw(client, remotePath));
     }
 
     async readDirectory(remotePath: string): Promise<RemoteFileInfo[]> {
-        return this._enqueue(async (client) => {
-            const list = await client.list(remotePath);
+        return this._enqueue(`readDirectory ${remotePath}`, async (client) => {
+            let list: FileInfo[];
+            try {
+                list = await client.list(remotePath);
+            } catch (err) {
+                throw this._mapFtpFsError(err, remotePath);
+            }
 
             return list
                 .filter((item) => item.name !== '.' && item.name !== '..')
@@ -164,7 +369,7 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async readFile(remotePath: string): Promise<Uint8Array> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`readFile ${remotePath}`, async (client) => {
             const chunks: Buffer[] = [];
 
             const writable = new Writable({
@@ -174,7 +379,11 @@ export class FtpAdapter implements RemoteAdapter {
                 },
             });
 
-            await client.downloadTo(writable, remotePath);
+            try {
+                await client.downloadTo(writable, remotePath);
+            } catch (err) {
+                throw this._mapFtpFsError(err, remotePath);
+            }
             const result = Buffer.concat(chunks);
             this._tracker?.recordDownload(result.length);
             return result;
@@ -182,7 +391,7 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async readFileRange(remotePath: string, start: number, end: number): Promise<Uint8Array> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`readFileRange ${remotePath}`, async (client) => {
             const chunks: Buffer[] = [];
             let bytesReceived = 0;
             const bytesToRead = end - start + 1;
@@ -209,7 +418,7 @@ export class FtpAdapter implements RemoteAdapter {
                 // Download may be interrupted when we have enough bytes
                 // Only ignore the error if we actually received sufficient data
                 if (bytesReceived < bytesToRead) {
-                    throw err;
+                    throw this._mapFtpFsError(err, remotePath);
                 }
             }
 
@@ -224,7 +433,7 @@ export class FtpAdapter implements RemoteAdapter {
         content: Uint8Array,
         options: { create: boolean; overwrite: boolean }
     ): Promise<void> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`writeFile ${remotePath}`, async (client) => {
             if (!options.overwrite || !options.create) {
                 const exists = await this._existsRaw(client, remotePath);
                 if (exists && !options.overwrite) {
@@ -289,7 +498,7 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async delete(remotePath: string, options: { recursive: boolean }): Promise<void> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`delete ${remotePath}`, async (client) => {
             const stats = await this._statRaw(client, remotePath);
 
             if (stats.type === vscode.FileType.Directory) {
@@ -316,7 +525,7 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async rename(oldPath: string, newPath: string, options: { overwrite: boolean }): Promise<void> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`rename ${oldPath} -> ${newPath}`, async (client) => {
             if (!options.overwrite) {
                 const exists = await this._existsRaw(client, newPath);
                 if (exists) {
@@ -329,7 +538,7 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async mkdir(remotePath: string): Promise<void> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`mkdir ${remotePath}`, async (client) => {
             // Use direct MKD — single control command, does not change CWD.
             await client.send('MKD ' + remotePath);
             if (this._config.newDirectoryMode !== undefined) {
@@ -342,11 +551,11 @@ export class FtpAdapter implements RemoteAdapter {
     // ─── Not Supported ──────────────────────────────────────────
 
     async getUnixMode(remotePath: string): Promise<number | undefined> {
-        return this._enqueue((client) => this._getUnixModeRaw(client, remotePath));
+        return this._enqueue(`getUnixMode ${remotePath}`, (client) => this._getUnixModeRaw(client, remotePath));
     }
 
     async chmod(remotePath: string, mode: number): Promise<void> {
-        return this._enqueue(async (client) => {
+        return this._enqueue(`chmod ${remotePath}`, async (client) => {
             const modeStr = mode.toString(8).padStart(3, '0');
             await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
         });
@@ -356,7 +565,7 @@ export class FtpAdapter implements RemoteAdapter {
         const srcStat = await this.stat(src);
 
         if (srcStat.type === vscode.FileType.Directory) {
-            const destinationExists = await this._enqueue((client) => this._existsRaw(client, dst));
+            const destinationExists = await this._enqueue(`exists ${dst}`, (client) => this._existsRaw(client, dst));
             if (destinationExists) {
                 if (!options.overwrite) {
                     throw vscode.FileSystemError.FileExists(dst);
@@ -429,7 +638,12 @@ export class FtpAdapter implements RemoteAdapter {
             // "directory" from "does not exist" without changing CWD.
             const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
             const baseName = remotePath.substring(remotePath.lastIndexOf('/') + 1);
-            const entries = await client.list(parentDir);
+            let entries: FileInfo[];
+            try {
+                entries = await client.list(parentDir);
+            } catch (err) {
+                throw this._mapFtpFsError(err, remotePath);
+            }
             const entry = entries.find(e => e.name === baseName);
             if (!entry) {
                 throw vscode.FileSystemError.FileNotFound(remotePath);
@@ -480,6 +694,31 @@ export class FtpAdapter implements RemoteAdapter {
             default:
                 return vscode.FileType.File;
         }
+    }
+
+    private _mapFtpFsError(error: unknown, remotePath: string): Error {
+        if (this._isMissingPathError(error)) {
+            return vscode.FileSystemError.FileNotFound(remotePath);
+        }
+
+        return error instanceof Error ? error : new Error(String(error));
+    }
+
+    private _isMissingPathError(error: unknown): boolean {
+        const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+
+        return message.includes('no such file or directory')
+            || message.includes("can't open")
+            || message.includes('cannot open')
+            || message.includes("can't check for file existence")
+            || message.includes('not found');
+    }
+
+    private _logPerf(message: string): void {
+        if (!this._perf) {
+            return;
+        }
+        this._perf.log(`${this._config.protocol.toUpperCase()} ${this._config.name}@${this._config.host}`, message);
     }
 
     dispose(): void {

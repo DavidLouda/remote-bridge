@@ -33,6 +33,7 @@ export class SyncService implements vscode.Disposable {
     private readonly _onDidSyncComplete = new vscode.EventEmitter<SyncLoadResult | undefined>();
     /** Fired after every sync attempt (result is undefined when no data changed or sync was skipped). */
     readonly onDidSyncComplete = this._onDidSyncComplete.event;
+    private _debugEnabled = false;
 
     constructor(
         private readonly _connectionManager: ConnectionManager,
@@ -355,7 +356,12 @@ export class SyncService implements vscode.Disposable {
 
     // ─── Logging ────────────────────────────────────────────────
 
+    setDebug(enabled: boolean): void {
+        this._debugEnabled = enabled;
+    }
+
     private _log(message: string): void {
+        if (!this._debugEnabled) { return; }
         const ts = new Date().toISOString().replace('T', ' ').slice(0, 23);
         this._outputChannel.appendLine(`[${ts}] [Sync] ${message}`);
     }

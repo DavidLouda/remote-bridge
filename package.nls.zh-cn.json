@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.zh-cn.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.zh-cn.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.zh-cn.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.zh-cn.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.zh-cn.md",
+  "config.debug.description": "启用 Remote Bridge 输出通道的调试日志。记录性能数据、同步事件、缓存诊断和 FTP 协议对话。"
 }

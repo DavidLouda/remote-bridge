@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { RemoteAdapter } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
+import { PerfLogger } from '../services/perfLogger';
 import * as shell from '../utils/shellCommands';
 import { createProxySocket } from '../utils/proxyTunnel';
 import { createJumpSocket } from '../utils/jumpTunnel';
@@ -31,7 +32,8 @@ export class SshAdapter implements RemoteAdapter {
         private readonly _getProxyPassword: () => Promise<string | undefined>,
         private readonly _tracker?: TransferTracker,
         private readonly _getJumpPassword: () => Promise<string | undefined> = async () => undefined,
-        private readonly _getJumpPassphrase: () => Promise<string | undefined> = async () => undefined
+        private readonly _getJumpPassphrase: () => Promise<string | undefined> = async () => undefined,
+        private readonly _perf?: PerfLogger
     ) {}
 
     // ─── Connection ──────────────────────────────────────────────
@@ -40,6 +42,9 @@ export class SshAdapter implements RemoteAdapter {
         if (this._connected) {
             return;
         }
+
+        const start = Date.now();
+        this._logPerf('connect start');
 
         const client = new Client();
         this._client = client;
@@ -144,10 +149,12 @@ export class SshAdapter implements RemoteAdapter {
                 this._connected = true;
                 client.sftp((err, sftp) => {
                     if (err) {
+                        this._logPerf(`connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
                         reject(err);
                         return;
                     }
                     this._sftp = sftp;
+                    this._logPerf(`connect complete (${Date.now() - start}ms)`);
                     resolve();
                 });
             });
@@ -155,6 +162,7 @@ export class SshAdapter implements RemoteAdapter {
             client.on('error', (err) => {
                 this._connected = false;
                 this._sftp = null;
+                this._logPerf(`connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
                 reject(err);
             });
 
@@ -197,12 +205,15 @@ export class SshAdapter implements RemoteAdapter {
 
     async stat(remotePath: string): Promise<RemoteFileStat> {
         const sftp = this._requireSftp();
+        const start = Date.now();
         return new Promise((resolve, reject) => {
             sftp.stat(remotePath, (err, stats) => {
                 if (err) {
+                    this._logPerf(`stat ${remotePath} failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
                     reject(this._mapSftpError(err, remotePath));
                     return;
                 }
+                this._logPerf(`stat ${remotePath} complete (${Date.now() - start}ms)`);
                 resolve({
                     type: this._mapFileType(stats),
                     ctime: (stats.mtime || 0) * 1000,
@@ -235,12 +246,15 @@ export class SshAdapter implements RemoteAdapter {
 
     async readDirectory(remotePath: string): Promise<RemoteFileInfo[]> {
         const sftp = this._requireSftp();
+        const start = Date.now();
         return new Promise((resolve, reject) => {
             sftp.readdir(remotePath, (err, list) => {
                 if (err) {
+                    this._logPerf(`readDirectory ${remotePath} failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
                     reject(this._mapSftpError(err, remotePath));
                     return;
                 }
+                this._logPerf(`readDirectory ${remotePath} complete (${Date.now() - start}ms, ${list.length} raw entries)`);
                 resolve(
                     list.map((entry) => ({
                         name: entry.filename,
@@ -616,6 +630,13 @@ export class SshAdapter implements RemoteAdapter {
             }
         }
         return vscode.FileType.File;
+    }
+
+    private _logPerf(message: string): void {
+        if (!this._perf) {
+            return;
+        }
+        this._perf.log(`${this._config.protocol.toUpperCase()} ${this._config.name}@${this._config.host}`, message);
     }
 
     private _mapPermissions(stats: { mode?: number }): vscode.FilePermission | undefined {

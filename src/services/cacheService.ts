@@ -14,11 +14,13 @@ export class CacheService {
     private readonly _statCache = new Map<string, CacheEntry<RemoteFileStat>>();
     private readonly _contentCache = new Map<string, CacheEntry<Uint8Array>>();
     private readonly _dirCache = new Map<string, CacheEntry<[string, number][]>>();
+    private readonly _notFoundCache = new Map<string, CacheEntry<true>>();
 
     private _maxContentSizeBytes: number;
     private _currentContentSize = 0;
     private _statTtlMs: number;
     private _contentTtlMs: number;
+    private _debugEnabled = false;
 
     constructor(
         statTtlSeconds = 30,
@@ -38,6 +40,10 @@ export class CacheService {
         this._maxContentSizeBytes = maxContentSizeMB * 1024 * 1024;
     }
 
+    setDebug(enabled: boolean): void {
+        this._debugEnabled = enabled;
+    }
+
     // ─── Stat Cache ─────────────────────────────────────────────────
 
     getStat(key: string): RemoteFileStat | undefined {
@@ -45,8 +51,24 @@ export class CacheService {
     }
 
     setStat(key: string, stat: RemoteFileStat): void {
+        this._notFoundCache.delete(key);
         this._statCache.set(key, {
             value: stat,
+            expiresAt: Date.now() + this._statTtlMs,
+            size: 0,
+        });
+    }
+
+    getNotFound(key: string): boolean {
+        return this._get(this._notFoundCache, key) === true;
+    }
+
+    setNotFound(key: string): void {
+        this._statCache.delete(key);
+        this._evictContent(key);
+        this._dirCache.delete(key);
+        this._notFoundCache.set(key, {
+            value: true,
             expiresAt: Date.now() + this._statTtlMs,
             size: 0,
         });
@@ -72,7 +94,9 @@ export class CacheService {
 
         // Don't cache if single entry exceeds max size
         if (content.byteLength > this._maxContentSizeBytes) {
-            console.warn(`[RemoteBridge] Cache: file content (${content.byteLength} B) exceeds max cache size (${this._maxContentSizeBytes} B) — skipping cache`);
+            if (this._debugEnabled) {
+                console.warn(`[RemoteBridge] Cache: file content (${content.byteLength} B) exceeds max cache size (${this._maxContentSizeBytes} B) — skipping cache`);
+            }
             return;
         }
 
@@ -81,6 +105,7 @@ export class CacheService {
             expiresAt: Date.now() + this._contentTtlMs,
             size: content.byteLength,
         });
+        this._notFoundCache.delete(key);
         this._currentContentSize += content.byteLength;
     }
 
@@ -91,6 +116,7 @@ export class CacheService {
     }
 
     setDirectory(key: string, entries: [string, number][]): void {
+        this._notFoundCache.delete(key);
         this._dirCache.set(key, {
             value: entries,
             expiresAt: Date.now() + this._statTtlMs,
@@ -109,6 +135,7 @@ export class CacheService {
         this._statCache.delete(key);
         this._evictContent(key);
         this._dirCache.delete(key);
+        this._notFoundCache.delete(key);
 
         // Also invalidate parent directory listing
         const parentPath = getParentPath(normalizedPath);
@@ -136,6 +163,11 @@ export class CacheService {
                 this._dirCache.delete(key);
             }
         }
+        for (const key of this._notFoundCache.keys()) {
+            if (key.startsWith(prefix)) {
+                this._notFoundCache.delete(key);
+            }
+        }
     }
 
     /**
@@ -145,6 +177,7 @@ export class CacheService {
         this._statCache.clear();
         this._contentCache.clear();
         this._dirCache.clear();
+        this._notFoundCache.clear();
         this._currentContentSize = 0;
     }
 

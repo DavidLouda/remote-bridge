@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.cs.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.cs.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.cs.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.cs.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.cs.md",
+  "config.debug.description": "Zapnout ladící logování do výstupního kanálu Remote Bridge. Loguje údaje o výkonu, sync události, diagnostiku cache a FTP protokol."
 }

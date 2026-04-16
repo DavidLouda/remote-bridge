@@ -162,7 +162,7 @@ export function grepSearch(
         return cmd;
     }
     // Linux & macOS
-    let cmd = `grep -rn -I --color=never`;
+    let cmd = `grep -rn -E -I --color=never`;
     if (!caseSensitive) {
         cmd += ' -i';
     }
@@ -200,7 +200,7 @@ export function grepInFile(
         return `$lines = Get-Content -LiteralPath ${p}; $lines.Count; Select-String -InputObject ($lines -join "\n") ${ctxFlag}-Pattern '${escapedPattern}' -AllMatches | Select-Object -First ${maxResults} | ForEach-Object { $_.ToString() }`;
     }
     // Linux & macOS: line count + grep with context
-    let cmd = `_t=$(wc -l < ${p}) && echo "$_t" && grep -n -I --color=never`;
+    let cmd = `_t=$(wc -l < ${p}) && echo "$_t" && grep -n -E -I --color=never`;
     if (contextLines > 0) {
         cmd += ` -C ${contextLines}`;
     }

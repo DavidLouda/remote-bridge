@@ -79,5 +79,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.md",
+  "config.debug.description": "Enable debug logging to the Remote Bridge Output Channel. Logs performance data, sync events, cache diagnostics, and FTP protocol dialogue."
 }

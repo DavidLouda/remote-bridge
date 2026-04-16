@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.uk.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.uk.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.uk.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.uk.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.uk.md",
+  "config.debug.description": "Увімкнути журналювання налагодження у вихідний канал Remote Bridge. Записує дані продуктивності, події синхронізації, діагностику кешу та діалог протоколу FTP."
 }

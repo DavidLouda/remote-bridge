@@ -4,6 +4,7 @@ import { SshAdapter } from '../adapters/sshAdapter';
 import { FtpAdapter } from '../adapters/ftpAdapter';
 import { ConnectionConfig, ConnectionStatus, secretKeyForProxyPassword, secretKeyForJumpPassword, secretKeyForJumpPassphrase } from '../types/connection';
 import { TransferTracker } from './transferTracker';
+import { PerfLogger } from './perfLogger';
 
 interface PoolEntry {
     adapter: RemoteAdapter;
@@ -31,9 +32,15 @@ export class ConnectionPool implements vscode.Disposable {
     constructor(
         private readonly _secretStorage: vscode.SecretStorage,
         private readonly _getSecretKey: (id: string, type: 'password' | 'passphrase') => string,
-        private readonly _tracker?: TransferTracker
+        private readonly _tracker?: TransferTracker,
+        private readonly _perf?: PerfLogger,
+        private _debug: boolean = false
     ) {
         this._startIdleMonitor();
+    }
+
+    setDebug(enabled: boolean): void {
+        this._debug = enabled;
     }
 
     /**
@@ -50,7 +57,12 @@ export class ConnectionPool implements vscode.Disposable {
         // If a connection attempt is already in progress, wait for it
         const pending = this._pending.get(config.id);
         if (pending) {
-            return pending;
+            const start = Date.now();
+            try {
+                return await pending;
+            } finally {
+                this._logPerf(config, `pool getAdapter waited for pending connect (${Date.now() - start}ms)`);
+            }
         }
 
         const promise = this._connectAdapter(config);
@@ -64,6 +76,8 @@ export class ConnectionPool implements vscode.Disposable {
     }
 
     private async _connectAdapter(config: ConnectionConfig): Promise<RemoteAdapter> {
+        const start = Date.now();
+
         // Remove stale entry
         const existing = this._pool.get(config.id);
         if (existing) {
@@ -86,12 +100,14 @@ export class ConnectionPool implements vscode.Disposable {
 
         // Set status to connecting
         this._setStatus(config.id, ConnectionStatus.Connecting);
+        this._logPerf(config, 'pool connect start');
 
         try {
             await adapter.connect();
         } catch (err) {
             this._setStatus(config.id, ConnectionStatus.Error);
             adapter.dispose();
+            this._logPerf(config, `pool connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
             throw err;
         }
 
@@ -111,6 +127,7 @@ export class ConnectionPool implements vscode.Disposable {
         });
 
         this._setStatus(config.id, ConnectionStatus.Connected);
+        this._logPerf(config, `pool connect complete (${Date.now() - start}ms)`);
 
         return adapter;
     }
@@ -209,13 +226,20 @@ export class ConnectionPool implements vscode.Disposable {
         switch (config.protocol) {
             case 'ssh':
             case 'sftp':
-                return new SshAdapter(config, getPassword, getPassphrase, getProxyPassword, this._tracker, getJumpPassword, getJumpPassphrase);
+                return new SshAdapter(config, getPassword, getPassphrase, getProxyPassword, this._tracker, getJumpPassword, getJumpPassphrase, this._perf);
             case 'ftp':
             case 'ftps':
-                return new FtpAdapter(config, getPassword, getProxyPassword, this._tracker);
+                return new FtpAdapter(config, getPassword, getProxyPassword, this._tracker, this._perf, this._debug);
             default:
                 throw new Error(vscode.l10n.t('Unsupported protocol: {0}', config.protocol));
         }
+    }
+
+    private _logPerf(config: ConnectionConfig, message: string): void {
+        if (!this._perf) {
+            return;
+        }
+        this._perf.log(`${config.protocol.toUpperCase()} ${config.name}@${config.host}`, message);
     }
 
     private _setStatus(connectionId: string, status: ConnectionStatus): void {

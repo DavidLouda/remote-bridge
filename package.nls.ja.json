@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.ja.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.ja.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.ja.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.ja.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.ja.md",
+  "config.debug.description": "Remote Bridge 出力チャネルへのデバッグログを有効にします。パフォーマンスデータ、同期イベント、キャッシュ診断、FTPプロトコルダイアログを記録します。"
 }

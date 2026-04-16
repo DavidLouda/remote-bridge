@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.sk.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.sk.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.sk.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.sk.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.sk.md",
+  "config.debug.description": "Zapnúť ladiace logovanie do výstupného kanála Remote Bridge. Loguje údaje o výkone, sync udalosti, diagnostiku cache a FTP protokol."
 }

@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.hu.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.hu.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.hu.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.hu.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.hu.md",
+  "config.debug.description": "Hibakeresési naplózás engedélyezése a Remote Bridge kimeneti csatornán. Teljesítményadatokat, szinkronizálási eseményeket, gyorsítótár-diagnosztikát és FTP protokoll párbeszédet naplóz."
 }

@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.pl.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.pl.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.pl.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.pl.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.pl.md",
+  "config.debug.description": "Włącz logowanie debugowe do kanału wyjściowego Remote Bridge. Loguje dane wydajności, zdarzenia synchronizacji, diagnostykę pamięci podręcznej i dialog protokołu FTP."
 }

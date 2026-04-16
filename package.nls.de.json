@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.de.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.de.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.de.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.de.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.de.md",
+  "config.debug.description": "Debug-Protokollierung im Ausgabekanal von Remote Bridge aktivieren. Protokolliert Leistungsdaten, Sync-Ereignisse, Cache-Diagnosen und FTP-Protokolldialog."
 }

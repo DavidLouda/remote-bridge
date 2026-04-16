@@ -5,6 +5,14 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-04-16
+
+### Added
+- **Debug mode** — new `remoteBridge.debug` setting (default: `false`). When enabled, the extension writes detailed performance, sync, and connection logs to the *Remote Bridge* Output Channel. FTP/FTPS connections additionally log the full FTP protocol dialogue. Useful for diagnosing connection issues, cache behaviour, and file system provider performance.
+
+### Fixed
+- **AI search now uses extended regular expressions** — `remoteSearch` grep commands switched from BRE to ERE (`grep -E`), so patterns with `|`, `(`, `)` work as expected. Previously, the AI agent's regex patterns (e.g. alternation with `|` or escaped parentheses) caused `grep: Unmatched ( or \(` errors on the server, forcing the agent to fall back to slower plain-text searches.
+
 ## [3.3.1] - 2026-04-04
 
 ### Fixed

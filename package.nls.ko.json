@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.ko.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.ko.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.ko.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.ko.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.ko.md",
+  "config.debug.description": "Remote Bridge 출력 채널에 디버그 로깅을 활성화합니다. 성능 데이터, 동기화 이벤트, 캐시 진단 및 FTP 프로토콜 대화를 기록합니다."
 }

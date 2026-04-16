@@ -78,5 +78,6 @@
   "walkthrough.step.addConnection.media": "media/walkthrough/addConnection.es.md",
   "walkthrough.step.masterPassword.media": "media/walkthrough/masterPassword.es.md",
   "walkthrough.step.sync.media": "media/walkthrough/sync.es.md",
-  "walkthrough.step.import.media": "media/walkthrough/import.es.md"
+  "walkthrough.step.import.media": "media/walkthrough/import.es.md",
+  "config.debug.description": "Habilitar el registro de depuración en el canal de salida de Remote Bridge. Registra datos de rendimiento, eventos de sincronización, diagnósticos de caché y diálogo del protocolo FTP."
 }
