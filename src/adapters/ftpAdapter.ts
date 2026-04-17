@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { Client as FTPClient, FileInfo, FileType as FTPFileType } from 'basic-ftp';
+import { connectForPassiveTransfer, enterPassiveModeIPv6, parsePasvResponse } from 'basic-ftp/dist/transfer';
+import { ipIsPrivateV4Address } from 'basic-ftp/dist/netUtils';
+import type { FTPContext, FTPResponse } from 'basic-ftp/dist/FtpContext';
 import { Writable, Readable } from 'stream';
-import { RemoteAdapter } from './adapter';
+import { RemoteAdapter, RemoteOperationOptions, RemoteOperationSource } from './adapter';
 import {
     RemoteFileInfo,
     RemoteFileStat,
@@ -19,10 +22,13 @@ interface QueuedOperation {
     client: FTPClient;
     queuedAt: number;
     priority: QueuePriority;
+    source?: RemoteOperationSource;
     run: (client: FTPClient) => Promise<unknown>;
     resolve: (value: unknown) => void;
     reject: (reason?: unknown) => void;
 }
+
+type TransferStrategy = (ftp: FTPContext) => Promise<FTPResponse>;
 
 const LOW_PRIORITY_PROBE_BASENAMES = new Set([
     'pom.xml',
@@ -64,6 +70,10 @@ export class FtpAdapter implements RemoteAdapter {
     private readonly _lowPriorityQueue: QueuedOperation[] = [];
     private _queueRunning = false;
     private _queueDrainScheduled = false;
+    private _keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+    private _keepalivePending = false;
+    private _lastActivityAt = 0;
+    private _preferredTransferStrategy: TransferStrategy | null = null;
 
     private readonly _onDidDisconnect = new vscode.EventEmitter<void>();
     readonly onDidDisconnect = this._onDidDisconnect.event;
@@ -72,6 +82,31 @@ export class FtpAdapter implements RemoteAdapter {
     readonly supportsShell = false;
 
     private _tracker?: TransferTracker;
+    private readonly _prepareTransfer: TransferStrategy = async (ftp) => {
+        if (this._preferredTransferStrategy) {
+            return this._preferredTransferStrategy(ftp);
+        }
+
+        const strategies: Array<{ name: string; run: TransferStrategy }> = [
+            { name: 'EPSV', run: enterPassiveModeIPv6 },
+            { name: 'PASV', run: (context) => this._enterPassiveModeNatSafe(context) },
+        ];
+
+        let lastError: unknown;
+        for (const strategy of strategies) {
+            try {
+                const response = await strategy.run(ftp);
+                this._preferredTransferStrategy = strategy.run;
+                this._logPerf(`prepareTransfer -> selected ${strategy.name}`);
+                return response;
+            } catch (err) {
+                lastError = err;
+                this._logPerf(`prepareTransfer -> ${strategy.name} failed: ${this._perf?.formatError(err) ?? String(err)}`);
+            }
+        }
+
+        throw new Error(`None of the available transfer strategies work. Last error response was '${lastError}'.`);
+    };
 
     constructor(
         private readonly _config: ConnectionConfig,
@@ -99,6 +134,7 @@ export class FtpAdapter implements RemoteAdapter {
         const timeoutMs = 30000;
         const client = new FTPClient(timeoutMs);
         client.ftp.verbose = this._debug;
+        client.prepareTransfer = this._prepareTransfer;
 
         try {
             const password = await this._getPassword();
@@ -129,6 +165,8 @@ export class FtpAdapter implements RemoteAdapter {
 
             this._client = client;
             this._connected = true;
+            this._touchActivity();
+            this._startKeepalive();
             this._logPerf(`connect complete (${Date.now() - start}ms)`);
 
             // Monitor connection state on the CONNECTED socket
@@ -136,6 +174,7 @@ export class FtpAdapter implements RemoteAdapter {
             socket.on('close', () => {
                 const wasConnected = this._connected;
                 this._connected = false;
+                this._stopKeepalive();
                 if (wasConnected) {
                     this._onDidDisconnect.fire();
                 }
@@ -143,8 +182,10 @@ export class FtpAdapter implements RemoteAdapter {
 
             socket.on('error', () => {
                 this._connected = false;
+                this._stopKeepalive();
             });
         } catch (err) {
+            this._stopKeepalive();
             this._logPerf(`connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
             client.close();
             throw err;
@@ -153,6 +194,7 @@ export class FtpAdapter implements RemoteAdapter {
 
     async disconnect(): Promise<void> {
         this._connected = false;
+        this._stopKeepalive();
         if (this._client) {
             this._client.close();
             this._client = null;
@@ -170,9 +212,9 @@ export class FtpAdapter implements RemoteAdapter {
      * basic-ftp throws "Client is closed because User launched a task
      * while another one is still running" when operations overlap.
      */
-    private _enqueue<T>(operation: string, fn: (client: FTPClient) => Promise<T>): Promise<T> {
+    private _enqueue<T>(operation: string, fn: (client: FTPClient) => Promise<T>, options?: RemoteOperationOptions): Promise<T> {
         const client = this._requireClient();
-        const priority = this._inferQueuePriority(operation);
+        const priority = this._inferQueuePriority(operation, options?.source);
 
         return new Promise<T>((resolve, reject) => {
             this._pushQueuedOperation({
@@ -180,6 +222,7 @@ export class FtpAdapter implements RemoteAdapter {
                 client,
                 queuedAt: Date.now(),
                 priority,
+                source: options?.source,
                 run: (activeClient) => fn(activeClient),
                 resolve: resolve as (value: unknown) => void,
                 reject,
@@ -279,17 +322,34 @@ export class FtpAdapter implements RemoteAdapter {
         } catch (err) {
             this._logPerf(`${operation} -> priority ${priority}, queue ${waitMs}ms, failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
             throw err;
+        } finally {
+            if (this._connected) {
+                this._touchActivity();
+            }
         }
     }
 
-    private _inferQueuePriority(operation: string): QueuePriority {
+    private _inferQueuePriority(operation: string, source?: RemoteOperationSource): QueuePriority {
         if (
-            operation.startsWith('readDirectory ')
-            || operation.startsWith('writeFile ')
+            operation.startsWith('writeFile ')
             || operation.startsWith('delete ')
             || operation.startsWith('rename ')
             || operation.startsWith('mkdir ')
             || operation.startsWith('chmod ')
+        ) {
+            return 'high';
+        }
+
+        if (source === 'user') {
+            return 'high';
+        }
+
+        if (source === 'probe' || source === 'watch' || source === 'keepalive') {
+            return 'low';
+        }
+
+        if (
+            operation.startsWith('readDirectory ')
         ) {
             return 'high';
         }
@@ -334,7 +394,7 @@ export class FtpAdapter implements RemoteAdapter {
         return LOW_PRIORITY_PROBE_BASENAMES.has(baseName);
     }
 
-    async stat(remotePath: string): Promise<RemoteFileStat> {
+    async stat(remotePath: string, options?: RemoteOperationOptions): Promise<RemoteFileStat> {
         if (remotePath === '/' || remotePath === '') {
             return {
                 type: vscode.FileType.Directory,
@@ -344,10 +404,10 @@ export class FtpAdapter implements RemoteAdapter {
             };
         }
 
-        return this._enqueue(`stat ${remotePath}`, (client) => this._statRaw(client, remotePath));
+        return this._enqueue(`stat ${remotePath}`, (client) => this._statRaw(client, remotePath), options);
     }
 
-    async readDirectory(remotePath: string): Promise<RemoteFileInfo[]> {
+    async readDirectory(remotePath: string, options?: RemoteOperationOptions): Promise<RemoteFileInfo[]> {
         return this._enqueue(`readDirectory ${remotePath}`, async (client) => {
             let list: FileInfo[];
             try {
@@ -365,10 +425,10 @@ export class FtpAdapter implements RemoteAdapter {
                     mtime: item.modifiedAt ? item.modifiedAt.getTime() : 0,
                     ctime: 0,
                 }));
-        });
+        }, options);
     }
 
-    async readFile(remotePath: string): Promise<Uint8Array> {
+    async readFile(remotePath: string, options?: RemoteOperationOptions): Promise<Uint8Array> {
         return this._enqueue(`readFile ${remotePath}`, async (client) => {
             const chunks: Buffer[] = [];
 
@@ -387,10 +447,10 @@ export class FtpAdapter implements RemoteAdapter {
             const result = Buffer.concat(chunks);
             this._tracker?.recordDownload(result.length);
             return result;
-        });
+        }, options);
     }
 
-    async readFileRange(remotePath: string, start: number, end: number): Promise<Uint8Array> {
+    async readFileRange(remotePath: string, start: number, end: number, options?: RemoteOperationOptions): Promise<Uint8Array> {
         return this._enqueue(`readFileRange ${remotePath}`, async (client) => {
             const chunks: Buffer[] = [];
             let bytesReceived = 0;
@@ -425,7 +485,7 @@ export class FtpAdapter implements RemoteAdapter {
             const result = Buffer.concat(chunks).subarray(0, bytesToRead);
             this._tracker?.recordDownload(result.length);
             return result;
-        });
+        }, options);
     }
 
     async writeFile(
@@ -613,6 +673,100 @@ export class FtpAdapter implements RemoteAdapter {
             throw new Error(vscode.l10n.t('Not connected'));
         }
         return this._client;
+    }
+
+    private async _enterPassiveModeNatSafe(ftp: FTPContext): Promise<FTPResponse> {
+        const response = await ftp.request('PASV');
+        const target = parsePasvResponse(response.message);
+        const controlHost = this._normalizeControlHost(ftp.socket.remoteAddress);
+
+        let transferHost = target.host;
+        if (controlHost && this._shouldUseControlHostForPassiveTarget(target.host, controlHost)) {
+            transferHost = controlHost;
+            this._logPerf(`prepareTransfer -> PASV host corrected ${target.host} -> ${transferHost}`);
+        }
+
+        await connectForPassiveTransfer(transferHost, target.port, ftp);
+        return response;
+    }
+
+    private _shouldUseControlHostForPassiveTarget(targetHost: string, controlHost: string): boolean {
+        const normalizedTargetHost = this._normalizeControlHost(targetHost) ?? targetHost;
+        const normalizedControlHost = this._normalizeControlHost(controlHost) ?? controlHost;
+
+        return this._isUnusablePassiveHost(normalizedTargetHost)
+            || (ipIsPrivateV4Address(normalizedTargetHost) && !ipIsPrivateV4Address(normalizedControlHost));
+    }
+
+    private _isUnusablePassiveHost(host: string): boolean {
+        return host === '0.0.0.0'
+            || host === '::'
+            || host === '::1'
+            || host.startsWith('127.');
+    }
+
+    private _normalizeControlHost(host: string | undefined): string | undefined {
+        if (!host) {
+            return undefined;
+        }
+
+        return host.startsWith('::ffff:')
+            ? host.slice('::ffff:'.length)
+            : host;
+    }
+
+    private _getKeepaliveIntervalMs(): number {
+        return this._config.keepaliveInterval && this._config.keepaliveInterval > 0
+            ? this._config.keepaliveInterval * 1000
+            : 0;
+    }
+
+    private _startKeepalive(): void {
+        const intervalMs = this._getKeepaliveIntervalMs();
+        if (intervalMs <= 0 || this._keepaliveTimer) {
+            return;
+        }
+
+        this._keepaliveTimer = setInterval(() => {
+            void this._maybeSendKeepalive();
+        }, intervalMs);
+    }
+
+    private _stopKeepalive(): void {
+        if (this._keepaliveTimer) {
+            clearInterval(this._keepaliveTimer);
+            this._keepaliveTimer = null;
+        }
+        this._keepalivePending = false;
+    }
+
+    private _touchActivity(): void {
+        this._lastActivityAt = Date.now();
+    }
+
+    private async _maybeSendKeepalive(): Promise<void> {
+        const intervalMs = this._getKeepaliveIntervalMs();
+        if (
+            intervalMs <= 0
+            || !this._connected
+            || this._keepalivePending
+            || this._queueRunning
+            || this._hasQueuedOperations()
+            || Date.now() - this._lastActivityAt < intervalMs
+        ) {
+            return;
+        }
+
+        this._keepalivePending = true;
+        try {
+            await this._enqueue('noop keepalive', async (client) => {
+                await client.sendIgnoringError('NOOP');
+            }, { source: 'keepalive' });
+        } catch (err) {
+            this._logPerf(`keepalive noop failed: ${this._perf?.formatError(err) ?? String(err)}`);
+        } finally {
+            this._keepalivePending = false;
+        }
     }
 
     /**

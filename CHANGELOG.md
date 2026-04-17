@@ -5,6 +5,14 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.1] - 2026-04-17
+
+### Fixed
+- **FTP Explorer now prioritizes user browsing over background traffic** — FTP queueing now distinguishes user reads from probe and watch activity, so folder expansion is less likely to wait behind background listings.
+- **FTP startup probe bootstrap is less intrusive** — root preload for probe-path inference now runs through a dedicated low-priority path instead of competing with normal Explorer browsing.
+- **FTP/FTPS idle sessions stay alive more reliably** — the existing per-connection `keepaliveInterval` setting now also drives FTP `NOOP` keepalive, reducing unnecessary reconnects after short idle periods.
+- **FTP passive transfers are more robust behind NAT and misconfigured servers** — the transfer strategy is cached per connection and passive-mode host selection now falls back to the control host when the server returns an unusable PASV address.
+
 ## [3.4.0] - 2026-04-16
 
 ### Added

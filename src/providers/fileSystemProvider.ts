@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { RemoteOperationSource } from '../adapters/adapter';
 import { ConnectionPool } from '../services/connectionPool';
 import { ConnectionManager } from '../services/connectionManager';
 import { CacheService } from '../services/cacheService';
@@ -47,6 +48,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
     private readonly _watchers = new Map<string, { interval: ReturnType<typeof setInterval>; dispose: () => void; refCount: number }>();
     private readonly _pendingStats = new Map<string, Promise<vscode.FileStat>>();
     private readonly _pendingDirectories = new Map<string, Promise<[string, vscode.FileType][]>>();
+    private readonly _pendingProbeDirectories = new Map<string, Promise<[string, vscode.FileType][]>>();
     private readonly _pendingFiles = new Map<string, Promise<Uint8Array>>();
     private readonly _pathMutationVersions = new Map<string, number>();
     private _mutationVersion = 0;
@@ -122,7 +124,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
                             watchMode = (cachedStat.type & vscode.FileType.Directory) !== 0 ? 'directory' : 'skip';
                         } else {
                             try {
-                                const stat = await adapter.stat(remotePath);
+                                const stat = await adapter.stat(remotePath, { source: 'watch' });
                                 this._cache.setStat(cacheKey, stat);
                                 watchMode = (stat.type & vscode.FileType.Directory) !== 0 ? 'directory' : 'skip';
                             } catch (err) {
@@ -143,7 +145,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
                     this._logPerf(connectionId, `fsp watch ${remotePath} -> resolved as directory`);
                 }
 
-                const entries = await adapter.readDirectory(remotePath);
+                const entries = await adapter.readDirectory(remotePath, { source: 'watch' });
                 if (this._getMutationVersion(cacheKey) !== mutationVersionAtStart) {
                     return;
                 }
@@ -239,7 +241,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
 
                 const adapter = await this._getAdapter(connectionId, `stat ${remotePath}`);
                 const adapterStart = Date.now();
-                const stat = await adapter.stat(remotePath);
+                const stat = await adapter.stat(remotePath, { source: 'user' });
 
                 this._cache.setStat(cacheKey, stat);
                 this._logPerf(connectionId, `fsp stat ${remotePath} -> cache miss, adapter ${Date.now() - adapterStart}ms, total ${Date.now() - start}ms`);
@@ -262,53 +264,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
     async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
         const start = Date.now();
         const { connectionId, remotePath } = parseRemoteUri(uri);
-        const cacheKey = this._cache.makeKey(connectionId, remotePath);
-
-        if (this._cache.getNotFound(cacheKey)) {
-            this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> cached not-found (${Date.now() - start}ms)`);
-            throw vscode.FileSystemError.FileNotFound(uri);
-        }
-
-        // Check cache first
-        const cached = this._cache.getDirectory(cacheKey);
-        if (cached) {
-            this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> cache hit (${Date.now() - start}ms, ${cached.length} entries)`);
-            return cached as [string, vscode.FileType][];
-        }
-
-        const pending = this._pendingDirectories.get(cacheKey);
-        if (pending) {
-            this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> pending hit (${Date.now() - start}ms)`);
-            return pending;
-        }
-
-        const request = (async () => {
-            try {
-                await this._awaitProbeContext(connectionId, remotePath, cacheKey);
-                if (this._cache.getNotFound(cacheKey)) {
-                    this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> inferred not-found (${Date.now() - start}ms)`);
-                    throw vscode.FileSystemError.FileNotFound(uri);
-                }
-
-                const adapter = await this._getAdapter(connectionId, `readDirectory ${remotePath}`);
-                const adapterStart = Date.now();
-                const entries = await adapter.readDirectory(remotePath);
-                const result = this._cacheDirectoryEntries(connectionId, remotePath, cacheKey, entries);
-                this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> cache miss, adapter ${Date.now() - adapterStart}ms, total ${Date.now() - start}ms, ${result.length} entries`);
-                return result;
-            } catch (err) {
-                if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
-                    this._cache.setNotFound(cacheKey);
-                }
-                this._logPerf(connectionId, `fsp readDirectory ${remotePath} -> failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
-                throw err;
-            } finally {
-                this._pendingDirectories.delete(cacheKey);
-            }
-        })();
-
-        this._pendingDirectories.set(cacheKey, request);
-        return request;
+        return this._readDirectoryWithSource(connectionId, remotePath, 'user', start);
     }
 
     async readFile(uri: vscode.Uri): Promise<Uint8Array> {
@@ -342,7 +298,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
                 }
 
                 const adapter = await this._getAdapter(connectionId, `readFile ${remotePath}`);
-                const content = await adapter.readFile(remotePath);
+                const content = await adapter.readFile(remotePath, { source: 'user' });
 
                 this._cache.setContent(cacheKey, content);
                 return content;
@@ -443,7 +399,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
             await adapter.copy(src.remotePath, dst.remotePath, options);
         } else {
             // Fallback: read + write (permissions not preserved)
-            const content = await adapter.readFile(src.remotePath);
+            const content = await adapter.readFile(src.remotePath, { source: 'user' });
             await adapter.writeFile(dst.remotePath, content, { create: true, overwrite: options.overwrite });
         }
 
@@ -500,6 +456,67 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
                 vscode.l10n.t('Connection failed: {0}', message)
             );
         }
+    }
+
+    private async _readDirectoryWithSource(
+        connectionId: string,
+        remotePath: string,
+        source: Extract<RemoteOperationSource, 'user' | 'probe'>,
+        start = Date.now()
+    ): Promise<[string, vscode.FileType][]> {
+        const cacheKey = this._cache.makeKey(connectionId, remotePath);
+        const pendingMap = source === 'probe' ? this._pendingProbeDirectories : this._pendingDirectories;
+        const uri = buildRemoteUri(connectionId, remotePath);
+
+        if (this._cache.getNotFound(cacheKey)) {
+            this._logPerf(connectionId, `fsp readDirectory ${remotePath} [${source}] -> cached not-found (${Date.now() - start}ms)`);
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
+
+        const cached = this._cache.getDirectory(cacheKey);
+        if (cached) {
+            this._logPerf(connectionId, `fsp readDirectory ${remotePath} [${source}] -> cache hit (${Date.now() - start}ms, ${cached.length} entries)`);
+            return cached as [string, vscode.FileType][];
+        }
+
+        const pending = pendingMap.get(cacheKey);
+        if (pending) {
+            this._logPerf(connectionId, `fsp readDirectory ${remotePath} [${source}] -> pending hit (${Date.now() - start}ms)`);
+            return pending;
+        }
+
+        let request: Promise<[string, vscode.FileType][]>;
+        request = (async () => {
+            try {
+                if (source === 'user') {
+                    await this._awaitProbeContext(connectionId, remotePath, cacheKey);
+                    if (this._cache.getNotFound(cacheKey)) {
+                        this._logPerf(connectionId, `fsp readDirectory ${remotePath} [${source}] -> inferred not-found (${Date.now() - start}ms)`);
+                        throw vscode.FileSystemError.FileNotFound(uri);
+                    }
+                }
+
+                const adapter = await this._getAdapter(connectionId, `readDirectory ${remotePath} [${source}]`);
+                const adapterStart = Date.now();
+                const entries = await adapter.readDirectory(remotePath, { source });
+                const result = this._cacheDirectoryEntries(connectionId, remotePath, cacheKey, entries);
+                this._logPerf(connectionId, `fsp readDirectory ${remotePath} [${source}] -> cache miss, adapter ${Date.now() - adapterStart}ms, total ${Date.now() - start}ms, ${result.length} entries`);
+                return result;
+            } catch (err) {
+                if (err instanceof vscode.FileSystemError && err.code === 'FileNotFound') {
+                    this._cache.setNotFound(cacheKey);
+                }
+                this._logPerf(connectionId, `fsp readDirectory ${remotePath} [${source}] -> failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
+                throw err;
+            } finally {
+                if (pendingMap.get(cacheKey) === request) {
+                    pendingMap.delete(cacheKey);
+                }
+            }
+        })();
+
+        pendingMap.set(cacheKey, request);
+        return request;
     }
 
     private _cacheDirectoryEntries(
@@ -564,9 +581,10 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
         await Promise.resolve();
 
         const rootCacheKey = this._cache.makeKey(connectionId, rootPath);
-        let pendingRootDirectory = this._pendingDirectories.get(rootCacheKey);
+        let pendingRootDirectory = this._pendingDirectories.get(rootCacheKey)
+            ?? this._pendingProbeDirectories.get(rootCacheKey);
         if (!this._cache.getDirectory(rootCacheKey) && !pendingRootDirectory) {
-            pendingRootDirectory = this.readDirectory(buildRemoteUri(connectionId, rootPath));
+            pendingRootDirectory = this._readDirectoryWithSource(connectionId, rootPath, 'probe');
         }
 
         if (pendingRootDirectory) {
@@ -661,6 +679,7 @@ export class RemoteBridgeFileSystemProvider implements vscode.FileSystemProvider
         this._watchers.clear();
         this._pendingStats.clear();
         this._pendingDirectories.clear();
+        this._pendingProbeDirectories.clear();
         this._pendingFiles.clear();
         this._pathMutationVersions.clear();
         this._onDidChangeFile.dispose();

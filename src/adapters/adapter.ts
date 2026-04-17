@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import { RemoteFileInfo, RemoteFileStat, ExecResult } from '../types/connection';
 
+export type RemoteOperationSource = 'user' | 'probe' | 'watch' | 'keepalive';
+
+export interface RemoteOperationOptions {
+    source?: RemoteOperationSource;
+}
+
 /**
  * Abstract interface for remote file system adapters.
  * Implemented by SshAdapter (SSH/SFTP) and FtpAdapter (FTP/FTPS).
@@ -21,19 +27,19 @@ export interface RemoteAdapter extends vscode.Disposable {
     // ─── File System Operations ──────────────────────────────────
 
     /** Get file/directory metadata. */
-    stat(remotePath: string): Promise<RemoteFileStat>;
+    stat(remotePath: string, options?: RemoteOperationOptions): Promise<RemoteFileStat>;
 
     /** List directory contents. */
-    readDirectory(remotePath: string): Promise<RemoteFileInfo[]>;
+    readDirectory(remotePath: string, options?: RemoteOperationOptions): Promise<RemoteFileInfo[]>;
 
     /** Read entire file content. */
-    readFile(remotePath: string): Promise<Uint8Array>;
+    readFile(remotePath: string, options?: RemoteOperationOptions): Promise<Uint8Array>;
 
     /**
      * Read a byte range from a file (for efficient partial reads).
      * If not supported, falls back to reading the entire file and slicing.
      */
-    readFileRange(remotePath: string, start: number, end: number): Promise<Uint8Array>;
+    readFileRange(remotePath: string, start: number, end: number, options?: RemoteOperationOptions): Promise<Uint8Array>;
 
     /** Write content to a file (create or overwrite). */
     writeFile(remotePath: string, content: Uint8Array, options: { create: boolean; overwrite: boolean }): Promise<void>;

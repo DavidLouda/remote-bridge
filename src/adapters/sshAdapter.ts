@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import * as fs from 'fs';
-import { RemoteAdapter } from './adapter';
+import { RemoteAdapter, RemoteOperationOptions } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
 import { PerfLogger } from '../services/perfLogger';
@@ -203,7 +203,7 @@ export class SshAdapter implements RemoteAdapter {
 
     // ─── File System Operations ──────────────────────────────────
 
-    async stat(remotePath: string): Promise<RemoteFileStat> {
+    async stat(remotePath: string, _options?: RemoteOperationOptions): Promise<RemoteFileStat> {
         const sftp = this._requireSftp();
         const start = Date.now();
         return new Promise((resolve, reject) => {
@@ -244,7 +244,7 @@ export class SshAdapter implements RemoteAdapter {
         });
     }
 
-    async readDirectory(remotePath: string): Promise<RemoteFileInfo[]> {
+    async readDirectory(remotePath: string, _options?: RemoteOperationOptions): Promise<RemoteFileInfo[]> {
         const sftp = this._requireSftp();
         const start = Date.now();
         return new Promise((resolve, reject) => {
@@ -269,7 +269,7 @@ export class SshAdapter implements RemoteAdapter {
         });
     }
 
-    async readFile(remotePath: string): Promise<Uint8Array> {
+    async readFile(remotePath: string, _options?: RemoteOperationOptions): Promise<Uint8Array> {
         const sftp = this._requireSftp();
         return new Promise((resolve, reject) => {
             const chunks: Buffer[] = [];
@@ -287,7 +287,7 @@ export class SshAdapter implements RemoteAdapter {
         });
     }
 
-    async readFileRange(remotePath: string, start: number, end: number): Promise<Uint8Array> {
+    async readFileRange(remotePath: string, start: number, end: number, _options?: RemoteOperationOptions): Promise<Uint8Array> {
         const sftp = this._requireSftp();
         return new Promise((resolve, reject) => {
             const chunks: Buffer[] = [];
