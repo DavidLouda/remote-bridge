@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "Durée de validité des entrées de répertoire et attributs de fichiers en cache (en secondes)",
   "config.cache.maxSize.description": "Taille maximale du cache de contenu de fichiers (en Mo)",
-  "config.pool.idleTimeout.description": "Temps en secondes avant la fermeture des connexions inactives",
+  "config.pool.idleTimeout.description": "Temps en minutes avant la fermeture des connexions inactives",
   "config.pool.maxConnections.description": "Nombre maximum de connexions simultanées",
   "config.security.syncConnections.description": "(Beta) Intègre les secrets dans le magasin chiffré afin que les connexions (y compris les mots de passe) se synchronisent entre les appareils via la synchronisation des paramètres VS Code. Nécessite un mot de passe maître activé. Le même mot de passe maître doit être défini sur tous les appareils. Remarque : Cette fonctionnalité peut ne pas fonctionner de manière fiable dans tous les scénarios et dépend de la synchronisation VS Code active et fonctionnant correctement.",
-  "config.watch.pollInterval.description": "Intervalle de sondage pour les observateurs du système de fichiers (en millisecondes)",
+  "config.watch.pollInterval.description": "Intervalle de sondage pour les observateurs du système de fichiers (en secondes)",
   "config.files.temporaryWritePermission.description": "Lorsque cette option est activée, l'extension ajoute temporairement l'autorisation d'écriture aux fichiers distants en lecture seule avant de les enregistrer, puis restaure les autorisations d'origine. Pris en charge pour SSH/SFTP et FTP/FTPS.",
 
   "chat.command.connect.description": "Se connecter à un serveur distant par nom",

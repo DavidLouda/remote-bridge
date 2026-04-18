@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "Gültigkeitsdauer für zwischengespeicherte Verzeichniseinträge und Dateiattribute (in Sekunden)",
   "config.cache.maxSize.description": "Maximale Größe des Dateiinhalt-Caches (in MB)",
-  "config.pool.idleTimeout.description": "Zeit in Sekunden, bevor inaktive Verbindungen geschlossen werden",
+  "config.pool.idleTimeout.description": "Zeit in Minuten, bevor inaktive Verbindungen geschlossen werden",
   "config.pool.maxConnections.description": "Maximale Anzahl gleichzeitiger Verbindungen",
   "config.security.syncConnections.description": "(Beta) Bündelt Geheimnisse im verschlüsselten Speicher, damit Verbindungen (einschließlich Passwörter) geräteübergreifend über die VS Code Settings Sync synchronisiert werden. Erfordert ein aktiviertes Master-Passwort. Auf allen Geräten muss dasselbe Master-Passwort festgelegt sein. Hinweis: Diese Funktion funktioniert möglicherweise nicht in allen Szenarien zuverlässig und ist von einer aktiven und korrekt funktionierenden VS Code-Synchronisierung abhängig.",
-  "config.watch.pollInterval.description": "Abfrageintervall für Dateisystem-Watcher (in Millisekunden)",
+  "config.watch.pollInterval.description": "Abfrageintervall für Dateisystem-Watcher (in Sekunden)",
   "config.files.temporaryWritePermission.description": "Wenn aktiviert, fügt die Erweiterung schreibgeschützten Remote-Dateien vor dem Speichern vorübergehend Schreibrechte hinzu und stellt danach die ursprünglichen Berechtigungen wieder her. Unterstützt bei SSH/SFTP und FTP/FTPS.",
 
   "chat.command.connect.description": "Mit einem entfernten Server nach Name verbinden",

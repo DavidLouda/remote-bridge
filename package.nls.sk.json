@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "Doba platnosti záznamov adresárov a atribútov súborov v cache (v sekundách)",
   "config.cache.maxSize.description": "Maximálna veľkosť cache obsahu súborov (v MB)",
-  "config.pool.idleTimeout.description": "Čas v sekundách pred uzavretím neaktívnych pripojení",
+  "config.pool.idleTimeout.description": "Čas v minútach pred uzavretím neaktívnych pripojení",
   "config.pool.maxConnections.description": "Maximálny počet súčasných pripojení",
   "config.security.syncConnections.description": "(Beta) Zahrnie heslá do šifrovaného úložiska, aby sa pripojenia (vrátane hesiel) synchronizovali napriec zariadeniami cez VS Code Settings Sync. Vyžaduje aktivé hlavné heslo. Na všetkých zariadeniach musí byť nastavené rovnaké hlavné heslo. Upozornenie: Táto funkcia nemusí fungovať spoloľivo vo všetkých scenaroch a závisí od aktivíty a správneho fungovania synchronizácie VS Code.",
-  "config.watch.pollInterval.description": "Interval dotazovania pre sledovače súborového systému (v milisekundách)",
+  "config.watch.pollInterval.description": "Interval dotazovania pre sledovače súborového systému (v sekundách)",
   "config.files.temporaryWritePermission.description": "Keď je povolené, rozšírenie pred uložením dočasne pridá právo zápisu k vzdáleným súborom len na čítanie a potom obnoví pôvodné oprávnenia. Podporované pre SSH/SFTP a FTP/FTPS.",
 
   "chat.command.connect.description": "Pripojiť sa k vzdialenému serveru podľa názvu",

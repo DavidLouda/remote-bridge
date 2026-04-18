@@ -19,12 +19,23 @@
  * - Linux / macOS: wraps in single quotes, escaping embedded `'`.
  * - Windows (PowerShell): wraps in single quotes, doubling embedded `'`.
  */
-export function esc(path: string, os: RemoteOS = 'linux'): string {    if (/[\x00-\x1f\x7f]/.test(path)) {
+export function esc(path: string, os: RemoteOS = 'linux'): string {
+    if (/[\x00-\x1f\x7f]/.test(path)) {
         throw new Error(`Path contains invalid control characters: ${JSON.stringify(path)}`);
-    }    if (os === 'windows') {
+    }
+    if (os === 'windows') {
         return `'${path.replace(/'/g, "''")}'`;
     }
     return `'${path.replace(/'/g, "'\\''")}'`;
+}
+
+// ─── current directory detection ───────────────────────────────────
+
+export function detectCurrentDirectory(os: RemoteOS = 'linux'): string {
+    if (os === 'windows') {
+        return 'Write-Output (Get-Location).ProviderPath';
+    }
+    return 'pwd -P';
 }
 
 // ─── rm -rf ─────────────────────────────────────────────────────────

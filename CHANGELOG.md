@@ -5,6 +5,11 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.2] - 2026-04-18
+
+### Added
+- **SSH/SFTP Remote Path detection** — the connection form now includes a Detect button next to Remote Path that resolves the accessible login directory automatically for SSH/SFTP connections. The detection prefers the SFTP session's current directory and falls back to shell-based discovery only when needed.
+
 ## [3.4.1] - 2026-04-17
 
 ### Fixed

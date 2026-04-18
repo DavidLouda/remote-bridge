@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "Tiempo de validez de las entradas de directorio y atributos de archivos en caché (en segundos)",
   "config.cache.maxSize.description": "Tamaño máximo de la caché de contenido de archivos (en MB)",
-  "config.pool.idleTimeout.description": "Tiempo en segundos antes de cerrar conexiones inactivas",
+  "config.pool.idleTimeout.description": "Tiempo en minutos antes de cerrar conexiones inactivas",
   "config.pool.maxConnections.description": "Número máximo de conexiones simultáneas",
   "config.security.syncConnections.description": "(Beta) Incluye las credenciales en el almacén cifrado para que las conexiones (incluidas las contraseñas) se sincronicen entre dispositivos mediante la sincronización de configuración de VS Code. Requiere que el cifrado con contraseña maestra esté habilitado. La misma contraseña maestra debe configurarse en todos los dispositivos. Nota: Esta función puede no funcionar de manera confiable en todos los escenarios y depende de que la sincronización de VS Code esté activa y funcionando correctamente.",
-  "config.watch.pollInterval.description": "Intervalo de sondeo para los observadores del sistema de archivos (en milisegundos)",
+  "config.watch.pollInterval.description": "Intervalo de sondeo para los observadores del sistema de archivos (en segundos)",
   "config.files.temporaryWritePermission.description": "Cuando está habilitado, la extensión agrega temporalmente permisos de escritura a los archivos remotos de solo lectura antes de guardarlos y luego restaura los permisos originales. Compatible con SSH/SFTP y FTP/FTPS.",
 
   "chat.command.connect.description": "Conectarse a un servidor remoto por nombre",

@@ -174,6 +174,10 @@ export class ConnectionFormPanel {
                 await this._handleTest(msg.data as Record<string, unknown>);
                 break;
 
+            case 'detectHome':
+                await this._handleDetectHome(msg.data as Record<string, unknown>);
+                break;
+
             case 'browseKey':
                 await this._handleBrowseKey();
                 break;
@@ -260,62 +264,14 @@ export class ConnectionFormPanel {
 
     private async _handleTest(data: Record<string, unknown>): Promise<void> {
         try {
-            const protocol = data.protocol as ConnectionProtocol;
-            let password = (data.password as string) || '';
-            let passphrase = (data.passphrase as string) || '';
-            let proxyPassword = '';
-            let jumpPassword = '';
-            let jumpPassphrase = '';
+            await this._withTempAdapter(data, async () => undefined);
 
-            // When editing an existing connection, the password/passphrase fields
-            // in the form are intentionally left empty (credentials live in
-            // SecretStorage). Fall back to stored secrets so the test can succeed.
-            if (this._editingId) {
-                if (!password) {
-                    password = (await this._secrets.get(secretKeyForPassword(this._editingId))) ?? '';
-                }
-                if (!passphrase) {
-                    passphrase = (await this._secrets.get(secretKeyForPassphrase(this._editingId))) ?? '';
-                }
-                proxyPassword = (await this._secrets.get(secretKeyForProxyPassword(this._editingId))) ?? '';
-                jumpPassword = (await this._secrets.get(secretKeyForJumpPassword(this._editingId))) ?? '';
-                jumpPassphrase = (await this._secrets.get(secretKeyForJumpPassphrase(this._editingId))) ?? '';
-            }
-
-            const tempConfig: ConnectionConfig = {
-                id: `test-${generateId()}`,
-                sortOrder: 0,
-                ...this._mapFormToConfig(data),
-            };
-
-            const getPassword = async () => password;
-            const getPassphrase = async () => passphrase;
-            const getProxyPassword = async () => proxyPassword || undefined;
-            const getJumpPassword = async () => jumpPassword || undefined;
-            const getJumpPassphrase = async () => jumpPassphrase || undefined;
-
-            let adapter: SshAdapter | FtpAdapter;
-            if (protocol === 'ssh' || protocol === 'sftp') {
-                adapter = new SshAdapter(tempConfig, getPassword, getPassphrase, getProxyPassword, undefined, getJumpPassword, getJumpPassphrase);
-            } else {
-                adapter = new FtpAdapter(tempConfig, getPassword, getProxyPassword);
-            }
-
-            try {
-                await adapter.connect();
-                await adapter.disconnect();
-                adapter.dispose();
-
-                await this._panel.webview.postMessage({
-                    type: 'testResult',
-                    success: true,
-                    message: vscode.l10n.t('Connection successful!'),
-                    labels: { testBtn: vscode.l10n.t('Test Connection') },
-                });
-            } catch (err) {
-                adapter.dispose();
-                throw err;
-            }
+            await this._panel.webview.postMessage({
+                type: 'testResult',
+                success: true,
+                message: vscode.l10n.t('Connection successful!'),
+                labels: { testBtn: vscode.l10n.t('Test Connection') },
+            });
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             await this._panel.webview.postMessage({
@@ -325,6 +281,91 @@ export class ConnectionFormPanel {
                 labels: { testBtn: vscode.l10n.t('Test Connection') },
             });
         }
+    }
+
+    private async _handleDetectHome(data: Record<string, unknown>): Promise<void> {
+        try {
+            const protocol = data.protocol as ConnectionProtocol;
+            if (protocol !== 'ssh' && protocol !== 'sftp') {
+                throw new Error(vscode.l10n.t('Home directory detection is only available for SSH/SFTP connections.'));
+            }
+
+            const detectedPath = await this._withTempAdapter(data, async (adapter) => {
+                if (!(adapter instanceof SshAdapter)) {
+                    throw new Error(vscode.l10n.t('Home directory detection is only available for SSH/SFTP connections.'));
+                }
+                return adapter.detectHomeDirectory();
+            });
+
+            await this._panel.webview.postMessage({
+                type: 'detectHomeResult',
+                success: true,
+                path: detectedPath,
+                message: vscode.l10n.t('Home directory detected: {0}', detectedPath),
+                labels: { detectHomeBtn: vscode.l10n.t('Detect') },
+            });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            await this._panel.webview.postMessage({
+                type: 'detectHomeResult',
+                success: false,
+                message: vscode.l10n.t('Home directory detection failed: {0}', message),
+                labels: { detectHomeBtn: vscode.l10n.t('Detect') },
+            });
+        }
+    }
+
+    private async _withTempAdapter<T>(
+        data: Record<string, unknown>,
+        handler: (adapter: SshAdapter | FtpAdapter) => Promise<T>
+    ): Promise<T> {
+        const adapter = await this._createTempAdapter(data);
+        try {
+            await adapter.connect();
+            return await handler(adapter);
+        } finally {
+            await adapter.disconnect().catch(() => undefined);
+            adapter.dispose();
+        }
+    }
+
+    private async _createTempAdapter(data: Record<string, unknown>): Promise<SshAdapter | FtpAdapter> {
+        const protocol = data.protocol as ConnectionProtocol;
+        let password = (data.password as string) || '';
+        let passphrase = (data.passphrase as string) || '';
+        let proxyPassword = '';
+        let jumpPassword = '';
+        let jumpPassphrase = '';
+
+        if (this._editingId) {
+            if (!password) {
+                password = (await this._secrets.get(secretKeyForPassword(this._editingId))) ?? '';
+            }
+            if (!passphrase) {
+                passphrase = (await this._secrets.get(secretKeyForPassphrase(this._editingId))) ?? '';
+            }
+            proxyPassword = (await this._secrets.get(secretKeyForProxyPassword(this._editingId))) ?? '';
+            jumpPassword = (await this._secrets.get(secretKeyForJumpPassword(this._editingId))) ?? '';
+            jumpPassphrase = (await this._secrets.get(secretKeyForJumpPassphrase(this._editingId))) ?? '';
+        }
+
+        const tempConfig: ConnectionConfig = {
+            id: `temp-${generateId()}`,
+            sortOrder: 0,
+            ...this._mapFormToConfig(data),
+        };
+
+        const getPassword = async () => password;
+        const getPassphrase = async () => passphrase;
+        const getProxyPassword = async () => proxyPassword || undefined;
+        const getJumpPassword = async () => jumpPassword || undefined;
+        const getJumpPassphrase = async () => jumpPassphrase || undefined;
+
+        if (protocol === 'ssh' || protocol === 'sftp') {
+            return new SshAdapter(tempConfig, getPassword, getPassphrase, getProxyPassword, undefined, getJumpPassword, getJumpPassphrase);
+        }
+
+        return new FtpAdapter(tempConfig, getPassword, getProxyPassword);
     }
 
     // ─── Browse key ─────────────────────────────────────────────
@@ -464,7 +505,10 @@ export class ConnectionFormPanel {
             formTitle: this._panel.title,
             saveBtn: vscode.l10n.t('Save'),
             testBtn: vscode.l10n.t('Test Connection'),
+            detectHomeBtn: vscode.l10n.t('Detect'),
+            detectHomeTitle: vscode.l10n.t('Detect the home or login directory automatically'),
             testingBtn: vscode.l10n.t('Testing…'),
+            detectingHomeBtn: vscode.l10n.t('Detecting…'),
             cancelBtn: vscode.l10n.t('Cancel'),
             browseKeyBtn: vscode.l10n.t('Browse…'),
 
@@ -524,6 +568,7 @@ export class ConnectionFormPanel {
             labelPermissionsNone: vscode.l10n.t('(server default)'),
 
             hintRemotePath: vscode.l10n.t('Default directory opened when connecting'),
+            hintRemotePathSsh: vscode.l10n.t('Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.'),
             hintAgent: vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows'),
             hintPassword: vscode.l10n.t('Stored securely in VS Code SecretStorage'),
             hintOs: vscode.l10n.t('Determines which shell commands are used for remote operations'),
@@ -556,6 +601,8 @@ export class ConnectionFormPanel {
             formTitle: escapeHtml(this._panel.title),
             saveBtn: escapeHtml(vscode.l10n.t('Save')),
             testBtn: escapeHtml(vscode.l10n.t('Test Connection')),
+            detectHomeBtn: escapeHtml(vscode.l10n.t('Detect')),
+            detectHomeTitle: escapeHtml(vscode.l10n.t('Detect the home or login directory automatically')),
             cancelBtn: escapeHtml(vscode.l10n.t('Cancel')),
             browseKeyBtn: escapeHtml(vscode.l10n.t('Browse…')),
 
@@ -615,6 +662,7 @@ export class ConnectionFormPanel {
             labelPermissionsNone: escapeHtml(vscode.l10n.t('(server default)')),
 
             hintRemotePath: escapeHtml(vscode.l10n.t('Default directory opened when connecting')),
+            hintRemotePathSsh: escapeHtml(vscode.l10n.t('Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.')),
             hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows')),
             hintPassword: escapeHtml(vscode.l10n.t('Stored securely in VS Code SecretStorage')),
             hintOs: escapeHtml(vscode.l10n.t('Determines which shell commands are used for remote operations')),
@@ -708,7 +756,10 @@ export class ConnectionFormPanel {
 
         <div class="form-group">
             <label id="labelRemotePath" for="remotePath">${s.labelRemotePath}</label>
-            <input type="text" id="remotePath" value="/" placeholder="/">
+            <div class="input-action-group">
+                <input type="text" id="remotePath" value="/" placeholder="/">
+                <button type="button" class="secondary" id="detectHomeBtn" title="${s.detectHomeTitle}" aria-label="${s.detectHomeTitle}">${s.detectHomeBtn}</button>
+            </div>
             <div class="hint" id="hintRemotePath">${s.hintRemotePath}</div>
         </div>
 

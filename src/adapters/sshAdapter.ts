@@ -470,6 +470,34 @@ export class SshAdapter implements RemoteAdapter {
 
     // ─── SSH-only Operations ─────────────────────────────────────
 
+    async detectHomeDirectory(): Promise<string> {
+        let lastError: Error | undefined;
+
+        try {
+            const sftpPath = await this._resolveAccessibleDetectedPath(await this._detectCurrentDirectoryViaSftp());
+            if (sftpPath) {
+                this._logPerf(`detectHomeDirectory -> resolved via SFTP as ${sftpPath}`);
+                return sftpPath;
+            }
+        } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            this._logPerf(`detectHomeDirectory -> SFTP detection failed: ${lastError.message}`);
+        }
+
+        try {
+            const execPath = await this._resolveAccessibleDetectedPath(await this._detectCurrentDirectoryViaExec());
+            if (execPath) {
+                this._logPerf(`detectHomeDirectory -> resolved via exec as ${execPath}`);
+                return execPath;
+            }
+        } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            this._logPerf(`detectHomeDirectory -> exec detection failed: ${lastError.message}`);
+        }
+
+        throw lastError ?? new Error(vscode.l10n.t('Could not detect an accessible remote path automatically.'));
+    }
+
     async exec(command: string): Promise<ExecResult> {
         const client = this._requireClient();
         return new Promise((resolve, reject) => {
@@ -567,6 +595,72 @@ export class SshAdapter implements RemoteAdapter {
             throw new Error(vscode.l10n.t('Not connected'));
         }
         return this._client;
+    }
+
+    private async _detectCurrentDirectoryViaSftp(): Promise<string> {
+        const sftp = this._requireSftp();
+        return new Promise((resolve, reject) => {
+            sftp.realpath('.', (err, absPath) => {
+                if (err) {
+                    reject(this._mapSftpError(err, '.'));
+                    return;
+                }
+                resolve(absPath);
+            });
+        });
+    }
+
+    private async _detectCurrentDirectoryViaExec(): Promise<string> {
+        const result = await this.exec(shell.detectCurrentDirectory(this._config.os ?? 'linux'));
+        if (result.exitCode !== 0) {
+            throw new Error(result.stderr.trim() || result.stdout.trim() || vscode.l10n.t('Could not detect an accessible remote path automatically.'));
+        }
+
+        const output = result.stdout.trim();
+        if (!output) {
+            throw new Error(vscode.l10n.t('Could not detect an accessible remote path automatically.'));
+        }
+
+        return output;
+    }
+
+    private async _resolveAccessibleDetectedPath(rawPath: string): Promise<string | undefined> {
+        for (const candidate of this._buildDetectedPathCandidates(rawPath)) {
+            if (!this._isAbsoluteDetectedPath(candidate)) {
+                continue;
+            }
+
+            try {
+                await this.readDirectory(candidate);
+                return candidate;
+            } catch {
+                // Try the next normalized candidate.
+            }
+        }
+
+        return undefined;
+    }
+
+    private _buildDetectedPathCandidates(rawPath: string): string[] {
+        const normalized = rawPath.trim().replace(/^(["'])(.*)\1$/, '$2');
+        if (!normalized) {
+            return [];
+        }
+
+        const candidates = new Set<string>([normalized]);
+        if ((this._config.os ?? 'linux') === 'windows') {
+            const slashPath = normalized.replace(/\\/g, '/');
+            candidates.add(slashPath);
+            if (/^[A-Za-z]:\//.test(slashPath)) {
+                candidates.add(`/${slashPath}`);
+            }
+        }
+
+        return [...candidates];
+    }
+
+    private _isAbsoluteDetectedPath(remotePath: string): boolean {
+        return remotePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(remotePath);
     }
 
     private async _exists(remotePath: string): Promise<boolean> {

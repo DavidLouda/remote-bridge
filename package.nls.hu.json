@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "A könyvtárbejegyzések és fájlattribútumok gyorsítótárának érvényességi ideje (másodpercben)",
   "config.cache.maxSize.description": "A fájltartalom-gyorsítótár maximális mérete (MB)",
-  "config.pool.idleTimeout.description": "Tétlen kapcsolatok lezárásáig eltelt idő (másodpercben)",
+  "config.pool.idleTimeout.description": "Tétlen kapcsolatok lezárásáig eltelt idő (percben)",
   "config.pool.maxConnections.description": "Egyidejű kapcsolatok maximális száma",
   "config.security.syncConnections.description": "(Beta) A titkokat a titkosított tárolóba csomagolja, hogy a kapcsolatok (beleértve a jelszavakat is) szinkronizálódjanak az eszközök között a VS Code Beállítások Sync segítségével. Mesterjelszavó titkosítás szükséges. Mindkét eszközön ugyanazt a mesterjelszavót kell beállítani. Megjegyzés: Ez a funkció nem mindig működik megbízhatóan és függ a VS Code szinkronizációjánától.",
-  "config.watch.pollInterval.description": "Fájlrendszer-figyelők lekérdezési időköze (milliszekundumban)",
+  "config.watch.pollInterval.description": "Fájlrendszer-figyelők lekérdezési időköze (másodpercben)",
   "config.files.temporaryWritePermission.description": "Ha engedélyezve van, a bővítmény mentés előtt ideiglenesen írási jogot ad az írásvédett távoli fájlokhoz, majd visszaállítja az eredeti engedélyeket. SSH/SFTP és FTP/FTPS esetén támogatott.",
 
   "chat.command.connect.description": "Csatlakozás távoli szerverhez név alapján",

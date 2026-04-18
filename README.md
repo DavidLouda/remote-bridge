@@ -63,6 +63,9 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 - Automatic **daily encrypted backups** — stored locally, never synced, with 7-day / 4-week retention
 - **Proxy support** — route connections through a SOCKS4, SOCKS5, or HTTP CONNECT proxy, configured per connection. Proxy credentials stored in VS Code SecretStorage alongside other secrets.
 
+### 🪵 Diagnostics
+- Optional **debug mode** — enable `remoteBridge.debug` to log performance timing, sync events, cache diagnostics, connection-pool activity, and FTP protocol dialogue to the **Remote Bridge** Output Channel.
+
 ### 🖥️ SSH Terminal
 - Open an **interactive SSH shell** directly in the VS Code integrated terminal
 - Full PTY support with window resizing
@@ -156,7 +159,7 @@ When adding or editing a connection, you'll see a form with these sections:
 | Host | Hostname or IP address of the server |
 | Port | Port number (auto-filled when switching protocol: SSH/SFTP → 22, FTP → 21, FTPS → 990) |
 | Username | Your login username |
-| Remote Path | Starting directory on the server (default: `/`) |
+| Remote Path | Starting directory on the server (default: `/`). For SSH/SFTP, use **Detect** to auto-fill the accessible home/login directory when needed. |
 | Operating System | Target OS — `Linux`, `macOS`, or `Windows` (affects shell commands) |
 
 **Authentication:**
@@ -174,6 +177,8 @@ When adding or editing a connection, you'll see a form with these sections:
 - **Jump Host (ProxyJump)** (SSH/SFTP only, Beta) — connect through a bastion / jump host using SSH port forwarding. Supports Password, Private Key, and SSH Agent authentication on the jump host. Cannot be combined with Proxy.
 - **Full SSH Access** (SSH/SFTP only) — allows the AI agent (`@bridge`) to read, search, and run commands outside the configured workspace root. Useful for server administration tasks: installing packages, editing system config files, managing services. Destructive commands remain blocked.
 - **Default permissions** — configure per-connection Unix permissions for newly created files and directories using a checkbox matrix. Leave all boxes unchecked to use the server default (`umask`).
+
+> **Tip:** Some shared hostings deny browsing `/` over SFTP even though login succeeds. In that case, use **Detect** next to **Remote Path** to fill the session's accessible home or login directory automatically.
 
 > **Note:** For FTP/FTPS over an HTTP CONNECT proxy, only the control connection is tunnelled. SOCKS4/5 proxies tunnel all traffic fully.
 
@@ -224,6 +229,7 @@ The remote server appears as a folder in VS Code's Explorer. You can:
 - **Change Permissions** — right-click any file or folder → **Change Permissions** to set Unix permissions in octal format (e.g. `755`). The current mode is pre-filled and shown in symbolic notation (e.g. `rw-r--r--`). Works on SSH/SFTP and FTP/FTPS.
 - **Preserve permissions on duplicate/copy** — copied remote files and folders keep the source permissions when the server/protocol supports reading and applying Unix modes.
 - **Apply default permissions on create** — newly created files and directories use the per-connection defaults from the connection form when configured; otherwise the server default (`umask`) is used.
+- **Temporary write permission on save** — when `remoteBridge.files.temporaryWritePermission` is enabled, saving a read-only remote file temporarily adds owner write permission and restores the original mode afterward. Supported on SSH/SFTP and FTP/FTPS.
 - **Drag & drop** files (upload/download is handled transparently)
 - **Search** across remote files using VS Code's built-in search (`Ctrl+Shift+F`)
 
@@ -376,10 +382,12 @@ If the backup was created with a different master password (e.g., after a passwo
 |---------|---------|-------------|
 | `remoteBridge.cache.ttl` | `30` | Cache TTL for file stats and directory listings (seconds) |
 | `remoteBridge.cache.maxSize` | `10` | Maximum file content cache size (MB) |
-| `remoteBridge.pool.idleTimeout` | `10` | Idle connection timeout (seconds) |
+| `remoteBridge.pool.idleTimeout` | `10` | Idle connection timeout (currently implemented in minutes) |
 | `remoteBridge.pool.maxConnections` | `10` | Maximum concurrent connections |
 | `remoteBridge.security.syncConnections` | `false` | Sync encrypted connections across devices via VS Code Settings Sync (requires master password) |
 | `remoteBridge.watch.pollInterval` | `5` | File system watcher polling interval (seconds) |
+| `remoteBridge.files.temporaryWritePermission` | `false` | Temporarily adds write permission to read-only remote files before saving, then restores the original permissions |
+| `remoteBridge.debug` | `false` | Enable debug logging to the **Remote Bridge** Output Channel (performance, sync, cache diagnostics, FTP protocol dialogue) |
 
 ## Architecture
 

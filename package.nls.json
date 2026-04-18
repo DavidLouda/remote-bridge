@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "Time-to-live for cached directory entries and file stats (in seconds)",
   "config.cache.maxSize.description": "Maximum size of the file content cache (in MB)",
-  "config.pool.idleTimeout.description": "Time in seconds before idle connections are closed",
+  "config.pool.idleTimeout.description": "Time in minutes before idle connections are closed",
   "config.pool.maxConnections.description": "Maximum number of concurrent connections",
   "config.security.syncConnections.description": "(Beta) Bundle secrets into the encrypted store so that connections (including passwords) sync across devices via VS Code Settings Sync. Requires master password encryption to be enabled. The same master password must be set on all devices. Note: This feature may not work reliably in all scenarios and depends on VS Code Settings Sync being active and functioning correctly.",
-  "config.watch.pollInterval.description": "Polling interval for file system watchers (in milliseconds)",
+  "config.watch.pollInterval.description": "Polling interval for file system watchers (in seconds)",
   "config.files.temporaryWritePermission.description": "When enabled, the extension temporarily adds write permission to read-only remote files before saving, then restores the original permissions. Supported for SSH/SFTP and FTP/FTPS.",
 
   "chat.participant.description": "Work with remote servers — read files, search, and run commands (SSH/SFTP/FTP)",

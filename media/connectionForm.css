@@ -136,11 +136,26 @@ textarea {
     gap: 6px;
 }
 
+.input-action-group {
+    display: flex;
+    gap: 6px;
+}
+
 .file-input-group input {
     flex: 1;
 }
 
+.input-action-group input {
+    flex: 1;
+}
+
 .file-input-group button {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    white-space: nowrap;
+}
+
+.input-action-group button {
     flex-shrink: 0;
     padding: 5px 10px;
     white-space: nowrap;

@@ -45,10 +45,10 @@
 
   "config.cache.ttl.description": "目录条目和文件属性的缓存有效期（秒）",
   "config.cache.maxSize.description": "文件内容缓存的最大大小（MB）",
-  "config.pool.idleTimeout.description": "空闲连接关闭前的等待时间（秒）",
+  "config.pool.idleTimeout.description": "空闲连接关闭前的等待时间（分钟）",
   "config.pool.maxConnections.description": "最大并发连接数",
   "config.security.syncConnections.description": "(Beta) 将密鑰捆绑到加密存储中，以便通过 VS Code 设置同步在设备间同步连接（包括密码）。需要启用主密码加密。所有设备必须设置相同的主密码。注意：此功能在所有场景下可能无法可靠地工作，并且取决于 VS Code 设置同步是否处于活动状态且正常运行。",
-  "config.watch.pollInterval.description": "文件系统监视器的轮询间隔（毫秒）",
+  "config.watch.pollInterval.description": "文件系统监视器的轮询间隔（秒）",
   "config.files.temporaryWritePermission.description": "启用后，扩展在保存前会临时为只读远程文件添加写权限，保存后恢复原始权限。支持 SSH/SFTP 和 FTP/FTPS。",
 
   "chat.command.connect.description": "按名称连接到远程服务器",

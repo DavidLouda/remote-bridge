@@ -23,6 +23,8 @@
     const secureCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('secure'));
     const allowSelfSignedCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('allowSelfSigned'));
     const fullSshAccessCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('fullSshAccess'));
+    const remotePathInput = /** @type {HTMLInputElement} */ (document.getElementById('remotePath'));
+    const hintRemotePath = /** @type {HTMLElement} */ (document.getElementById('hintRemotePath'));
 
     // Conditional sections
     const passwordSection = /** @type {HTMLElement} */ (document.getElementById('passwordSection'));
@@ -35,6 +37,7 @@
     // Buttons
     const saveBtn = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
     const testBtn = /** @type {HTMLButtonElement} */ (document.getElementById('testBtn'));
+    const detectHomeBtn = /** @type {HTMLButtonElement} */ (document.getElementById('detectHomeBtn'));
     const cancelBtn = /** @type {HTMLButtonElement} */ (document.getElementById('cancelBtn'));
     const browseKeyBtn = /** @type {HTMLButtonElement} */ (document.getElementById('browseKeyBtn'));
 
@@ -43,6 +46,10 @@
 
     // Localized label for the testing state
     let testingLabel = 'Testing\u2026';
+    let detectingHomeLabel = 'Detecting\u2026';
+    let detectHomeTitle = 'Detect the home or login directory automatically';
+    let remotePathHintDefault = 'Default directory opened when connecting';
+    let remotePathHintSsh = 'Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.';
 
     // Track whether we're editing an existing connection
     let editingId = /** @type {string | null} */ (null);
@@ -58,8 +65,14 @@
             portInput.value = String(DEFAULT_PORTS[protocol]);
         }
 
-        // Show/hide FTP-specific fields
+        updateProtocolSections(protocol);
+    });
+
+    /** @param {string} protocol */
+    function updateProtocolSections(protocol) {
         const isFtp = protocol === 'ftp' || protocol === 'ftps';
+        const isSsh = protocol === 'ssh' || protocol === 'sftp';
+
         toggleVisibility(secureSection, isFtp);
         toggleVisibility(allowSelfSignedSection, isFtp);
 
@@ -69,20 +82,21 @@
             secureCheckbox.checked = false;
         }
 
-        // SSH-only auth methods
-        const isSsh = protocol === 'ssh' || protocol === 'sftp';
         updateAuthMethodOptions(isSsh);
 
-        // Show/hide SSH-only fields
         toggleVisibility(fullSshAccessSection, isSsh);
         toggleVisibility(jumpHostSection, isSsh);
+        toggleVisibility(detectHomeBtn, isSsh);
+        detectHomeBtn.title = detectHomeTitle;
+        detectHomeBtn.setAttribute('aria-label', detectHomeTitle);
+        hintRemotePath.textContent = isSsh ? remotePathHintSsh : remotePathHintDefault;
         if (!isSsh) {
             useJumpHostCheckbox.checked = false;
             toggleVisibility(jumpHostFields, false);
         }
 
         updateAuthSections();
-    });
+    }
 
     portInput.addEventListener('input', () => {
         portManuallyChanged = true;
@@ -252,6 +266,23 @@
         hideStatus();
     });
 
+    detectHomeBtn.addEventListener('click', () => {
+        if (!validateForm()) {
+            return;
+        }
+
+        const data = collectFormData();
+        vscode.postMessage({
+            type: 'detectHome',
+            data,
+        });
+
+        detectHomeBtn.disabled = true;
+        detectHomeBtn.innerHTML = '<span class="spinner"></span>';
+        detectHomeBtn.appendChild(document.createTextNode('\u00a0' + detectingHomeLabel));
+        hideStatus();
+    });
+
     // ─── Cancel ─────────────────────────────────────────────────
 
     cancelBtn.addEventListener('click', () => {
@@ -278,6 +309,19 @@
                 }
                 break;
 
+            case 'detectHomeResult':
+                detectHomeBtn.disabled = false;
+                detectHomeBtn.textContent = msg.labels?.detectHomeBtn || 'Detect';
+                if (msg.success) {
+                    if (typeof msg.path === 'string') {
+                        remotePathInput.value = msg.path;
+                    }
+                    showStatus('success', msg.message);
+                } else {
+                    showStatus('error', msg.message);
+                }
+                break;
+
             case 'saveResult':
                 saveBtn.disabled = false;
                 saveBtn.textContent = msg.labels?.saveBtn || 'Save';
@@ -297,10 +341,23 @@
                 if (msg.labels?.testingBtn) {
                     testingLabel = msg.labels.testingBtn;
                 }
+                if (msg.labels?.detectingHomeBtn) {
+                    detectingHomeLabel = msg.labels.detectingHomeBtn;
+                }
+                if (msg.labels?.detectHomeTitle) {
+                    detectHomeTitle = msg.labels.detectHomeTitle;
+                }
+                if (msg.labels?.hintRemotePath) {
+                    remotePathHintDefault = msg.labels.hintRemotePath;
+                }
+                if (msg.labels?.hintRemotePathSsh) {
+                    remotePathHintSsh = msg.labels.hintRemotePathSsh;
+                }
                 if (msg.labels?.labelPermissionsNone) {
                     labelPermissionsNone = msg.labels.labelPermissionsNone;
                     updatePermissionDisplay();
                 }
+                updateProtocolSections(protocolSelect.value);
                 break;
         }
     });
@@ -446,13 +503,7 @@
 
         // Trigger UI updates
         const isFtp = data.protocol === 'ftp' || data.protocol === 'ftps';
-        toggleVisibility(secureSection, isFtp);
-        toggleVisibility(allowSelfSignedSection, isFtp);
-        const isSsh = data.protocol === 'ssh' || data.protocol === 'sftp';
-        toggleVisibility(fullSshAccessSection, isSsh);
-        toggleVisibility(jumpHostSection, isSsh);
-        updateAuthMethodOptions(isSsh);
-        updateAuthSections();
+        updateProtocolSections(data.protocol);
     }
 
     // ─── Validation ─────────────────────────────────────────────
@@ -569,7 +620,7 @@
 
     // ─── Initial state ──────────────────────────────────────────
     updateAuthSections();
-    toggleVisibility(secureSection, false);
+    updateProtocolSections(protocolSelect.value);
     toggleVisibility(proxyFields, false);
 
     // Notify extension that webview is ready
