@@ -559,27 +559,24 @@ export class FtpAdapter implements RemoteAdapter {
 
     async delete(remotePath: string, options: { recursive: boolean }): Promise<void> {
         return this._enqueue(`delete ${remotePath}`, async (client) => {
-            const stats = await this._statRaw(client, remotePath);
+            const listedStat = await this._tryStatFromParentListingRaw(client, remotePath);
+            const stats = listedStat ?? await this._statRaw(client, remotePath);
 
             if (stats.type === vscode.FileType.Directory) {
-                if (!options.recursive) {
-                    // basic-ftp removeDir is always recursive, so we check if empty first
-                    const entries = await client.list(remotePath);
-                    const filtered = entries.filter(e => e.name !== '.' && e.name !== '..');
-                    if (filtered.length > 0) {
-                        throw vscode.FileSystemError.NoPermissions(
-                            vscode.l10n.t('Directory is not empty')
-                        );
-                    }
-                }
-                // basic-ftp's removeDir uses _exitAtCurrentDirectory which
-                // saves the current CWD and tries to cd back to it in finally.
-                // If CWD is the directory being deleted, that cd fails with 550.
-                // Move to root first so _exitAtCurrentDirectory restores to '/'.
-                await client.cd('/');
-                await client.removeDir(remotePath);
-            } else {
+                await this._deleteDirectoryRaw(client, remotePath, options);
+                return;
+            }
+
+            try {
                 await client.remove(remotePath);
+            } catch (err) {
+                const retryStat = listedStat ?? await this._tryStatFromParentListingRaw(client, remotePath);
+                if (retryStat?.type === vscode.FileType.Directory && this._isDirectoryLikeDeleteError(err)) {
+                    this._logPerf(`delete ${remotePath} -> retrying as directory after file delete error`);
+                    await this._deleteDirectoryRaw(client, remotePath, options);
+                    return;
+                }
+                throw err;
             }
         });
     }
@@ -767,6 +764,59 @@ export class FtpAdapter implements RemoteAdapter {
         } finally {
             this._keepalivePending = false;
         }
+    }
+
+    private async _deleteDirectoryRaw(client: FTPClient, remotePath: string, options: { recursive: boolean }): Promise<void> {
+        if (!options.recursive) {
+            // basic-ftp removeDir is always recursive, so we check if empty first.
+            const entries = await client.list(remotePath);
+            const filtered = entries.filter((entry) => entry.name !== '.' && entry.name !== '..');
+            if (filtered.length > 0) {
+                throw vscode.FileSystemError.NoPermissions(
+                    vscode.l10n.t('Directory is not empty')
+                );
+            }
+        }
+
+        // basic-ftp's removeDir uses _exitAtCurrentDirectory which
+        // saves the current CWD and tries to cd back to it in finally.
+        // If CWD is the directory being deleted, that cd fails with 550.
+        // Move to root first so _exitAtCurrentDirectory restores to '/'.
+        await client.cd('/');
+        await client.removeDir(remotePath);
+    }
+
+    private async _tryStatFromParentListingRaw(client: FTPClient, remotePath: string): Promise<RemoteFileStat | undefined> {
+        if (remotePath === '/' || remotePath === '') {
+            return { type: vscode.FileType.Directory, ctime: 0, mtime: 0, size: 0 };
+        }
+
+        const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
+        const baseName = remotePath.substring(remotePath.lastIndexOf('/') + 1);
+
+        try {
+            const entries = await client.list(parentDir);
+            const entry = entries.find((item) => item.name === baseName);
+            if (!entry) {
+                return undefined;
+            }
+
+            return {
+                type: this._mapFtpFileType(entry),
+                ctime: 0,
+                mtime: entry.modifiedAt ? entry.modifiedAt.getTime() : 0,
+                size: entry.size,
+            };
+        } catch {
+            return undefined;
+        }
+    }
+
+    private _isDirectoryLikeDeleteError(error: unknown): boolean {
+        const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+
+        return message.includes('is a directory')
+            || (message.includes('remove file') && message.includes('directory'));
     }
 
     /**
