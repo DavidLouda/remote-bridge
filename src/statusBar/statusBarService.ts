@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
 import { EncryptionService } from '../services/encryptionService';
+import { RecentConnectionsService } from '../services/recentConnectionsService';
 import { ConnectionStatus } from '../types/connection';
 import { openSshTerminal } from '../terminal/sshTerminalProvider';
 
@@ -23,7 +24,8 @@ export class StatusBarService implements vscode.Disposable {
         private readonly _connectionManager: ConnectionManager,
         private readonly _connectionPool: ConnectionPool,
         private readonly _encryptionService: EncryptionService,
-        context: vscode.ExtensionContext
+        context: vscode.ExtensionContext,
+        private readonly _recentConnections?: RecentConnectionsService
     ) {
         // Create status bar item — left side, priority 0 (far left)
         this._item = vscode.window.createStatusBarItem(
@@ -138,10 +140,10 @@ export class StatusBarService implements vscode.Disposable {
 
         // Build QuickPick items
         interface ConnectionQuickPickItem extends vscode.QuickPickItem {
-            connectionId: string;
+            connectionId?: string;
         }
 
-        const items: ConnectionQuickPickItem[] = connections.map(conn => {
+        const buildItem = (conn: typeof connections[number]): ConnectionQuickPickItem => {
             const status = this._connectionPool.getStatus(conn.id);
             let icon: string;
             let statusLabel: string;
@@ -164,20 +166,61 @@ export class StatusBarService implements vscode.Disposable {
                     break;
             }
 
+            // Sanitize user-controlled fields: '$(' would otherwise let an
+            // imported config inject codicons into the QuickPick.
+            const safeName = conn.name.replace(/\$\(/g, '$\u200B(');
+            const safeHost = conn.host.replace(/\$\(/g, '$\u200B(');
+            const safeRemotePath = conn.remotePath.replace(/\$\(/g, '$\u200B(');
+
             return {
-                label: `${icon} ${conn.name}`,
-                description: `${conn.protocol}://${conn.host}:${conn.port}`,
-                detail: `${statusLabel} — ${conn.remotePath}`,
+                label: `${icon} ${safeName}`,
+                description: `${conn.protocol}://${safeHost}:${conn.port}`,
+                detail: `${statusLabel} — ${safeRemotePath}`,
                 connectionId: conn.id,
             };
+        };
+
+        // Section split: Connected → Recent (top 5) → All (alphabetical, rest).
+        const connectedSet = new Set(connections.filter(c => this._connectionPool.isConnected(c.id)).map(c => c.id));
+        const validIds = new Set(connections.map(c => c.id));
+        const recentIds = this._recentConnections
+            ? this._recentConnections.getRecent(5, validIds).filter(id => !connectedSet.has(id))
+            : [];
+        const recentSet = new Set(recentIds);
+
+        const connectedConns = connections.filter(c => connectedSet.has(c.id));
+        const recentConns = recentIds
+            .map(id => connections.find(c => c.id === id))
+            .filter((c): c is typeof connections[number] => !!c);
+        const remainingConns = connections
+            .filter(c => !connectedSet.has(c.id) && !recentSet.has(c.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        const items: ConnectionQuickPickItem[] = [];
+        const sep = (label: string): ConnectionQuickPickItem => ({
+            label,
+            kind: vscode.QuickPickItemKind.Separator,
         });
+
+        if (connectedConns.length > 0) {
+            items.push(sep(vscode.l10n.t('Connected')));
+            for (const c of connectedConns) { items.push(buildItem(c)); }
+        }
+        if (recentConns.length > 0) {
+            items.push(sep(vscode.l10n.t('Recent')));
+            for (const c of recentConns) { items.push(buildItem(c)); }
+        }
+        if (remainingConns.length > 0) {
+            items.push(sep(vscode.l10n.t('All')));
+            for (const c of remainingConns) { items.push(buildItem(c)); }
+        }
 
         const selected = await vscode.window.showQuickPick(items, {
             title: vscode.l10n.t('Remote Bridge — Connections'),
             placeHolder: vscode.l10n.t('Select a connection'),
         });
 
-        if (!selected) {
+        if (!selected || !selected.connectionId) {
             return;
         }
 
@@ -220,7 +263,7 @@ export class StatusBarService implements vscode.Disposable {
         }
 
         const actionSelected = await vscode.window.showQuickPick(actions, {
-            title: `${conn.name} — ${conn.host}`,
+            title: `${conn.name.replace(/\$\(/g, '$\u200B(')} — ${conn.host.replace(/\$\(/g, '$\u200B(')}`,
             placeHolder: vscode.l10n.t('Select an action'),
         });
 
@@ -230,19 +273,28 @@ export class StatusBarService implements vscode.Disposable {
 
         const node = { type: 'connection', connection: conn };
 
-        switch (actionSelected.action) {
-            case 'connect':
-                await vscode.commands.executeCommand('remoteBridge.connect', node);
-                break;
-            case 'disconnect':
-                await vscode.commands.executeCommand('remoteBridge.disconnect', node);
-                break;
-            case 'openWorkspace':
-                await vscode.commands.executeCommand('remoteBridge.connect', node);
-                break;
-            case 'terminal':
-                openSshTerminal(conn, this._connectionPool);
-                break;
+        try {
+            switch (actionSelected.action) {
+                case 'connect':
+                    await vscode.commands.executeCommand('remoteBridge.connect', node);
+                    break;
+                case 'disconnect':
+                    await vscode.commands.executeCommand('remoteBridge.disconnect', node);
+                    break;
+                case 'openWorkspace':
+                    await vscode.commands.executeCommand('remoteBridge.connect', node);
+                    break;
+                case 'terminal':
+                    openSshTerminal(conn, this._connectionPool);
+                    break;
+            }
+        } catch (err) {
+            // Errors here propagated as silent extension-host rejections.
+            // Surface them so the user sees why the action did nothing.
+            const message = err instanceof Error ? err.message : String(err);
+            void vscode.window.showErrorMessage(
+                vscode.l10n.t('Action failed: {0}', message)
+            );
         }
     }
 

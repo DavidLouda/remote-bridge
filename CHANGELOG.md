@@ -5,6 +5,62 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-04-24
+
+### Added
+- **Live connection filtering** — the Connections view now includes a search action that opens a small search box and filters saved connections live while preserving matching folder branches.
+- **Remote Bridge JSON import** — `.json` exports from Remote Bridge can now be imported back, including folders and stored secrets when present.
+- **Import preview** — every import flow (PuTTY, WinSCP, FileZilla, SSH config, sshfs, Total Commander, Remote Bridge JSON) now opens a preview where you can review and uncheck individual entries before they are written. Duplicates (same protocol/host/port/user as an existing connection) are flagged and unchecked by default but can be re-checked to import anyway.
+- **Recent connections in the status-bar Quick Pick** — the status-bar Quick Pick now groups entries into *Connected*, *Recent* (last 5 successfully connected, machine-local, not synced) and *All*. Recency is tracked in `globalState` and is intentionally excluded from the encrypted sync blob.
+- **Watcher backoff for very large directories** — the file watcher now skips polling cycles for directories whose listing exceeds `remoteBridge.watch.largeDirThreshold` (default 1000 entries) and emits a one-time warning per watcher instead of pounding the server every poll interval.
+
+### Security
+- **PBKDF2 iterations raised to 600 000** — encryption of the connection store now uses 600 000 PBKDF2-SHA512 iterations (OWASP 2023 baseline). Existing stores encrypted with the previous 100 000-iteration parameter continue to decrypt and are silently re-encrypted with the new parameter the next time the store is saved. No re-entry of the master password is required.
+- **Credentials are masked in performance logs** — `Authorization`, `Cookie`, password and key tokens that may appear in log payloads are redacted before being written to the *Remote Bridge* Output Channel.
+- **CRLF injection guard for HTTP proxy CONNECT** — proxy username and password are stripped of `\r`, `\n` and `\0` before the Basic credential is built, preventing header smuggling against the upstream proxy.
+- **Private key file size cap (1 MB)** — SSH private keys loaded from disk (main connection and jump host) are now rejected if larger than 1 MB to prevent accidental loading of arbitrary large files.
+- **XML External Entity (XXE) defense in FileZilla import** — FileZilla import now disables XML entity processing so a malicious sitemanager file cannot trigger entity expansion.
+- **Import file size caps (10 MB default, 1 MB per PuTTY session)** — importers now refuse oversized input files to bound memory usage on hostile inputs.
+- **INI parser bounds** — INI-based importers (PuTTY, Total Commander) cap the number of sections, keys per section and line length to mitigate pathological inputs.
+- **Grep binary-match notices are stripped from AI tool output** — `searchFiles` and `readFile` now filter `Binary file X matches` lines before returning grep output to the language model, eliminating an information-leak surface from arbitrary remote files.
+
+### Fixed
+- **FTP/FTPS Save survives server idle timeout** — when the FTP server closes the control connection unexpectedly (FIN packet after idle, broken pipe), the failing operation is now retried once on a freshly reconnected client instead of bubbling up as `Unable to write file (Error: Client is closed because Server sent FIN packet …)`. Reported in [#13](https://github.com/DavidLouda/remote-bridge/issues/13).
+- **SSH/SFTP transient transport drops are retried once** — `ECONNRESET`, `EPIPE`, `Channel open failure` and similar transport-level errors mid-operation now trigger a single transparent reconnect-and-retry for user-initiated reads, writes, renames, copies and folder creates, matching the FTP behaviour above.
+- **WinSCP import is now correct** — protocol detection and default ports now match WinSCP, and unsupported protocols are skipped with a warning.
+- **Imported secrets are preserved in folders** — passwords and other imported credentials are no longer lost during folder mapping.
+- **Manual disconnect now blocks background reconnects** — clicking Disconnect in the Remote Bridge panel keeps the session intentionally disconnected, including when remote tabs remain open or the workspace is restored, until you explicitly use Connect again.
+- **FTP working directory no longer leaks across operations** — `writeFile` now restores the FTP CWD to `/` even when the upload fails, preventing subsequent operations from running in the wrong directory after a failed save.
+- **FTP creates intermediate folders** — `createDirectory` now walks the path segments (mkdir -p semantics), so creating a deep folder no longer fails with "no such directory" on servers that don't auto-create parents.
+- **Save into a fresh subfolder works** — when a file is saved to a path whose parent directory doesn't yet exist, the parent is created automatically (best-effort) before the upload.
+- **SSH copy preserves file mode** — non-recursive copies now reconcile the destination's permission bits to match the source after copy, on servers where `cp` doesn't preserve the mode reliably.
+- **SSH rename surfaces the right path on collision** — when rename fails because the target already exists, the error now references the target path rather than the source.
+- **SSH writeFile no longer leaves stale chmod state** — temporary mode changes used to overcome read-only files are now tracked explicitly and only restored when actually applied.
+- **Cache stays consistent after delete** — deleting a remote path now bumps the mutation version immediately, so a watcher refresh interleaved with the delete cannot re-cache the stale listing.
+- **SSH error mapping is more precise** — common SSH/SFTP failures now map to more specific VS Code filesystem errors instead of generic `Unavailable` responses.
+- **FTP `removeDir` errors are mapped to filesystem errors** — failures during recursive directory removal now surface as proper VS Code filesystem errors instead of raw FTP exceptions.
+- **SSH connect leaks no listeners on failure** — connect-time `ready`/`error`/`keyboard-interactive` listeners are removed when the promise settles, so retried connections don't accumulate handlers.
+- **FTP disconnect drains pending operations** — closing the connection now rejects queued operations with a clear "FTP connection closed" message instead of leaving callers hanging.
+- **Recursive SSH delete stops at symlinks** — symlinks are unlinked rather than traversed, and a depth cap (32) protects against pathological symlink cycles on misbehaving servers.
+- **AI tools validate line numbers and time out long commands** — invalid line-number inputs are rejected early and long remote exec calls now time out instead of hanging indefinitely.
+- **Search is bounded** — the FTP recursive search fallback is now bounded by depth and directory count, skips symlinks, and treats overly long regex input as literal text.
+- **Search truncation is now reported to the AI** — when FTP recursive search hits its safety limits, the response now includes an explicit `⚠️ Search truncated` warning instead of looking complete.
+- **Connection form validates input** — protocol must be `ssh`/`sftp`/`ftp`/`ftps`; host strings have control characters stripped; ports are clamped to `1-65535`; keepalive interval is clamped to `0-86400` s; proxy and jump-host fields are validated symmetrically.
+- **Tree-view drag-and-drop validates IDs** — drop payloads referencing connections or folders that no longer exist (race with delete) are rejected instead of silently corrupting the store.
+- **Markdown injection in tooltips is escaped** — connection name, host, username and remote path values rendered into hover tooltips are now Markdown-escaped, so a maliciously named connection cannot inject formatting or links.
+- **Quick Pick labels are sanitized** — codicon syntax (`$(name)`) in user-controlled connection fields is neutralised before rendering in the status-bar Quick Pick.
+- **Status-bar action errors are surfaced** — failures from `executeCommand` triggered through the status bar are caught and shown as a localized notification instead of disappearing as silent extension-host rejections.
+- **Connection form message handler validates payloads** — the webview now ignores `postMessage` payloads that are not plain objects with a string `type`.
+- **Saved workspace JSON is validated before use** — invalid workspace folder lists and non-string `uri` entries are rejected defensively instead of being trusted.
+- **SSH terminal cleans up listeners** — closing an SSH terminal now removes all stream listeners before ending the channel and guards `setWindow` with a runtime feature check.
+- **Sync service stops the push debounce on dispose** — disposing the sync service now also cancels the pending debounced push.
+- **Connection pool refuses use after dispose** — `getAdapter` throws immediately on a disposed pool instead of starting new connections during shutdown; idle-disconnect failures are logged.
+- **Extension `deactivate` tears down services in order** — shutdown disposal is now ordered and guarded so one cleanup failure cannot block the rest.
+- **Daily and manual backups are written atomically** — backup files are now written to a sibling temp file and renamed into place, and concurrent backup writes are serialized through an internal mutex.
+- **Backups are flushed on extension shutdown** — `deactivate()` now waits briefly for pending backup writes to finish, reducing the chance of partial writes on a fast quit.
+- **Cross-device merge breaks parent-folder cycles** — when sync picks a remote folder version that would create an `A→B→A` parent loop, the cycle is detected during merge and the offending `parentId` is cleared.
+- **Importer key-path normalization** — PuTTY/SSH-config private key paths are stripped of surrounding quotes and `~/` is expanded; keys outside the user's home directory raise a warning (PuTTY) or error (SSH config).
+
 ## [3.4.3] - 2026-04-18
 
 ### Fixed

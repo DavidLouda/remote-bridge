@@ -12,6 +12,7 @@ import { SshFsImporter } from './importers/sshFsImporter';
 import { FileZillaImporter } from './importers/fileZillaImporter';
 import { PuTTYImporter } from './importers/puttyImporter';
 import { TotalCmdImporter } from './importers/totalCmdImporter';
+import { JsonImporter } from './importers/jsonImporter';
 import { JsonExporter } from './exporters/jsonExporter';
 import { SshConfigExporter } from './exporters/sshConfigExporter';
 import { openSshTerminal } from './terminal/sshTerminalProvider';
@@ -23,6 +24,7 @@ import { StatusBarService } from './statusBar/statusBarService';
 import { TransferTracker } from './services/transferTracker';
 import { BackupService } from './services/backupService';
 import { SyncService } from './services/syncService';
+import { RecentConnectionsService } from './services/recentConnectionsService';
 import { PerfLogger } from './services/perfLogger';
 import { buildRemoteUri, parseRemoteUri } from './utils/uriParser';
 import {
@@ -33,6 +35,7 @@ import {
     deleteWorkspaceFileForConnection,
 } from './utils/workspaceFileManager';
 import { ConnectionFormPanel } from './webview/connectionFormPanel';
+import { ImportPreviewPanel } from './webview/importPreviewPanel';
 import {
     ConnectionConfig,
     DEFAULT_PORTS,
@@ -48,6 +51,8 @@ let connectionPool: ConnectionPool;
 let transferTracker: TransferTracker;
 let backupService: BackupService;
 let syncService: SyncService;
+let recentConnections: RecentConnectionsService;
+let extensionUri: vscode.Uri;
 let applySyncRegistration: () => void;
 
 type TreeConnectionNode = { type: 'connection'; connection: ConnectionConfig };
@@ -90,7 +95,147 @@ function buildFolderPath(folderId: string, foldersById: Map<string, { id: string
     return parts.join(' / ');
 }
 
+function getImportSourceLabel(source: ImportResult['source']): string {
+    switch (source) {
+        case 'ssh-config':
+            return vscode.l10n.t('SSH Config');
+        case 'winscp':
+            return vscode.l10n.t('WinSCP');
+        case 'sshfs':
+            return vscode.l10n.t('SSH FS');
+        case 'filezilla':
+            return vscode.l10n.t('FileZilla');
+        case 'putty':
+            return vscode.l10n.t('PuTTY');
+        case 'totalcmd':
+            return vscode.l10n.t('Total Commander');
+        case 'json':
+            return vscode.l10n.t('Remote Bridge JSON');
+        default:
+            return source;
+    }
+}
+
+const MANUAL_DISCONNECT_IDS_KEY = 'remote-bridge.manualDisconnectIds';
+const WORKSPACE_FOLDER_CHANGE_TIMEOUT_MS = 5000;
+
+function isRemoteBridgeWorkspaceFolder(folder: vscode.WorkspaceFolder, connectionId: string): boolean {
+    return folder.uri.scheme === 'remote-bridge' && folder.uri.authority === connectionId;
+}
+
+async function persistManualDisconnectIds(
+    context: vscode.ExtensionContext,
+    manualDisconnectIds: Set<string>
+): Promise<void> {
+    const ids = Array.from(manualDisconnectIds).sort();
+    await context.workspaceState.update(
+        MANUAL_DISCONNECT_IDS_KEY,
+        ids.length > 0 ? ids : undefined
+    );
+}
+
+async function pruneManualDisconnectIds(
+    context: vscode.ExtensionContext,
+    manualDisconnectIds: Set<string>,
+    validConnectionIds: ReadonlySet<string>
+): Promise<void> {
+    let changed = false;
+
+    for (const connectionId of Array.from(manualDisconnectIds)) {
+        if (!validConnectionIds.has(connectionId)) {
+            manualDisconnectIds.delete(connectionId);
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        await persistManualDisconnectIds(context, manualDisconnectIds);
+    }
+}
+
+async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders) {
+        return;
+    }
+
+    const folder = folders.find((workspaceFolder) =>
+        isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
+    );
+    if (!folder) {
+        return;
+    }
+
+    const hasFolder = (): boolean =>
+        (vscode.workspace.workspaceFolders ?? []).some((workspaceFolder) =>
+            isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
+        );
+
+    await new Promise<void>((resolve, reject) => {
+        let settled = false;
+
+        const finish = (callback: () => void): void => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timeoutHandle);
+            changeDisposable.dispose();
+            callback();
+        };
+
+        const changeDisposable = vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+            if (
+                event.removed.some((workspaceFolder) =>
+                    isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
+                ) ||
+                !hasFolder()
+            ) {
+                finish(resolve);
+            }
+        });
+
+        const timeoutHandle = setTimeout(() => {
+            if (!hasFolder()) {
+                finish(resolve);
+                return;
+            }
+
+            finish(() => {
+                reject(
+                    new Error(
+                        vscode.l10n.t(
+                            'Timed out waiting for the workspace folder to be removed for connection {0}',
+                            connectionId
+                        )
+                    )
+                );
+            });
+        }, WORKSPACE_FOLDER_CHANGE_TIMEOUT_MS);
+
+        const started = vscode.workspace.updateWorkspaceFolders(folder.index, 1);
+        if (!started) {
+            finish(() => {
+                reject(
+                    new Error(
+                        vscode.l10n.t(
+                            'Could not start removing the workspace folder for connection {0}',
+                            connectionId
+                        )
+                    )
+                );
+            });
+            return;
+        }
+
+        if (!hasFolder()) {
+            finish(resolve);
+        }
+    });
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+    extensionUri = context.extensionUri;
     // ─── Initialize Services ────────────────────────────────────
     encryptionService = new EncryptionService(context.globalState);
     context.subscriptions.push({ dispose: () => encryptionService.dispose() });
@@ -180,6 +325,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     connectionManager = new ConnectionManager(encryptionService, context.secrets, backupService);
     context.subscriptions.push(connectionManager);
 
+    recentConnections = new RecentConnectionsService(context.globalState);
+    context.subscriptions.push(recentConnections);
+
     await connectionManager.load();
 
     // ─── SyncService ─────────────────────────────────────────────
@@ -228,6 +376,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     context.subscriptions.push(fsProvider);
 
+    const manualDisconnectIds = new Set<string>(
+        context.workspaceState.get<string[]>(MANUAL_DISCONNECT_IDS_KEY) ?? []
+    );
+    await pruneManualDisconnectIds(
+        context,
+        manualDisconnectIds,
+        new Set(connectionManager.getConnections().map((connection) => connection.id))
+    );
+    for (const connectionId of manualDisconnectIds) {
+        fsProvider.suspendAutoConnect(connectionId);
+    }
+    context.subscriptions.push(
+        connectionManager.onDidChange(() => {
+            void pruneManualDisconnectIds(
+                context,
+                manualDisconnectIds,
+                new Set(connectionManager.getConnections().map((connection) => connection.id))
+            );
+        })
+    );
+
     // ─── Workspace Folder Label Sync ────────────────────────────
     // Ensure remote-bridge workspace folders always show the connection name
     const syncWorkspaceFolderNames = (): void => {
@@ -252,7 +421,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
         }
     };
-    connectionManager.onDidChange(syncWorkspaceFolderNames);
+    context.subscriptions.push(connectionManager.onDidChange(syncWorkspaceFolderNames));
     syncWorkspaceFolderNames();
 
     // ─── Master Password Hint ──────────────────────────────────
@@ -291,12 +460,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         for (const wf of remoteFolders) {
             const connId = wf.uri.authority;
+            if (manualDisconnectIds.has(connId)) {
+                continue;
+            }
             const conn = connectionManager.getConnections().find(c => c.id === connId);
             if (!conn) { continue; }
             connectionPool.getAdapter(conn).then(
-                () => fsProvider.readDirectory(wf.uri).catch(() => {
-                    // Cache warm-up failed silently — FileSystemProvider will surface errors on access
-                }),
+                () => {
+                    recentConnections?.touch(conn.id);
+                    return fsProvider.readDirectory(wf.uri).catch(() => {
+                        // Cache warm-up failed silently — FileSystemProvider will surface errors on access
+                    });
+                },
                 () => {
                     // Reconnect failed silently — FileSystemProvider will surface errors on access
                 }
@@ -324,11 +499,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(activeSessionsProvider);
 
     // ─── Status Bar ─────────────────────────────────────────────
-    const statusBarService = new StatusBarService(connectionManager, connectionPool, encryptionService, context);
+    const statusBarService = new StatusBarService(connectionManager, connectionPool, encryptionService, context, recentConnections);
     context.subscriptions.push(statusBarService);
 
     // ─── Register Commands ──────────────────────────────────────
-    registerCommands(context, treeProvider);
+    registerCommands(context, treeProvider, fsProvider, manualDisconnectIds);
 
     // ─── Getting Started Walkthrough (first install only) ───────
     if (!context.globalState.get('remote-bridge.walkthroughShown')) {
@@ -388,18 +563,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export async function deactivate(): Promise<void> {
+    // Order matters: tear down outbound (sync, transfers) and pool BEFORE
+    // services that own state, so background timers can't observe a stale
+    // ConnectionManager mid-shutdown.
+    try { syncService?.dispose(); } catch { /* ignore */ }
+    try { transferTracker?.dispose(); } catch { /* ignore */ }
     if (connectionPool) {
-        await connectionPool.disconnectAll();
-        connectionPool.dispose();
+        try { await connectionPool.disconnectAll(); } catch { /* ignore */ }
+        try { connectionPool.dispose(); } catch { /* ignore */ }
     }
+    // Wait for any in-flight backup writes (fire-and-forget from save()),
+    // bounded by 2 s so a stuck disk can never block window shutdown.
+    if (backupService) {
+        try {
+            await Promise.race([
+                backupService.flush(),
+                new Promise((resolve) => setTimeout(resolve, 2000)),
+            ]);
+        } catch { /* ignore */ }
+    }
+    try { cacheService?.dispose(); } catch { /* ignore */ }
+    try { connectionManager?.dispose(); } catch { /* ignore */ }
+    try { encryptionService?.dispose(); } catch { /* ignore */ }
 }
 
 // ─── Command Registration ───────────────────────────────────────
 
 function registerCommands(
     context: vscode.ExtensionContext,
-    treeProvider: ConnectionTreeProvider
+    treeProvider: ConnectionTreeProvider,
+    fsProvider: RemoteBridgeFileSystemProvider,
+    manualDisconnectIds: Set<string>
 ): void {
+    let filterInputBox: vscode.InputBox | undefined;
+
     // Add Connection
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.addConnection', () => {
@@ -450,6 +647,7 @@ function registerCommands(
                     await connectionPool.disconnect(id);
                     cacheService.invalidateConnection(id);
                     await deleteWorkspaceFileForConnection(context.globalStorageUri, id);
+                    recentConnections?.forget(id);
                 }
                 await connectionManager.deleteConnections(ids);
             }
@@ -468,6 +666,8 @@ function registerCommands(
             const connected: typeof items = [];
             for (const item of items) {
                 const conn = item.connection;
+                const restoreManualDisconnect = manualDisconnectIds.has(conn.id);
+                fsProvider.resumeAutoConnect(conn.id);
                 try {
                     await vscode.window.withProgress(
                         {
@@ -479,8 +679,17 @@ function registerCommands(
                             await connectionPool.getAdapter(conn);
                         }
                     );
+
+                    if (restoreManualDisconnect) {
+                        manualDisconnectIds.delete(conn.id);
+                        await persistManualDisconnectIds(context, manualDisconnectIds);
+                    }
+                    recentConnections?.touch(conn.id);
                     connected.push(item);
                 } catch (err) {
+                    if (restoreManualDisconnect) {
+                        fsProvider.suspendAutoConnect(conn.id);
+                    }
                     const message = err instanceof Error ? err.message : String(err);
                     vscode.window.showErrorMessage(
                         vscode.l10n.t('Connection to {0} failed: {1}', conn.name, message)
@@ -547,23 +756,45 @@ function registerCommands(
 
             for (const item of connections) {
                 const connId = item.connection.id;
+                const connectionName = item.connection.name;
 
-                // Remove workspace folder for this connection
-                const folders = vscode.workspace.workspaceFolders;
-                if (folders) {
-                    const idx = folders.findIndex(
-                        wf => wf.uri.scheme === 'remote-bridge' && wf.uri.authority === connId
-                    );
-                    if (idx !== -1) {
-                        vscode.workspace.updateWorkspaceFolders(idx, 1);
+                try {
+                    if (!manualDisconnectIds.has(connId)) {
+                        manualDisconnectIds.add(connId);
+                        await persistManualDisconnectIds(context, manualDisconnectIds);
                     }
-                }
 
-                await connectionPool.disconnect(connId);
-                cacheService.invalidateConnection(connId);
-                vscode.window.showInformationMessage(
-                    vscode.l10n.t('Disconnected from {0}', item.connection.name)
-                );
+                    fsProvider.suspendAutoConnect(connId);
+                    await connectionPool.disconnect(connId);
+                    cacheService.invalidateConnection(connId);
+
+                    let workspaceRemovalWarning: string | undefined;
+                    try {
+                        await removeRemoteWorkspaceFolder(connId);
+                    } catch (err) {
+                        workspaceRemovalWarning = err instanceof Error ? err.message : String(err);
+                    }
+
+                    if (workspaceRemovalWarning) {
+                        vscode.window.showWarningMessage(
+                            vscode.l10n.t(
+                                'Disconnected from {0}, but the workspace folder could not be removed automatically: {1}',
+                                connectionName,
+                                workspaceRemovalWarning
+                            )
+                        );
+                        continue;
+                    }
+
+                    vscode.window.showInformationMessage(
+                        vscode.l10n.t('Disconnected from {0}', connectionName)
+                    );
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    vscode.window.showErrorMessage(
+                        vscode.l10n.t('Disconnect from {0} failed: {1}', connectionName, message)
+                    );
+                }
             }
         })
     );
@@ -701,11 +932,12 @@ function registerCommands(
             const choice = await vscode.window.showQuickPick(
                 [
                     { label: vscode.l10n.t('SSH Config'), description: '~/.ssh/config', value: 'ssh' as const },
-                    { label: 'WinSCP', description: 'WinSCP.ini', value: 'winscp' as const },
-                    { label: 'SSH FS', description: vscode.l10n.t('VS Code Extension'), value: 'sshfs' as const },
-                    { label: 'FileZilla', description: 'sitemanager.xml', value: 'filezilla' as const },
-                    { label: 'PuTTY', description: vscode.l10n.t('Registry / ~/.putty/sessions'), value: 'putty' as const },
-                    { label: 'Total Commander', description: 'wcx_ftp.ini', value: 'totalcmd' as const },
+                    { label: vscode.l10n.t('JSON (Remote Bridge)'), description: 'remote-bridge-connections.json', value: 'json' as const },
+                    { label: vscode.l10n.t('WinSCP'), description: 'WinSCP.ini', value: 'winscp' as const },
+                    { label: vscode.l10n.t('SSH FS'), description: vscode.l10n.t('VS Code Extension'), value: 'sshfs' as const },
+                    { label: vscode.l10n.t('FileZilla'), description: 'sitemanager.xml', value: 'filezilla' as const },
+                    { label: vscode.l10n.t('PuTTY'), description: vscode.l10n.t('Registry / ~/.putty/sessions'), value: 'putty' as const },
+                    { label: vscode.l10n.t('Total Commander'), description: 'wcx_ftp.ini', value: 'totalcmd' as const },
                 ],
                 { title: vscode.l10n.t('Import connections from') }
             );
@@ -716,6 +948,9 @@ function registerCommands(
             switch (choice.value) {
                 case 'ssh':
                     await vscode.commands.executeCommand('remoteBridge.importSSH');
+                    break;
+                case 'json':
+                    await vscode.commands.executeCommand('remoteBridge.importJSON');
                     break;
                 case 'winscp':
                     await vscode.commands.executeCommand('remoteBridge.importWinSCP');
@@ -740,6 +975,14 @@ function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.importSSH', async () => {
             const importer = new SshConfigImporter();
+            await handleImportResult(importer.import());
+        })
+    );
+
+    // Import from Remote Bridge JSON
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.importJSON', async () => {
+            const importer = new JsonImporter();
             await handleImportResult(importer.import());
         })
     );
@@ -796,12 +1039,12 @@ function registerCommands(
             const formatChoice = await vscode.window.showQuickPick(
                 [
                     {
-                        label: 'JSON (Remote Bridge)',
+                        label: vscode.l10n.t('JSON (Remote Bridge)'),
                         description: vscode.l10n.t('All connections, re-importable'),
                         value: 'json' as const,
                     },
                     {
-                        label: 'SSH Config',
+                        label: vscode.l10n.t('SSH Config'),
                         description: vscode.l10n.t('SSH/SFTP connections only'),
                         value: 'ssh-config' as const,
                     },
@@ -1191,6 +1434,59 @@ function registerCommands(
         })
     );
 
+    // Filter Connections
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.filterConnections', async () => {
+            if (encryptionService.isEnabled() && !encryptionService.isUnlocked()) {
+                await vscode.commands.executeCommand('remoteBridge.unlockMasterPassword');
+                if (!encryptionService.isUnlocked()) {
+                    return;
+                }
+            }
+
+            const connections = connectionManager.getConnections();
+            if (connections.length === 0) {
+                const action = await vscode.window.showInformationMessage(
+                    vscode.l10n.t('No connections configured.'),
+                    vscode.l10n.t('Add Connection')
+                );
+                if (action) {
+                    await vscode.commands.executeCommand('remoteBridge.addConnection');
+                }
+                return;
+            }
+
+            if (filterInputBox) {
+                filterInputBox.valueSelection = [0, filterInputBox.value.length];
+                filterInputBox.show();
+                return;
+            }
+
+            const inputBox = vscode.window.createInputBox();
+            filterInputBox = inputBox;
+            inputBox.title = vscode.l10n.t('Search Connections');
+            inputBox.placeholder = vscode.l10n.t('Type a connection name or host/IP');
+            inputBox.ignoreFocusOut = true;
+
+            const lockDisposable = encryptionService.onDidLock(() => inputBox.hide());
+
+            inputBox.onDidChangeValue((value) => {
+                treeProvider.setFilterQuery(value);
+            });
+
+            inputBox.onDidHide(() => {
+                lockDisposable.dispose();
+                treeProvider.clearFilter();
+                if (filterInputBox === inputBox) {
+                    filterInputBox = undefined;
+                }
+                inputBox.dispose();
+            });
+
+            inputBox.show();
+        })
+    );
+
     // Refresh
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.refresh', () => {
@@ -1303,7 +1599,7 @@ async function promptMasterPassword(encryption: EncryptionService): Promise<bool
 
 async function handleImportResult(resultPromise: Promise<ImportResult>): Promise<void> {
     try {
-        const result = await vscode.window.withProgress(
+        let result = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: vscode.l10n.t('Importing connections...'),
@@ -1330,6 +1626,20 @@ async function handleImportResult(resultPromise: Promise<ImportResult>): Promise
             );
             return;
         }
+
+        // N7: Let the user review and uncheck unwanted entries before persisting.
+        const sourceLabel = getImportSourceLabel(result.source);
+        const previewed = await ImportPreviewPanel.show(extensionUri, result, connectionManager, sourceLabel);
+        if (!previewed) {
+            return;
+        }
+        if (previewed.imported.length === 0) {
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('No connections were imported.')
+            );
+            return;
+        }
+        result = previewed;
 
         // Create folder hierarchy first (WinSCP import)
         const folderPathToId = new Map<string, string>();
@@ -1394,26 +1704,36 @@ async function handleImportResult(resultPromise: Promise<ImportResult>): Promise
         }
 
         const importedConnections = result.imported.map((connection) => {
+            const importKey = `${connection.folderId ?? ''}::${connection.name}`;
             if (!connection.folderId) {
-                return connection;
+                return {
+                    ...connection,
+                    _importKey: importKey,
+                } as ConnectionConfig & { _importKey: string };
             }
             const mappedFolderId = folderPathToId.get(normalizeFolderPath(connection.folderId));
             if (!mappedFolderId) {
-                return connection;
+                return {
+                    ...connection,
+                    _importKey: importKey,
+                } as ConnectionConfig & { _importKey: string };
             }
             return {
                 ...connection,
                 folderId: mappedFolderId,
-            };
+                _importKey: importKey,
+            } as ConnectionConfig & { _importKey: string };
         });
 
         // Store imported connections
-        const passwords = (result as ImportResult & { passwords?: Map<string, string> }).passwords;
-        const proxyPasswords = (result as ImportResult & { proxyPasswords?: Map<string, string> }).proxyPasswords;
+        const passwords = result.passwords;
+        const passphrases = result.passphrases;
+        const proxyPasswords = result.proxyPasswords;
         const importResult = await connectionManager.importConnections(
             importedConnections,
             {
                 passwords,
+                passphrases,
                 proxyPasswords,
             }
         );
@@ -1427,8 +1747,8 @@ async function handleImportResult(resultPromise: Promise<ImportResult>): Promise
         const count = importResult.imported;
         const message =
             count === 1
-                ? vscode.l10n.t('Imported 1 connection from {0}.', result.source)
-                : vscode.l10n.t('Imported {0} connections from {1}.', String(count), result.source);
+                ? vscode.l10n.t('Imported 1 connection from {0}.', sourceLabel)
+                : vscode.l10n.t('Imported {0} connections from {1}.', String(count), sourceLabel);
 
         vscode.window.showInformationMessage(message);
     } catch (err) {

@@ -39,6 +39,7 @@
   "command.exportConnections.title": "导出连接",
   "command.syncNow.title": "立即同步连接 (Beta)",
   "command.showConnections.title": "显示连接",
+  "command.filterConnections.title": "搜索连接",
   "command.changePermissions.title": "更改权限",
 
   "submenu.import.label": "导入",
@@ -49,6 +50,7 @@
   "config.pool.maxConnections.description": "最大并发连接数",
   "config.security.syncConnections.description": "(Beta) 将密鑰捆绑到加密存储中，以便通过 VS Code 设置同步在设备间同步连接（包括密码）。需要启用主密码加密。所有设备必须设置相同的主密码。注意：此功能在所有场景下可能无法可靠地工作，并且取决于 VS Code 设置同步是否处于活动状态且正常运行。",
   "config.watch.pollInterval.description": "文件系统监视器的轮询间隔（秒）",
+  "config.watch.largeDirThreshold.description": "当目录条目数超过此值时，监视器会以低 4× 的频率轮询，以减少大型列表中的 CPU 和带宽使用",
   "config.files.temporaryWritePermission.description": "启用后，扩展在保存前会临时为只读远程文件添加写权限，保存后恢复原始权限。支持 SSH/SFTP 和 FTP/FTPS。",
 
   "chat.command.connect.description": "按名称连接到远程服务器",

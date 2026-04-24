@@ -52,7 +52,14 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
     ): Promise<vscode.LanguageModelToolResult> {
         if (token.isCancellationRequested) { throw new vscode.CancellationError(); }
 
-        const { connectionName, path: originalPath, startLine, endLine, search, contextLines, maxResults, tail } = options.input;
+        const { connectionName, path: originalPath, search, contextLines, maxResults } = options.input;
+        // Validate every numeric input before it reaches a shell template.
+        const startLine = this._validatePositiveInt(options.input.startLine, 'startLine');
+        const endLine = this._validatePositiveInt(options.input.endLine, 'endLine');
+        const tail = this._validatePositiveInt(options.input.tail, 'tail', 1_000_000);
+        if (startLine !== undefined && endLine !== undefined && endLine < startLine) {
+            throw new Error(vscode.l10n.t('endLine ({0}) must be >= startLine ({1})', String(endLine), String(startLine)));
+        }
 
         const config = this._resolveConnection(connectionName);
         const remotePath = this._ensureWithinWorkspace(originalPath, config);
@@ -67,7 +74,7 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
             if (adapter.supportsExec && adapter.exec) {
                 const os = config.os ?? 'linux';
                 const cmd = shell.grepInFile(search, remotePath, ctx, os, limit);
-                const result = await adapter.exec(cmd);
+                const result = await this._withTimeout(adapter.exec(cmd), undefined, `grep ${remotePath}`);
 
                 // grep exit 1 = no matches
                 if (result.exitCode === 1) {
@@ -84,7 +91,9 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
 
                 const outputLines = result.stdout.split('\n');
                 const totalLines = parseInt(outputLines[0]?.trim(), 10) || 0;
-                const grepOutput = outputLines.slice(1).join('\n').trimEnd();
+                const grepOutput = shell.filterGrepBinaryNotices(
+                    outputLines.slice(1).join('\n').trimEnd()
+                );
 
                 return new vscode.LanguageModelToolResult([
                     new vscode.LanguageModelTextPart(
@@ -157,7 +166,7 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
             if (adapter.supportsExec && adapter.exec) {
                 const os = config.os ?? 'linux';
                 const cmd = shell.tailRead(remotePath, tailCount, os);
-                const result = await adapter.exec(cmd);
+                const result = await this._withTimeout(adapter.exec(cmd), undefined, `tail ${remotePath}`);
 
                 if (result.exitCode !== 0) {
                     throw new Error(result.stderr || vscode.l10n.t('Failed to read file'));
@@ -206,7 +215,7 @@ export class ReadFileTool extends BaseTool implements vscode.LanguageModelTool<R
             const endArg = endLine !== undefined ? String(endLine) : '$';
             // Get total line count + requested range in one SSH round-trip
             const cmd = shell.readPartial(remotePath, startLine, endArg, os);
-            const result = await adapter.exec(cmd);
+            const result = await this._withTimeout(adapter.exec(cmd), undefined, `read ${remotePath}`);
 
             if (result.exitCode !== 0) {
                 throw new Error(result.stderr || vscode.l10n.t('Failed to read file'));

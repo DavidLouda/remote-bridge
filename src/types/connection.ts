@@ -163,6 +163,16 @@ export interface EncryptionMeta {
     salt: string;
     /** Verification hash to validate master password (hex) */
     verificationHash: string;
+    /**
+     * PBKDF2 iteration count used when the key was derived.
+     *
+     * Older stores written before iteration counts were tracked do not include
+     * this field — readers MUST treat `undefined` as the legacy default
+     * (100 000) so existing data stays decryptable. New writes always populate
+     * this field with the current default; an unlock of a legacy store
+     * silently re-encrypts with the modern iteration count.
+     */
+    iterations?: number;
 }
 
 // ─── Connection Status ──────────────────────────────────────────────
@@ -202,7 +212,7 @@ export interface ConnectionTreeNode {
 
 // ─── Import Source Types ────────────────────────────────────────────
 
-export type ImportSource = 'ssh-config' | 'winscp' | 'sshfs' | 'filezilla' | 'putty' | 'totalcmd';
+export type ImportSource = 'ssh-config' | 'winscp' | 'sshfs' | 'filezilla' | 'putty' | 'totalcmd' | 'json';
 
 export interface ImportFolder {
     /** Slash-separated folder path, e.g. "Production/DB" */
@@ -220,6 +230,9 @@ export interface ImportResult {
     errors: string[];
     warnings?: string[];
     folders?: ImportFolder[];
+    passwords?: Map<string, string>;
+    passphrases?: Map<string, string>;
+    proxyPasswords?: Map<string, string>;
 }
 
 // ─── Remote Adapter File Info ───────────────────────────────────────

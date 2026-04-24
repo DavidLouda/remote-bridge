@@ -17,6 +17,12 @@ import { BackupService } from './backupService';
 import { generateId } from '../utils/uriParser';
 
 /** Tombstones older than this are pruned on every save. */
+// Tombstones (deletion markers) are kept for 30 days so a device that's been
+// offline for under a month can still observe the deletion and skip resurrecting
+// the entry on next sync. After this window, very old tombstones are pruned to
+// keep the synced store small. If a long-offline device returns past the TTL
+// it may re-add its locally-edited copy of the entry; that's an accepted
+// trade-off vs unbounded tombstone growth.
 const TOMBSTONE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
 
 /**
@@ -374,6 +380,27 @@ export class ConnectionManager implements vscode.Disposable {
         for (const folder of mergedFolders) {
             if (folder.parentId && !survivingFolderIds.has(folder.parentId)) {
                 folder.parentId = undefined;
+            }
+        }
+
+        // ── Break parent cycles introduced by remote edits ──────────────────
+        // A merge that picks a remote folder as the winner can create a cycle
+        // (A→B→A) when the local store had a different parent chain. Walk
+        // each folder's ancestry and reset `parentId` to undefined the first
+        // time a previously-seen id reappears.
+        const folderById = new Map(mergedFolders.map((f) => [f.id, f]));
+        for (const folder of mergedFolders) {
+            const seen = new Set<string>([folder.id]);
+            let cursor: ConnectionFolder | undefined = folder;
+            // Walk ancestors; depth bounded by mergedFolders.length so a
+            // pathological store cannot loop forever.
+            for (let i = 0; i < mergedFolders.length && cursor?.parentId; i++) {
+                if (seen.has(cursor.parentId)) {
+                    folder.parentId = undefined;
+                    break;
+                }
+                seen.add(cursor.parentId);
+                cursor = folderById.get(cursor.parentId);
             }
         }
 
@@ -810,6 +837,7 @@ export class ConnectionManager implements vscode.Disposable {
         connections: Array<Omit<ConnectionConfig, 'id' | 'sortOrder'>>,
         credentials?: {
             passwords?: Map<string, string>;
+            passphrases?: Map<string, string>;
             proxyPasswords?: Map<string, string>;
         },
         targetFolderId?: string
@@ -818,20 +846,32 @@ export class ConnectionManager implements vscode.Disposable {
         const errors: string[] = [];
         for (const config of connections) {
             try {
+                const rawConfig = config as Omit<ConnectionConfig, 'id' | 'sortOrder'> & {
+                    _importKey?: string;
+                };
+                const importKey = rawConfig._importKey ?? `${config.folderId ?? ''}::${config.name}`;
+                const sanitizedConfig = Object.fromEntries(
+                    Object.entries(rawConfig).filter(([key]) => !key.startsWith('_'))
+                ) as Omit<ConnectionConfig, 'id' | 'sortOrder'>;
+
                 // Auto-suffix duplicate names
-                let name = config.name;
+                let name = sanitizedConfig.name;
                 const existingNames = new Set(
                     this._requireStore().connections.map(c => c.name.toLowerCase())
                 );
                 let suffix = 2;
                 while (existingNames.has(name.toLowerCase())) {
-                    name = `${config.name} (${suffix++})`;
+                    name = `${sanitizedConfig.name} (${suffix++})`;
                 }
-                const connConfig = { ...config, name, folderId: targetFolderId ?? config.folderId };
-                const key = `${config.folderId ?? ''}::${config.name}`;
-                const password = credentials?.passwords?.get(key) ?? credentials?.passwords?.get(config.name);
-                const proxyPassword = credentials?.proxyPasswords?.get(key) ?? credentials?.proxyPasswords?.get(config.name);
-                await this.addConnection(connConfig, password, undefined, proxyPassword);
+                const connConfig = {
+                    ...sanitizedConfig,
+                    name,
+                    folderId: targetFolderId ?? sanitizedConfig.folderId,
+                };
+                const password = credentials?.passwords?.get(importKey) ?? credentials?.passwords?.get(sanitizedConfig.name);
+                const passphrase = credentials?.passphrases?.get(importKey) ?? credentials?.passphrases?.get(sanitizedConfig.name);
+                const proxyPassword = credentials?.proxyPasswords?.get(importKey) ?? credentials?.proxyPasswords?.get(sanitizedConfig.name);
+                await this.addConnection(connConfig, password, passphrase, proxyPassword);
                 imported++;
             } catch (err) {
                 errors.push(
@@ -858,7 +898,10 @@ export class ConnectionManager implements vscode.Disposable {
 
     private _requireStore(): ConnectionStore {
         if (!this._loaded || !this._store) {
-            throw new Error('Connection store not loaded');
+            // Localized + actionable: this almost always means a caller ran
+            // before activate() finished loading the store. Surface that in
+            // the message instead of a bare technical string.
+            throw new Error(vscode.l10n.t('Connection store is not loaded yet \u2014 wait for the extension to finish activating.'));
         }
         return this._store;
     }

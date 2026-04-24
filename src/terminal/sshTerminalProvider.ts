@@ -98,10 +98,15 @@ export class SshTerminalProvider implements vscode.Pseudoterminal {
             columns: dimensions.columns,
             rows: dimensions.rows,
         };
-        // ssh2 ClientChannel supports setWindow
-        if (this._shellStream && 'setWindow' in this._shellStream) {
-            (this._shellStream as unknown as { setWindow: (rows: number, cols: number, height: number, width: number) => void })
-                .setWindow(dimensions.rows, dimensions.columns, 0, 0);
+        // ssh2 ClientChannel supports setWindow; guard against streams that
+        // expose the property as a non-function (broken adapters or tests).
+        if (this._shellStream && typeof (this._shellStream as { setWindow?: unknown }).setWindow === 'function') {
+            try {
+                (this._shellStream as unknown as { setWindow: (rows: number, cols: number, height: number, width: number) => void })
+                    .setWindow(dimensions.rows, dimensions.columns, 0, 0);
+            } catch {
+                // Resize failures are non-fatal — keep the terminal open.
+            }
         }
     }
 
@@ -110,7 +115,10 @@ export class SshTerminalProvider implements vscode.Pseudoterminal {
      */
     close(): void {
         if (this._shellStream) {
-            this._shellStream.end();
+            // Detach listeners before ending so a late 'data'/'error'/'close'
+            // event from the remote side cannot fire into a disposed emitter.
+            try { this._shellStream.removeAllListeners(); } catch { /* ignore */ }
+            try { this._shellStream.end(); } catch { /* ignore */ }
             this._shellStream = null;
         }
         this._onDidWrite.dispose();

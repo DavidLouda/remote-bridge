@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { Client, ConnectConfig } from 'ssh2';
 import { JumpHostConfig } from '../types/connection';
+import { readPrivateKeySync } from './privateKeyLoader';
 
 export interface JumpSocket {
     /** The forwarded stream to use as ssh2 ConnectConfig.sock for the target connection */
@@ -50,9 +51,13 @@ export async function createJumpSocket(
             if (jumpConfig.privateKeyPath) {
                 const keyPath = jumpConfig.privateKeyPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
                 try {
-                    connectConfig.privateKey = fs.readFileSync(keyPath);
-                } catch {
-                    throw new Error(`Failed to read jump host private key: ${keyPath}`);
+                    connectConfig.privateKey = readPrivateKeySync(keyPath);
+                } catch (err) {
+                    throw new Error(
+                        err instanceof Error
+                            ? err.message
+                            : `Failed to read jump host private key: ${keyPath}`
+                    );
                 }
             }
             if (jumpConfig.hasPassphrase) {

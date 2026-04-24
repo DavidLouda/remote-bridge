@@ -293,6 +293,13 @@
 
     window.addEventListener('message', (event) => {
         const msg = event.data;
+        // Defensive type guard: postMessage payloads can technically arrive
+        // with any shape (extension misuse, future schema changes, browser
+        // dev-tools experiments). Reject anything that is not a plain object
+        // with a string `type` so we never throw on `.type` lookup below.
+        if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') {
+            return;
+        }
         switch (msg.type) {
             case 'prefill':
                 prefillForm(msg.data);

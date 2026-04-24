@@ -39,6 +39,7 @@
   "command.exportConnections.title": "Kapcsolatok exportálása",
   "command.syncNow.title": "Kapcsolatok szinkronizálása most (Beta)",
   "command.showConnections.title": "Kapcsolatok megjelenítése",
+  "command.filterConnections.title": "Kapcsolatok keresése",
   "command.changePermissions.title": "Engedélyek módosítása",
 
   "submenu.import.label": "Importálás",
@@ -49,6 +50,7 @@
   "config.pool.maxConnections.description": "Egyidejű kapcsolatok maximális száma",
   "config.security.syncConnections.description": "(Beta) A titkokat a titkosított tárolóba csomagolja, hogy a kapcsolatok (beleértve a jelszavakat is) szinkronizálódjanak az eszközök között a VS Code Beállítások Sync segítségével. Mesterjelszavó titkosítás szükséges. Mindkét eszközön ugyanazt a mesterjelszavót kell beállítani. Megjegyzés: Ez a funkció nem mindig működik megbízhatóan és függ a VS Code szinkronizációjánától.",
   "config.watch.pollInterval.description": "Fájlrendszer-figyelők lekérdezési időköze (másodpercben)",
+  "config.watch.largeDirThreshold.description": "Azon könyvtárbejegyzések száma, amely fölött a figyelő 4× ritkábban kérdez le, hogy csökkentse a CPU- és sávszélesség-használatot nagy listáknál",
   "config.files.temporaryWritePermission.description": "Ha engedélyezve van, a bővítmény mentés előtt ideiglenesen írási jogot ad az írásvédett távoli fájlokhoz, majd visszaállítja az eredeti engedélyeket. SSH/SFTP és FTP/FTPS esetén támogatott.",
 
   "chat.command.connect.description": "Csatlakozás távoli szerverhez név alapján",

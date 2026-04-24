@@ -134,7 +134,7 @@ export function hasMasterPassword(configSections: Record<string, Record<string, 
 
 /**
  * Map WinSCP FSProtocol number to our ConnectionProtocol.
- * 0 = SCP → ssh, 5 = SFTP → sftp, 2 = FTP → ftp, 8 = WebDAV → unsupported
+ * 0 = SCP, 1/2 = SFTP family, 5 = FTP, 6 = WebDAV.
  */
 export type WinSCPProtocolMapping = 'ssh' | 'sftp' | 'ftp' | 'ftps' | null;
 
@@ -142,10 +142,11 @@ export function mapWinSCPProtocol(fsProtocol: number, ftps?: number): WinSCPProt
     switch (fsProtocol) {
         case 0: // SCP
             return 'ssh';
-        case 5: // SFTP
+        case 1: // SFTP (with SCP fallback)
+        case 2: // SFTP only
             return 'sftp';
-        case 2: // FTP
-            return ftps === 1 || ftps === 2 ? 'ftps' : 'ftp';
+        case 5: // FTP
+            return (ftps ?? 0) > 0 ? 'ftps' : 'ftp';
         default:
             return null; // WebDAV, S3, etc. — not supported
     }

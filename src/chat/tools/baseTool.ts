@@ -95,6 +95,48 @@ export abstract class BaseTool {
     }
 
     /**
+     * Validate that a value supplied by the language model is a positive integer.
+     * Throws a localized error if it isn't — these values are interpolated into
+     * shell commands (sed line ranges, head/tail counts) and must never reach
+     * the wire as `NaN`, negative numbers, or floats.
+     */
+    protected _validatePositiveInt(value: number | undefined, fieldName: string, max: number = 10_000_000): number | undefined {
+        if (value === undefined) {
+            return undefined;
+        }
+        if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1 || value > max) {
+            throw new Error(
+                vscode.l10n.t('Invalid {0}: must be an integer between 1 and {1}', fieldName, String(max))
+            );
+        }
+        return value;
+    }
+
+    /**
+     * Default timeout (ms) for chat-tool exec calls.
+     * The underlying SSH channel may still be in flight on the server when
+     * this fires, but the promise rejects so the LM doesn't block forever.
+     */
+    protected static readonly DEFAULT_EXEC_TIMEOUT_MS = 60_000;
+
+    /**
+     * Race a tool-initiated promise against a timeout so a runaway shell
+     * command (e.g. an LLM-supplied catastrophic-backtracking grep) cannot
+     * stall the chat indefinitely.
+     */
+    protected _withTimeout<T>(promise: Promise<T>, ms: number = BaseTool.DEFAULT_EXEC_TIMEOUT_MS, label: string = 'operation'): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                reject(new Error(vscode.l10n.t('{0} timed out after {1} ms', label, String(ms))));
+            }, ms);
+            promise.then(
+                (value) => { clearTimeout(timer); resolve(value); },
+                (err) => { clearTimeout(timer); reject(err); }
+            );
+        });
+    }
+
+    /**
      * Validates that a remote path is within the connection's workspace root (remotePath).
      *
      * Uses posix.normalize() to resolve '..', '.', and duplicate slashes before checking,
@@ -150,9 +192,11 @@ export abstract class BaseTool {
             return normalized;
         }
         throw new Error(
-            `Path "${inputPath}" is outside the workspace root "${config.remotePath}". ` +
-            `(Normalized: "${normalized}" vs root: "${normalizedRoot}"). ` +
-            `Use paths within the workspace root directory, or enable Full SSH Access in the connection's Advanced settings to access any path on the server.`
+            vscode.l10n.t(
+                'Path "{0}" is outside the workspace root "{1}". Use paths within the workspace, or enable Full SSH Access in the connection\'s Advanced settings to access any path on the server.',
+                inputPath,
+                config.remotePath || '/'
+            )
         );
     }
 }

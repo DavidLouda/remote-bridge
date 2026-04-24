@@ -7,7 +7,18 @@ const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
 const SALT_LENGTH = 32;
 const AUTH_TAG_LENGTH = 16;
-const PBKDF2_ITERATIONS = 100_000;
+/**
+ * Iteration count used by stores written before the iterations field existed.
+ * Readers MUST keep using this value when `meta.iterations` is undefined so
+ * legacy data remains decryptable.
+ */
+const LEGACY_PBKDF2_ITERATIONS = 100_000;
+/**
+ * Current PBKDF2 iteration count for new and re-encrypted stores.
+ * OWASP 2023 minimum for PBKDF2-HMAC-SHA512 is 210 000; we use 600 000 to
+ * align with the SHA-256 recommendation and add a comfortable margin.
+ */
+const CURRENT_PBKDF2_ITERATIONS = 600_000;
 const DIGEST = 'sha512';
 
 const STORE_KEY = 'remote-bridge.connectionStore';
@@ -83,7 +94,7 @@ export class EncryptionService {
      */
     async setupMasterPassword(masterPassword: string): Promise<void> {
         const salt = crypto.randomBytes(SALT_LENGTH).toString('hex');
-        const key = await this._deriveKey(masterPassword, salt);
+        const key = await this._deriveKey(masterPassword, salt, CURRENT_PBKDF2_ITERATIONS);
 
         // Create verification hash
         const verificationHash = crypto
@@ -95,6 +106,7 @@ export class EncryptionService {
             enabled: true,
             salt,
             verificationHash,
+            iterations: CURRENT_PBKDF2_ITERATIONS,
         };
 
         // Encrypt existing store if any
@@ -120,20 +132,90 @@ export class EncryptionService {
             return true;
         }
 
-        const key = await this._deriveKey(masterPassword, meta.salt);
+        // Older stores predate the iterations field — fall back to the legacy
+        // value so we can still derive the original key and validate the hash.
+        const storedIterations = meta.iterations ?? LEGACY_PBKDF2_ITERATIONS;
+        const key = await this._deriveKey(masterPassword, meta.salt, storedIterations);
         const verificationHash = crypto
             .createHash('sha256')
             .update(key)
             .digest('hex');
 
         if (verificationHash !== meta.verificationHash) {
+            key.fill(0);
             return false;
         }
 
         this._derivedKey = key;
         this._lastVerificationHash = meta.verificationHash;
         this._onDidUnlock.fire();
+
+        // Silent migration: if the store was derived with fewer iterations than
+        // the current default, re-derive with the modern count and re-encrypt.
+        // Best-effort — failures must never block the unlock.
+        if (storedIterations < CURRENT_PBKDF2_ITERATIONS) {
+            try {
+                await this._migrateIterations(masterPassword);
+            } catch {
+                // Migration is non-fatal; the user stays unlocked with the
+                // legacy parameters and we'll retry on the next unlock.
+            }
+        }
+
         return true;
+    }
+
+    /**
+     * Re-derive the key with `CURRENT_PBKDF2_ITERATIONS` and re-encrypt the
+     * store under a fresh salt. Called automatically by `unlock()` when the
+     * stored iteration count is below the current default. Requires the
+     * service to already be unlocked with the same `masterPassword`.
+     */
+    private async _migrateIterations(masterPassword: string): Promise<void> {
+        if (!this._derivedKey) {
+            return;
+        }
+
+        // Decrypt the current store with the existing (legacy) key first so
+        // we have plaintext to re-encrypt under the new key.
+        const encrypted = this._globalState.get<string>(ENCRYPTED_STORE_KEY);
+        let storeJson: string | null = null;
+        if (encrypted) {
+            try {
+                storeJson = this._decrypt(encrypted, this._derivedKey);
+            } catch {
+                // Encrypted blob is unreadable — abort migration silently.
+                return;
+            }
+        }
+
+        const newSalt = crypto.randomBytes(SALT_LENGTH).toString('hex');
+        const newKey = await this._deriveKey(masterPassword, newSalt, CURRENT_PBKDF2_ITERATIONS);
+        const newVerificationHash = crypto.createHash('sha256').update(newKey).digest('hex');
+
+        const newMeta: EncryptionMeta = {
+            enabled: true,
+            salt: newSalt,
+            verificationHash: newVerificationHash,
+            iterations: CURRENT_PBKDF2_ITERATIONS,
+        };
+
+        try {
+            if (storeJson !== null) {
+                const reEncrypted = this._encrypt(storeJson, newKey);
+                await this._globalState.update(ENCRYPTED_STORE_KEY, reEncrypted);
+                await this._globalState.update(LOCAL_ENCRYPTED_STORE_KEY, reEncrypted);
+            }
+            await this._globalState.update(ENCRYPTION_META_KEY, newMeta);
+
+            // Atomically swap to the new key.
+            this._derivedKey.fill(0);
+            this._derivedKey = newKey;
+            this._lastVerificationHash = newVerificationHash;
+        } catch (err) {
+            newKey.fill(0);
+            throw err;
+        }
     }
 
     /**
@@ -178,7 +260,7 @@ export class EncryptionService {
             return false;
         }
 
-        const oldKey = await this._deriveKey(oldPassword, meta.salt);
+        const oldKey = await this._deriveKey(oldPassword, meta.salt, meta.iterations ?? LEGACY_PBKDF2_ITERATIONS);
         const oldHash = crypto.createHash('sha256').update(oldKey).digest('hex');
         if (oldHash !== meta.verificationHash) {
             oldKey.fill(0);
@@ -200,13 +282,14 @@ export class EncryptionService {
 
         // Derive new key with a fresh salt
         const newSalt = crypto.randomBytes(SALT_LENGTH).toString('hex');
-        const newKey = await this._deriveKey(newPassword, newSalt);
+        const newKey = await this._deriveKey(newPassword, newSalt, CURRENT_PBKDF2_ITERATIONS);
         const newVerificationHash = crypto.createHash('sha256').update(newKey).digest('hex');
 
         const newMeta: EncryptionMeta = {
             enabled: true,
             salt: newSalt,
             verificationHash: newVerificationHash,
+            iterations: CURRENT_PBKDF2_ITERATIONS,
         };
 
         try {
@@ -380,7 +463,7 @@ export class EncryptionService {
         backupMeta: EncryptionMeta,
         password: string
     ): Promise<ConnectionStore | null> {
-        const key = await this._deriveKey(password, backupMeta.salt);
+        const key = await this._deriveKey(password, backupMeta.salt, backupMeta.iterations ?? LEGACY_PBKDF2_ITERATIONS);
         const hash = crypto.createHash('sha256').update(key).digest('hex');
         if (hash !== backupMeta.verificationHash) {
             key.fill(0);
@@ -398,12 +481,12 @@ export class EncryptionService {
 
     // ─── Private Helpers ────────────────────────────────────────────
 
-    private _deriveKey(password: string, salt: string): Promise<Buffer> {
+    private _deriveKey(password: string, salt: string, iterations: number = CURRENT_PBKDF2_ITERATIONS): Promise<Buffer> {
         return new Promise((resolve, reject) => {
             crypto.pbkdf2(
                 password,
                 Buffer.from(salt, 'hex'),
-                PBKDF2_ITERATIONS,
+                iterations,
                 KEY_LENGTH,
                 DIGEST,
                 (err, key) => {

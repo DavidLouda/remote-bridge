@@ -21,7 +21,11 @@ interface PoolEntry {
 export class ConnectionPool implements vscode.Disposable {
     private readonly _pool = new Map<string, PoolEntry>();
     private readonly _pending = new Map<string, Promise<RemoteAdapter>>();
+    private readonly _pendingGenerations = new Map<string, number>();
+    private readonly _autoConnectSuspended = new Set<string>();
+    private readonly _connectGenerations = new Map<string, number>();
     private _idleTimer: ReturnType<typeof setInterval> | null = null;
+    private _disposed = false;
 
     private readonly _onDidChangeStatus = new vscode.EventEmitter<{
         connectionId: string;
@@ -48,6 +52,14 @@ export class ConnectionPool implements vscode.Disposable {
      * Uses a pending-connections map to prevent duplicate concurrent connections.
      */
     async getAdapter(config: ConnectionConfig): Promise<RemoteAdapter> {
+        if (this._disposed) {
+            throw new Error(vscode.l10n.t('Connection pool has been disposed'));
+        }
+        if (this._autoConnectSuspended.has(config.id)) {
+            throw new Error(vscode.l10n.t('Connection is disconnected: {0}', config.name));
+        }
+
+        const generation = this._getConnectGeneration(config.id);
         const existing = this._pool.get(config.id);
         if (existing && existing.adapter.isConnected()) {
             existing.lastActivity = Date.now();
@@ -57,25 +69,48 @@ export class ConnectionPool implements vscode.Disposable {
         // If a connection attempt is already in progress, wait for it
         const pending = this._pending.get(config.id);
         if (pending) {
-            const start = Date.now();
-            try {
-                return await pending;
-            } finally {
-                this._logPerf(config, `pool getAdapter waited for pending connect (${Date.now() - start}ms)`);
+            const pendingGeneration = this._pendingGenerations.get(config.id);
+            if (pendingGeneration !== generation) {
+                this._pending.delete(config.id);
+                this._pendingGenerations.delete(config.id);
+            } else {
+                const start = Date.now();
+                try {
+                    return await pending;
+                } finally {
+                    this._logPerf(config, `pool getAdapter waited for pending connect (${Date.now() - start}ms)`);
+                }
             }
         }
 
-        const promise = this._connectAdapter(config);
+        const promise = this._connectAdapter(config, generation);
         this._pending.set(config.id, promise);
+        this._pendingGenerations.set(config.id, generation);
 
         try {
             return await promise;
         } finally {
-            this._pending.delete(config.id);
+            if (this._pending.get(config.id) === promise) {
+                this._pending.delete(config.id);
+                this._pendingGenerations.delete(config.id);
+            }
         }
     }
 
-    private async _connectAdapter(config: ConnectionConfig): Promise<RemoteAdapter> {
+    suspendAutoConnect(connectionId: string): void {
+        this._autoConnectSuspended.add(connectionId);
+        this._invalidatePendingConnect(connectionId);
+    }
+
+    resumeAutoConnect(connectionId: string): void {
+        this._autoConnectSuspended.delete(connectionId);
+    }
+
+    isAutoConnectSuspended(connectionId: string): boolean {
+        return this._autoConnectSuspended.has(connectionId);
+    }
+
+    private async _connectAdapter(config: ConnectionConfig, generation: number): Promise<RemoteAdapter> {
         const start = Date.now();
 
         // Remove stale entry
@@ -111,6 +146,14 @@ export class ConnectionPool implements vscode.Disposable {
             throw err;
         }
 
+        if (this._autoConnectSuspended.has(config.id) || this._getConnectGeneration(config.id) !== generation) {
+            this._setStatus(config.id, ConnectionStatus.Disconnected);
+            await adapter.disconnect().catch(() => { /* ignore */ });
+            adapter.dispose();
+            this._logPerf(config, `pool connect discarded after ${Date.now() - start}ms`);
+            throw new Error(vscode.l10n.t('Connection is disconnected: {0}', config.name));
+        }
+
         // Listen for unexpected disconnects
         const disconnectListener = adapter.onDidDisconnect(() => {
             this._setStatus(config.id, ConnectionStatus.Disconnected);
@@ -136,8 +179,10 @@ export class ConnectionPool implements vscode.Disposable {
      * Disconnect a specific connection.
      */
     async disconnect(connectionId: string): Promise<void> {
+        this._invalidatePendingConnect(connectionId);
         const entry = this._pool.get(connectionId);
         if (!entry) {
+            this._setStatus(connectionId, ConnectionStatus.Disconnected);
             return;
         }
 
@@ -242,6 +287,16 @@ export class ConnectionPool implements vscode.Disposable {
         this._perf.log(`${config.protocol.toUpperCase()} ${config.name}@${config.host}`, message);
     }
 
+    private _getConnectGeneration(connectionId: string): number {
+        return this._connectGenerations.get(connectionId) ?? 0;
+    }
+
+    private _invalidatePendingConnect(connectionId: string): void {
+        this._connectGenerations.set(connectionId, this._getConnectGeneration(connectionId) + 1);
+        this._pending.delete(connectionId);
+        this._pendingGenerations.delete(connectionId);
+    }
+
     private _setStatus(connectionId: string, status: ConnectionStatus): void {
         const entry = this._pool.get(connectionId);
         if (entry) {
@@ -269,26 +324,41 @@ export class ConnectionPool implements vscode.Disposable {
     private _startIdleMonitor(): void {
         // Check every 60 seconds for idle connections
         this._idleTimer = setInterval(() => {
-            const idleTimeoutMinutes = vscode.workspace
+            const idleTimeoutMinutesRaw = vscode.workspace
                 .getConfiguration('remoteBridge.pool')
                 .get<number>('idleTimeout', 10);
+            // Clamp to a sane range (1 minute — 24 hours) so a misconfigured
+            // value (negative, NaN, absurdly large) cannot disable eviction
+            // or thrash the pool.
+            const idleTimeoutMinutes = Number.isFinite(idleTimeoutMinutesRaw) && idleTimeoutMinutesRaw >= 1
+                ? Math.min(idleTimeoutMinutesRaw, 24 * 60)
+                : 10;
             const idleTimeoutMs = idleTimeoutMinutes * 60 * 1000;
             const now = Date.now();
 
             for (const [id, entry] of this._pool) {
                 if (now - entry.lastActivity > idleTimeoutMs) {
-                    this.disconnect(id).catch(() => { /* ignore */ });
+                    this.disconnect(id).catch((err) => {
+                        // Surfacing in the perf log keeps a paper trail when an
+                        // idle disconnect can't tear down a broken adapter.
+                        try { this._perf?.log('pool', `idle disconnect failed for ${id}: ${String(err)}`); } catch { /* ignore */ }
+                    });
                 }
             }
         }, 60_000);
     }
 
     dispose(): void {
+        this._disposed = true;
         if (this._idleTimer) {
             clearInterval(this._idleTimer);
             this._idleTimer = null;
         }
         this.disconnectAll().catch(() => { /* ignore */ });
+        this._pending.clear();
+        this._pendingGenerations.clear();
+        this._autoConnectSuspended.clear();
+        this._connectGenerations.clear();
         this._onDidChangeStatus.dispose();
     }
 }

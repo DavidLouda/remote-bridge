@@ -39,6 +39,7 @@
   "command.exportConnections.title": "Exportovat připojení",
   "command.syncNow.title": "Synchronizovat připojení (Beta)",
   "command.showConnections.title": "Zobrazit připojení",
+  "command.filterConnections.title": "Hledat připojení",
   "command.changePermissions.title": "Změnit oprávnění",
 
   "submenu.import.label": "Import",
@@ -49,6 +50,7 @@
   "config.pool.maxConnections.description": "Maximální počet souběžných připojení",
   "config.security.syncConnections.description": "(Beta) Zahrne hesla do šifrovaného úložiště, aby se připojení (včetně hesel) synchronizovala napříč zařízeními přes VS Code Settings Sync. Vyžaduje aktivní hlavní heslo. Na všech zařízeních musí být nastaveno stejné hlavní heslo. Upozornění: Tato funkce zatím nemusí fungovat zcela spolehlivě a je závislá na aktivní a správně fungující synchronizaci VS Code.",
   "config.watch.pollInterval.description": "Interval dotazování pro sledování změn souborového systému (v sekundách)",
+  "config.watch.largeDirThreshold.description": "Počet položek v adresáři, nad kterým watcher dotazuje 4× méně často, aby šetřil CPU a šířku pásma u velkých výpisů",
   "config.files.temporaryWritePermission.description": "Pokud je povoleno, rozšíření před uložením dočasně přidá právo zápisu ke vzdáleným souborům jen pro čtení a poté obnoví původní oprávnění. Podporováno pro SSH/SFTP a FTP/FTPS.",
 
   "chat.command.connect.description": "Připojit se ke vzdálenému serveru podle názvu",

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import { readImportFileSync } from '../utils/importerFile';
+import { normalizePrivateKeyPath, isOutsideHome } from '../utils/keyPath';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -136,7 +138,7 @@ export class PuTTYImporter {
 
             const sessionName = this._decodeSessionName(encoded);
             try {
-                const content = fs.readFileSync(filePath, 'utf-8');
+                const content = readImportFileSync(filePath, 1 * 1024 * 1024);
                 // Session files have no section headers — wrap in a synthetic section
                 const values = parseIni(`[session]\n${content}`)['session'] ?? {};
                 this._importSession(sessionName, values, result);
@@ -209,7 +211,13 @@ export class PuTTYImporter {
         };
 
         if (keyFile) {
-            (connection as Record<string, unknown>).privateKeyPath = keyFile;
+            const normalizedKey = normalizePrivateKeyPath(keyFile);
+            (connection as Record<string, unknown>).privateKeyPath = normalizedKey;
+            if (isOutsideHome(normalizedKey)) {
+                result.warnings!.push(
+                    vscode.l10n.t('PuTTY session "{0}" references key outside home: {1}', sessionName, normalizedKey)
+                );
+            }
         }
 
         result.imported.push(connection as ConnectionConfig);

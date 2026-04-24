@@ -397,16 +397,41 @@ export class ConnectionFormPanel {
         data: Record<string, unknown>
     ): Omit<ConnectionConfig, 'id' | 'sortOrder'> {
         const protocol = data.protocol as ConnectionProtocol;
+        // Whitelist: any other value is rejected so persisted configs stay sane.
+        const ALLOWED_PROTOCOLS: ConnectionProtocol[] = ['ssh', 'sftp', 'ftp', 'ftps'];
+        if (!ALLOWED_PROTOCOLS.includes(protocol)) {
+            throw new Error(vscode.l10n.t('Invalid protocol: {0}', String(protocol)));
+        }
+
+        // Sanitize host: strip CR/LF/NUL so request injection is impossible if
+        // the value is later interpolated into a URL or proxy CONNECT line.
+        const hostRaw = (data.host as string ?? '').trim();
+        const host = hostRaw.replace(/[\r\n\0]/g, '');
+        if (!host) {
+            throw new Error(vscode.l10n.t('Host is required'));
+        }
+
+        // Validate port range (TCP). Fall back to the protocol default when missing.
+        const portInput = Number(data.port);
+        const port = Number.isInteger(portInput) && portInput >= 1 && portInput <= 65535
+            ? portInput
+            : DEFAULT_PORTS[protocol];
+
+        // Keepalive: 0 disables; otherwise clamp to a sane range (max 1 day).
+        const keepaliveRaw = Number(data.keepaliveInterval);
+        const keepaliveInterval = Number.isFinite(keepaliveRaw) && keepaliveRaw >= 0 && keepaliveRaw <= 86_400
+            ? Math.trunc(keepaliveRaw)
+            : 10;
 
         const config: Omit<ConnectionConfig, 'id' | 'sortOrder'> = {
             name: (data.name as string).trim(),
             protocol,
-            host: (data.host as string).trim(),
-            port: Number(data.port) || DEFAULT_PORTS[protocol],
+            host,
+            port,
             username: (data.username as string) || '',
             authMethod: data.authMethod as ConnectionConfig['authMethod'],
             remotePath: (data.remotePath as string) || '/',
-            keepaliveInterval: Number(data.keepaliveInterval) || 10,
+            keepaliveInterval,
         };
 
         // Auth-specific
@@ -445,10 +470,18 @@ export class ConnectionFormPanel {
         if (data.proxy && typeof data.proxy === 'object') {
             const p = data.proxy as Record<string, unknown>;
             if (p.host && p.port) {
+                const proxyPortInput = Number(p.port);
+                if (!Number.isInteger(proxyPortInput) || proxyPortInput < 1 || proxyPortInput > 65535) {
+                    throw new Error(vscode.l10n.t('Invalid proxy port: {0}', String(p.port)));
+                }
+                const proxyType = p.type as 'socks4' | 'socks5' | 'http';
+                if (proxyType !== 'socks4' && proxyType !== 'socks5' && proxyType !== 'http') {
+                    throw new Error(vscode.l10n.t('Invalid proxy type: {0}', String(p.type)));
+                }
                 config.proxy = {
-                    type: (p.type as 'socks4' | 'socks5' | 'http') || 'socks5',
-                    host: p.host as string,
-                    port: Number(p.port),
+                    type: proxyType,
+                    host: (p.host as string).replace(/[\r\n\0]/g, ''),
+                    port: proxyPortInput,
                     username: (p.username as string) || undefined,
                     password: (p.password as string) || undefined,
                 };
@@ -459,10 +492,14 @@ export class ConnectionFormPanel {
         if ((protocol === 'ssh' || protocol === 'sftp') && data.jumpHost && typeof data.jumpHost === 'object') {
             const j = data.jumpHost as Record<string, unknown>;
             if (j.host && j.port) {
+                const jumpPortInput = Number(j.port);
+                if (!Number.isInteger(jumpPortInput) || jumpPortInput < 1 || jumpPortInput > 65535) {
+                    throw new Error(vscode.l10n.t('Invalid jump host port: {0}', String(j.port)));
+                }
                 const jumpAuthMethod = (j.authMethod as string) || 'password';
                 config.jumpHost = {
-                    host: (j.host as string).trim(),
-                    port: Number(j.port),
+                    host: (j.host as string).trim().replace(/[\r\n\0]/g, ''),
+                    port: jumpPortInput,
                     username: (j.username as string) || '',
                     authMethod: jumpAuthMethod as ConnectionConfig['authMethod'],
                 };

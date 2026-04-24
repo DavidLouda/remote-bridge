@@ -58,10 +58,17 @@ export async function findExistingWorkspaceFile(
         const fileUri = vscode.Uri.joinPath(dir, name);
         try {
             const bytes = await vscode.workspace.fs.readFile(fileUri);
-            const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as {
-                folders?: { uri: string }[];
-            };
-            if (json.folders?.some(f => f.uri.includes(`remote-bridge://${connectionId}`))) {
+            const parsed: unknown = JSON.parse(Buffer.from(bytes).toString('utf8'));
+            // Defensive shape check: corrupted or hand-edited workspace files
+            // must not throw on `.folders.some(...)` below.
+            if (typeof parsed !== 'object' || parsed === null) { continue; }
+            const folders = (parsed as { folders?: unknown }).folders;
+            if (!Array.isArray(folders)) { continue; }
+            const match = folders.some((f) =>
+                f && typeof f === 'object' && typeof (f as { uri?: unknown }).uri === 'string'
+                    && (f as { uri: string }).uri.includes(`remote-bridge://${connectionId}`)
+            );
+            if (match) {
                 return fileUri;
             }
         } catch {

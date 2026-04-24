@@ -84,3 +84,88 @@ export interface RemoteAdapter extends vscode.Disposable {
      */
     copy?(src: string, dst: string, options: { overwrite: boolean }): Promise<void>;
 }
+
+// ─── Connection loss detection ──────────────────────────────────
+
+/**
+ * Thrown by adapters when an operation fails because the underlying transport
+ * (TCP socket, SFTP channel) was closed unexpectedly — for example after an
+ * idle FTP server sends FIN, or an SSH session is torn down by the network.
+ *
+ * The FileSystemProvider treats this error as a hint to reconnect once and
+ * retry the operation transparently before surfacing a save failure to VS Code.
+ */
+export class RemoteConnectionLostError extends Error {
+    readonly isConnectionLost = true as const;
+    readonly cause?: unknown;
+
+    constructor(message: string, cause?: unknown) {
+        super(message);
+        this.name = 'RemoteConnectionLostError';
+        if (cause !== undefined) {
+            this.cause = cause;
+        }
+    }
+}
+
+const CONNECTION_LOST_MESSAGE_PATTERNS = [
+    'client is closed',
+    'fin packet',
+    'not connected',
+    'no response from server',
+    'channel open failure',
+    'connection lost',
+    'connection closed',
+    'socket hang up',
+    'connection reset by peer',
+    'broken pipe',
+    'sftp: server has disconnected',
+];
+
+const CONNECTION_LOST_ERROR_CODES = new Set([
+    'ECONNRESET',
+    'EPIPE',
+    'ENOTCONN',
+    'ECONNABORTED',
+    'ETIMEDOUT',
+    'ESHUTDOWN',
+]);
+
+/**
+ * Heuristic: does this error look like the remote side or the local socket
+ * dropped the connection (vs. a regular protocol-level failure such as
+ * "file not found" or "permission denied")? Used both by adapters to mark
+ * themselves disconnected and by the FileSystemProvider to decide whether
+ * to retry once via a fresh adapter from the pool.
+ */
+export function looksLikeConnectionLost(err: unknown): boolean {
+    if (err == null) {
+        return false;
+    }
+    if (err instanceof RemoteConnectionLostError) {
+        return true;
+    }
+    if (typeof err === 'object' && (err as { isConnectionLost?: unknown }).isConnectionLost === true) {
+        return true;
+    }
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === 'string' && CONNECTION_LOST_ERROR_CODES.has(code.toUpperCase())) {
+        return true;
+    }
+    const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
+    if (!message) {
+        return false;
+    }
+    for (const pattern of CONNECTION_LOST_MESSAGE_PATTERNS) {
+        if (message.includes(pattern)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Type guard counterpart for `RemoteConnectionLostError`. */
+export function isConnectionLostError(err: unknown): err is RemoteConnectionLostError {
+    return err instanceof RemoteConnectionLostError
+        || (typeof err === 'object' && err !== null && (err as { isConnectionLost?: unknown }).isConnectionLost === true);
+}

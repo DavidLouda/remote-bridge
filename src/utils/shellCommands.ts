@@ -29,6 +29,19 @@ export function esc(path: string, os: RemoteOS = 'linux'): string {
     return `'${path.replace(/'/g, "'\\''")}'`;
 }
 
+/**
+ * Defensive integer validator for shell command builders. Every numeric
+ * argument that is interpolated into a shell template (sed/PowerShell line
+ * ranges, head/tail counts) MUST pass through this so the wire never sees
+ * `NaN`, negative numbers, floats or absurdly large values.
+ */
+function ensureInt(value: number, name: string, max: number = 10_000_000): number {
+    if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1 || value > max) {
+        throw new Error(`Invalid ${name}: must be an integer between 1 and ${max}, got ${value}`);
+    }
+    return value;
+}
+
 // ─── current directory detection ───────────────────────────────────
 
 export function detectCurrentDirectory(os: RemoteOS = 'linux'): string {
@@ -56,6 +69,10 @@ export function readPartial(
     endArg: string, // number as string, or '$'
     os: RemoteOS = 'linux'
 ): string {
+    ensureInt(startLine, 'startLine');
+    if (endArg !== '$') {
+        ensureInt(Number(endArg), 'endLine');
+    }
     const p = esc(path, os);
     if (os === 'windows') {
         // PowerShell: zero-indexed arrays
@@ -81,6 +98,7 @@ export function writeInsert(
     startLine: number,
     os: RemoteOS = 'linux'
 ): string {
+    ensureInt(startLine, 'startLine');
     const p = esc(path, os);
     if (os === 'windows') {
         // PowerShell: read all lines, splice, write back. Content comes from stdin.
@@ -104,6 +122,11 @@ export function writeDelete(
     endLine: number,
     os: RemoteOS = 'linux'
 ): string {
+    ensureInt(startLine, 'startLine');
+    ensureInt(endLine, 'endLine');
+    if (endLine < startLine) {
+        throw new Error(`endLine (${endLine}) must be >= startLine (${startLine})`);
+    }
     const p = esc(path, os);
     if (os === 'windows') {
         return `$lines = @(Get-Content -LiteralPath ${p}); $lines = $lines[0..${startLine - 2}] + $lines[${endLine}..($lines.Count-1)]; $lines | Set-Content -LiteralPath ${p}`;
@@ -124,6 +147,11 @@ export function writeReplace(
     endLine: number,
     os: RemoteOS = 'linux'
 ): string {
+    ensureInt(startLine, 'startLine');
+    ensureInt(endLine, 'endLine');
+    if (endLine < startLine) {
+        throw new Error(`endLine (${endLine}) must be >= startLine (${startLine})`);
+    }
     const p = esc(path, os);
     if (os === 'windows') {
         return `$lines = @(Get-Content -LiteralPath ${p}); $new = @($input); $lines = $lines[0..${startLine - 2}] + $new + $lines[${endLine}..($lines.Count-1)]; $lines | Set-Content -LiteralPath ${p}`;
@@ -136,6 +164,23 @@ export function writeReplace(
 
 // ─── grep / search ──────────────────────────────────────────────────
 
+/**
+ * Strip "Binary file ... matches" notices from grep stdout.
+ *
+ * `grep -I` already skips binary files on GNU grep, but BSD/POSIX grep
+ * variants (e.g. on some BusyBox or macOS-without-`-I` setups) may still
+ * emit a "Binary file FOO matches" line on stdout for binary matches.
+ * This filter is a defensive backstop so the LM never sees those notices
+ * mixed into its match output.
+ */
+export function filterGrepBinaryNotices(stdout: string): string {
+    if (!stdout) { return stdout; }
+    return stdout
+        .split('\n')
+        .filter((line) => !/^Binary file .* matches\s*$/i.test(line) && !/^.*: binary file matches\s*$/i.test(line))
+        .join('\n');
+}
+
 export function grepSearch(
     pattern: string,
     path: string,
@@ -146,8 +191,8 @@ export function grepSearch(
     maxResults: number = 100,
     excludePattern?: string
 ): string {
-    maxResults = Math.max(1, maxResults);
-    contextLines = Math.max(0, contextLines);
+    maxResults = Math.max(1, Math.min(Math.trunc(maxResults) || 100, 100_000));
+    contextLines = Math.max(0, Math.min(Math.trunc(contextLines) || 0, 1000));
     const escapedPattern = os === 'windows'
         ? pattern.replace(/'/g, "''")
         : pattern.replace(/'/g, "'\\''");
@@ -199,8 +244,8 @@ export function grepInFile(
     os: RemoteOS = 'linux',
     maxResults: number = 50
 ): string {
-    maxResults = Math.max(1, maxResults);
-    contextLines = Math.max(0, contextLines);
+    maxResults = Math.max(1, Math.min(Math.trunc(maxResults) || 50, 100_000));
+    contextLines = Math.max(0, Math.min(Math.trunc(contextLines) || 0, 1000));
     const escapedPattern = os === 'windows'
         ? pattern.replace(/'/g, "''")
         : pattern.replace(/'/g, "'\\''");
@@ -226,6 +271,7 @@ export function tailRead(
     lines: number,
     os: RemoteOS = 'linux'
 ): string {
+    ensureInt(lines, 'tail lines', 1_000_000);
     const p = esc(path, os);
     if (os === 'windows') {
         return `$lines = Get-Content -LiteralPath ${p}; $lines.Count; $lines | Select-Object -Last ${lines}`;

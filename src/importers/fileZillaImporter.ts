@@ -100,6 +100,16 @@ export class FileZillaImporter {
 
         let xml: string;
         try {
+            // Cap input size to keep one bad/oversized file from blocking the
+            // extension host. 10 MB is far above any realistic FileZilla XML.
+            const stat = fs.statSync(filePath);
+            const MAX_BYTES = 10 * 1024 * 1024;
+            if (stat.size > MAX_BYTES) {
+                result.errors!.push(
+                    vscode.l10n.t('FileZilla config too large: {0} bytes (max {1})', String(stat.size), String(MAX_BYTES))
+                );
+                return result;
+            }
             xml = fs.readFileSync(filePath, 'utf-8');
         } catch (err) {
             result.errors!.push(
@@ -115,6 +125,12 @@ export class FileZillaImporter {
                 attributeNamePrefix: '@_',
                 isArray: (tagName) =>
                     tagName === 'Server' || tagName === 'Folder',
+                // Defense in depth against XML External Entity (XXE) attacks:
+                // disable entity processing entirely. fast-xml-parser does not
+                // resolve external entities by default, but explicit flags here
+                // make the policy obvious and survive future parser upgrades.
+                processEntities: false,
+                htmlEntities: false,
             });
             parsed = parser.parse(xml);
         } catch (err) {

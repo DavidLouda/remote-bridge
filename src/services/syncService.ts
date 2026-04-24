@@ -292,6 +292,13 @@ export class SyncService implements vscode.Disposable {
             clearInterval(this._pollTimer);
             this._pollTimer = undefined;
         }
+        // Push debounce must also be cleared on stopPeriodicSync — without
+        // this the debounced timer can fire after sync was disabled, calling
+        // VS Code's sync command with a now-stale fingerprint.
+        if (this._pushDebounceTimer !== undefined) {
+            clearTimeout(this._pushDebounceTimer);
+            this._pushDebounceTimer = undefined;
+        }
         this._cancelRetry();
     }
 

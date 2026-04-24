@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
 import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import * as fs from 'fs';
-import { RemoteAdapter, RemoteOperationOptions } from './adapter';
+import { RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
 import { PerfLogger } from '../services/perfLogger';
 import * as shell from '../utils/shellCommands';
 import { createProxySocket } from '../utils/proxyTunnel';
 import { createJumpSocket } from '../utils/jumpTunnel';
+import { readPrivateKeySync } from '../utils/privateKeyLoader';
 
 /**
  * SSH/SFTP adapter using the ssh2 library.
@@ -73,13 +74,11 @@ export class SshAdapter implements RemoteAdapter {
                 if (this._config.privateKeyPath) {
                     const keyPath = this._config.privateKeyPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
                     try {
-                        connectConfig.privateKey = fs.readFileSync(keyPath);
-                    } catch {
-                        throw vscode.l10n.t({
-                            message: 'Failed to read private key: {0}',
-                            args: [keyPath],
-                            comment: ['{0} is the file path to the private key'],
-                        });
+                        connectConfig.privateKey = readPrivateKeySync(keyPath);
+                    } catch (err) {
+                        throw err instanceof Error
+                            ? err
+                            : new Error(vscode.l10n.t('Failed to read private key: {0}', keyPath));
                     }
                 }
                 if (this._config.hasPassphrase) {
@@ -124,6 +123,35 @@ export class SshAdapter implements RemoteAdapter {
         }
 
         return new Promise<void>((resolve, reject) => {
+            // Track whether we've already settled — guards against the race where
+            // 'error' fires after 'ready' (or vice versa), and ensures we only
+            // run cleanup once.
+            let settled = false;
+            const settleReject = (err: unknown) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                cleanupConnectListeners();
+                reject(err);
+            };
+            const settleResolve = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                cleanupConnectListeners();
+                resolve();
+            };
+
+            const cleanupConnectListeners = (): void => {
+                // Remove only the *connect-time* listeners; keep close/end attached
+                // for unexpected-disconnect detection during the connection's lifetime.
+                client.removeAllListeners('keyboard-interactive');
+                client.removeAllListeners('ready');
+                client.removeAllListeners('error');
+            };
+
             // Handle keyboard-interactive authentication prompts
             client.on('keyboard-interactive', (_name, _instructions, _instructionsLang, prompts, finish) => {
                 const responses: string[] = [];
@@ -150,12 +178,12 @@ export class SshAdapter implements RemoteAdapter {
                 client.sftp((err, sftp) => {
                     if (err) {
                         this._logPerf(`connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
-                        reject(err);
+                        settleReject(err);
                         return;
                     }
                     this._sftp = sftp;
                     this._logPerf(`connect complete (${Date.now() - start}ms)`);
-                    resolve();
+                    settleResolve();
                 });
             });
 
@@ -163,7 +191,7 @@ export class SshAdapter implements RemoteAdapter {
                 this._connected = false;
                 this._sftp = null;
                 this._logPerf(`connect failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
-                reject(err);
+                settleReject(err);
             });
 
             client.on('close', () => {
@@ -336,8 +364,13 @@ export class SshAdapter implements RemoteAdapter {
             (originalMode & 0o200) === 0 &&
             vscode.workspace.getConfiguration('remoteBridge.files').get<boolean>('temporaryWritePermission', false);
 
+        let chmodApplied = false;
         if (needsTemporaryWrite) {
+            // If chmod fails here we MUST abort — proceeding would either fail with
+            // a less clear permission error from createWriteStream, or (worse) succeed
+            // and silently lose the original permission bits.
             await this.chmod(remotePath, originalMode! | 0o200);
+            chmodApplied = true;
         }
 
         try {
@@ -355,8 +388,12 @@ export class SshAdapter implements RemoteAdapter {
                 stream.end(Buffer.from(content));
             });
         } finally {
-            if (needsTemporaryWrite) {
-                await this.chmod(remotePath, originalMode!).catch(() => { /* best-effort restore */ });
+            if (chmodApplied) {
+                // Best-effort restore — at this point the file exists with elevated
+                // permissions and we always want to put them back to the original.
+                await this.chmod(remotePath, originalMode!).catch((err) => {
+                    this._logPerf(`writeFile ${remotePath} -> failed to restore mode ${originalMode!.toString(8)}: ${this._perf?.formatError(err) ?? String(err)}`);
+                });
             }
         }
     }
@@ -414,7 +451,10 @@ export class SshAdapter implements RemoteAdapter {
         return new Promise((resolve, reject) => {
             sftp.rename(oldPath, newPath, (err) => {
                 if (err) {
-                    reject(this._mapSftpError(err, oldPath));
+                    // Many servers report "file already exists" / SSH_FX_FILE_ALREADY_EXISTS
+                    // when the rename target collides — surface the target path in that case.
+                    const errorPath = this._isTargetCollisionError(err) ? newPath : oldPath;
+                    reject(this._mapSftpError(err, errorPath));
                 } else {
                     resolve();
                 }
@@ -461,10 +501,34 @@ export class SshAdapter implements RemoteAdapter {
         const os = this._config.os ?? 'linux';
         const stat = await this.stat(src);
         const recursive = stat.type === vscode.FileType.Directory;
+        // copyCmd already uses `cp -p` (single file) and `cp -a` / `cp -Rp` (recursive)
+        // which preserves mode, ownership, and timestamps on POSIX systems.
+        // PowerShell's Copy-Item preserves attributes by default on Windows.
         const cmd = shell.copyCmd(src, dst, recursive, os);
         const result = await this.exec(cmd);
         if (result.exitCode !== 0) {
-            throw new Error(result.stderr || vscode.l10n.t('Copy failed'));
+            const detail = (result.stderr || result.stdout).trim();
+            throw new Error(
+                detail
+                    ? vscode.l10n.t('Copy {0} to {1} failed: {2}', src, dst, detail)
+                    : vscode.l10n.t('Copy {0} to {1} failed', src, dst)
+            );
+        }
+
+        // Sanity-check: copy permissions explicitly for single-file copies. cp -p
+        // can silently lose mode bits on some filesystems (e.g. when src is on a
+        // FAT-mounted volume, or when a non-root user runs cp on a file owned by
+        // another user). For directory trees we rely on cp -a / -Rp.
+        if (!recursive) {
+            try {
+                const srcMode = await this.getUnixMode(src);
+                const dstMode = await this.getUnixMode(dst);
+                if (srcMode !== undefined && dstMode !== undefined && srcMode !== dstMode) {
+                    await this.chmod(dst, srcMode);
+                }
+            } catch (err) {
+                this._logPerf(`copy ${src} -> ${dst}: post-copy mode reconciliation failed: ${this._perf?.formatError(err) ?? String(err)}`);
+            }
         }
     }
 
@@ -503,7 +567,7 @@ export class SshAdapter implements RemoteAdapter {
         return new Promise((resolve, reject) => {
             client.exec(command, (err, stream) => {
                 if (err) {
-                    reject(err);
+                    reject(this._classifyTransportError(err));
                     return;
                 }
                 if (!stream) {
@@ -524,7 +588,7 @@ export class SshAdapter implements RemoteAdapter {
                     resolve({ stdout, stderr, exitCode: code ?? 0 });
                 });
                 stream.on('error', (err: Error) => {
-                    reject(err);
+                    reject(this._classifyTransportError(err));
                 });
             });
         });
@@ -535,7 +599,7 @@ export class SshAdapter implements RemoteAdapter {
         return new Promise((resolve, reject) => {
             client.exec(command, (err, stream) => {
                 if (err) {
-                    reject(err);
+                    reject(this._classifyTransportError(err));
                     return;
                 }
                 if (!stream) {
@@ -556,13 +620,31 @@ export class SshAdapter implements RemoteAdapter {
                     resolve({ stdout, stderr, exitCode: code ?? 0 });
                 });
                 stream.on('error', (err: Error) => {
-                    reject(err);
+                    reject(this._classifyTransportError(err));
                 });
 
                 // Write data to stdin and close
                 stream.end(stdinData);
             });
         });
+    }
+
+    /**
+     * If the error indicates the SSH transport went away, mark the adapter
+     * disconnected and return a typed `RemoteConnectionLostError` so the
+     * FileSystemProvider can reconnect once and retry. Otherwise return the
+     * original error untouched.
+     */
+    private _classifyTransportError(err: unknown): unknown {
+        if (!looksLikeConnectionLost(err)) {
+            return err;
+        }
+        this._markDisconnectedAfterTransportLoss();
+        if (err instanceof RemoteConnectionLostError) {
+            return err;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        return new RemoteConnectionLostError(message || 'SSH connection lost', err);
     }
 
     async shell(): Promise<NodeJS.ReadWriteStream> {
@@ -672,12 +754,19 @@ export class SshAdapter implements RemoteAdapter {
         }
     }
 
-    private async _deleteRecursive(remotePath: string): Promise<void> {
+    private async _deleteRecursive(remotePath: string, depth: number = 0): Promise<void> {
+        // Defensive depth cap — protects against pathological symlink-induced
+        // cycles on servers that resolve symlinks during readdir.
+        if (depth > 32) {
+            throw new Error(vscode.l10n.t('Recursion depth exceeded while deleting {0}', remotePath));
+        }
         const entries = await this.readDirectory(remotePath);
         for (const entry of entries) {
             const fullPath = `${remotePath}/${entry.name}`;
-            if (entry.type === vscode.FileType.Directory) {
-                await this._deleteRecursive(fullPath);
+            const isSymlink = (entry.type & vscode.FileType.SymbolicLink) !== 0;
+            // Never traverse into symlinks — unlink the link itself instead.
+            if (entry.type === vscode.FileType.Directory && !isSymlink) {
+                await this._deleteRecursive(fullPath, depth + 1);
             } else {
                 await this.delete(fullPath, { recursive: false });
             }
@@ -743,20 +832,103 @@ export class SshAdapter implements RemoteAdapter {
         return undefined;
     }
 
+    private _isTargetCollisionError(error: unknown): boolean {
+        if (error && typeof error === 'object') {
+            const code = (error as { code?: unknown }).code;
+            const numeric = typeof code === 'number' ? code : parseInt(String(code), 10);
+            // SSH_FX_FILE_ALREADY_EXISTS (non-standard 11) — used by some servers.
+            if (numeric === 11) {
+                return true;
+            }
+        }
+        const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+        return message.includes('already exists')
+            || message.includes('file exists');
+    }
+
+    /**
+     * Best-effort: flag the adapter disconnected when an operation hits a
+     * transport-level failure before the ssh2 'close' handler has fired. The
+     * close handler is still expected to fire afterwards — this just makes the
+     * pool's next `getAdapter` see `isConnected() === false` immediately, so a
+     * retry from the FileSystemProvider gets a freshly reconnected adapter
+     * instead of reusing the broken one.
+     */
+    private _markDisconnectedAfterTransportLoss(): void {
+        if (!this._connected) {
+            return;
+        }
+        this._connected = false;
+        // Defer the event so we don't fire while we're inside a synchronous
+        // SFTP error callback — keeps listener semantics consistent with the
+        // ssh2 'close' path.
+        queueMicrotask(() => {
+            try {
+                this._onDidDisconnect.fire();
+            } catch {
+                // EventEmitter listeners are user-supplied; never let them break us.
+            }
+        });
+    }
+
     private _mapSftpError(err: Error & { code?: number | string }, path: string): Error {
+        // Detect transport-level failures first — SFTP errors that arrive after
+        // the SSH transport went away (server reset, broken pipe, idle timeout).
+        // Returning a typed error lets the FileSystemProvider reconnect once and
+        // retry the failing operation transparently instead of bubbling up an
+        // opaque save failure.
+        if (looksLikeConnectionLost(err)) {
+            this._markDisconnectedAfterTransportLoss();
+            return err instanceof RemoteConnectionLostError
+                ? err
+                : new RemoteConnectionLostError(err.message || 'SSH connection lost', err);
+        }
+
         const code = typeof err.code === 'number' ? err.code : parseInt(String(err.code), 10);
+        const message = (err.message || '').toLowerCase();
+
         switch (code) {
             case 2: // SSH_FX_NO_SUCH_FILE
                 return vscode.FileSystemError.FileNotFound(path);
             case 3: // SSH_FX_PERMISSION_DENIED
                 return vscode.FileSystemError.NoPermissions(path);
-            case 4: // SSH_FX_FAILURE (often "directory not empty" or generic)
-                return vscode.FileSystemError.Unavailable(path);
             case 11: // SSH_FX_FILE_ALREADY_EXISTS (non-standard but used)
                 return vscode.FileSystemError.FileExists(path);
-            default:
-                return err;
+            case 4: {
+                // SSH_FX_FAILURE — generic, used for many distinct conditions:
+                // "is a directory", "directory not empty", "operation failed", etc.
+                // Inspect the message rather than collapsing all of them to Unavailable.
+                if (message.includes('is a directory')) {
+                    return vscode.FileSystemError.FileIsADirectory(path);
+                }
+                if (message.includes('directory not empty')) {
+                    return vscode.FileSystemError.NoPermissions(
+                        vscode.l10n.t('Directory is not empty: {0}', path)
+                    );
+                }
+                // Fall through to the wrapped-error path below.
+                break;
+            }
         }
+
+        // Pattern fallbacks for servers that don't set a code reliably.
+        if (message.includes('no such file') || message.includes('not found')) {
+            return vscode.FileSystemError.FileNotFound(path);
+        }
+        if (message.includes('permission denied')) {
+            return vscode.FileSystemError.NoPermissions(path);
+        }
+        if (message.includes('already exists')) {
+            return vscode.FileSystemError.FileExists(path);
+        }
+
+        // Always return an Error instance, never a raw object — preserve cause for diagnostics.
+        if (err instanceof Error) {
+            return err;
+        }
+        const wrapped = new Error(String(err));
+        (wrapped as Error & { cause?: unknown }).cause = err;
+        return wrapped;
     }
 
     dispose(): void {

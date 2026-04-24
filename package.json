@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "3.4.3",
+  "version": "3.5.0",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
@@ -263,6 +263,12 @@
         "category": "Remote Bridge"
       },
       {
+        "command": "remoteBridge.filterConnections",
+        "title": "%command.filterConnections.title%",
+        "icon": "$(search)",
+        "category": "Remote Bridge"
+      },
+      {
         "command": "remoteBridge.changePermissions",
         "title": "%command.changePermissions.title%",
         "icon": "$(shield)",
@@ -285,6 +291,11 @@
           "command": "remoteBridge.refresh",
           "when": "view == remoteBridge.connections",
           "group": "navigation@3"
+        },
+        {
+          "command": "remoteBridge.filterConnections",
+          "when": "view == remoteBridge.connections",
+          "group": "navigation@4"
         },
         {
           "command": "remoteBridge.import",
@@ -505,6 +516,13 @@
           "minimum": 1,
           "maximum": 60,
           "description": "%config.watch.pollInterval.description%"
+        },
+        "remoteBridge.watch.largeDirThreshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 100000,
+          "description": "%config.watch.largeDirThreshold.description%"
         },
         "remoteBridge.files.temporaryWritePermission": {
           "type": "boolean",

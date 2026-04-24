@@ -81,7 +81,11 @@ export class CacheService {
     }
 
     setContent(key: string, content: Uint8Array): void {
-        // Evict oldest entries if we exceed max size
+        // Evict oldest entries if we exceed max size.
+        // NOTE: We rely on Map insertion order, which is a proxy for
+        // `expiresAt` because every content entry uses the same TTL
+        // (`_contentTtlMs`). If per-entry TTLs are ever added, switch this
+        // to scan for the entry with the smallest `expiresAt` instead.
         while (
             this._currentContentSize + content.byteLength > this._maxContentSizeBytes &&
             this._contentCache.size > 0

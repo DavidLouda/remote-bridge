@@ -42,8 +42,49 @@ export interface BackupEntry {
  */
 export class BackupService {
     private _lastBackupDate: string | null = null;
+    /**
+     * Serialize backup writes so a fire-and-forget call from
+     * ConnectionManager.save() cannot interleave with a manual createBackup
+     * (or two daily writes that race past the date check).
+     */
+    private _writeChain: Promise<void> = Promise.resolve();
 
     constructor(private readonly _storageUri: vscode.Uri) {}
+
+    /**
+     * Atomically write a JSON backup: write to a temp file in the same
+     * directory, then rename over the destination. Prevents truncated /
+     * partially-written backups if the host crashes mid-write.
+     */
+    private async _atomicWriteJson(dir: vscode.Uri, filename: string, content: Uint8Array): Promise<void> {
+        const tmpName = `.${filename}.tmp-${process.pid}-${Date.now()}`;
+        const tmpUri = vscode.Uri.joinPath(dir, tmpName);
+        const finalUri = vscode.Uri.joinPath(dir, filename);
+        await vscode.workspace.fs.writeFile(tmpUri, content);
+        try {
+            await vscode.workspace.fs.rename(tmpUri, finalUri, { overwrite: true });
+        } catch (err) {
+            // Best-effort cleanup: remove the temp file if rename failed.
+            try { await vscode.workspace.fs.delete(tmpUri); } catch { /* ignore */ }
+            throw err;
+        }
+    }
+
+    /** Run `task` after the previous backup write completes (success or failure). */
+    private _enqueue(task: () => Promise<void>): Promise<void> {
+        const next = this._writeChain.then(task, task);
+        this._writeChain = next.catch(() => { /* swallow so future tasks still run */ });
+        return next;
+    }
+
+    /**
+     * Wait for any in-flight backup writes to finish. Safe to call from
+     * `deactivate()` — never rejects because `_writeChain` already swallows
+     * errors. Pair with a timeout in the caller to bound shutdown latency.
+     */
+    flush(): Promise<void> {
+        return this._writeChain;
+    }
 
     /**
      * Write a daily backup if none exists for today yet.
@@ -56,30 +97,32 @@ export class BackupService {
         encryptedData: string,
         meta: EncryptionMeta
     ): Promise<void> {
-        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-        if (this._lastBackupDate === today) {
-            return;
-        }
+        return this._enqueue(async () => {
+            const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            if (this._lastBackupDate === today) {
+                return;
+            }
 
-        const backupDir = vscode.Uri.joinPath(this._storageUri, 'backups');
-        await vscode.workspace.fs.createDirectory(backupDir);
+            const backupDir = vscode.Uri.joinPath(this._storageUri, 'backups');
+            await vscode.workspace.fs.createDirectory(backupDir);
 
-        const backup: BackupFile = {
-            version: 1,
-            created: new Date().toISOString(),
-            meta,
-            data: encryptedData,
-        };
+            const backup: BackupFile = {
+                version: 1,
+                created: new Date().toISOString(),
+                meta,
+                data: encryptedData,
+            };
 
-        const fileUri = vscode.Uri.joinPath(backupDir, `daily-${today}.json`);
-        await vscode.workspace.fs.writeFile(
-            fileUri,
-            Buffer.from(JSON.stringify(backup), 'utf8')
-        );
-        this._lastBackupDate = today;
+            await this._atomicWriteJson(
+                backupDir,
+                `daily-${today}.json`,
+                Buffer.from(JSON.stringify(backup), 'utf8')
+            );
+            this._lastBackupDate = today;
 
-        await this._promoteWeekly(backupDir, today);
-        await this._pruneOldBackups(backupDir);
+            await this._promoteWeekly(backupDir, today);
+            await this._pruneOldBackups(backupDir);
+        });
     }
 
     /**
@@ -163,13 +206,14 @@ export class BackupService {
             data: encryptedData,
         };
 
-        const fileUri = vscode.Uri.joinPath(backupDir, `manual-${timestamp}.json`);
-        await vscode.workspace.fs.writeFile(
-            fileUri,
-            Buffer.from(JSON.stringify(backup), 'utf8')
-        );
-
-        await this._pruneOldBackups(backupDir);
+        await this._enqueue(async () => {
+            await this._atomicWriteJson(
+                backupDir,
+                `manual-${timestamp}.json`,
+                Buffer.from(JSON.stringify(backup), 'utf8')
+            );
+            await this._pruneOldBackups(backupDir);
+        });
     }
 
     // ─── Private Helpers ────────────────────────────────────────────

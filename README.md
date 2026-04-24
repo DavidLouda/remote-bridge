@@ -17,9 +17,9 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 | **Jump Host (Beta)** | SSH ProxyJump / bastion host — per-connection, supports Password / Private Key / SSH Agent auth |
 | **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
-| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import from `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |
+| **Connection manager** | Folders, drag & drop, multi-select, duplicate, import preview with per-entry selection, import from Remote Bridge JSON / `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |
 | **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password encryption; optional cross-device sync via VS Code Settings Sync |
-| **AI (Copilot)** | `@bridge` chat participant + 3 tools (`runCommand`, `readFile`, `searchFiles`); opt-in **Full SSH Access** mode per connection for server administration |
+| **AI (Copilot)** | `@bridge` chat participant + 3 built-in tools (`#remoteRun`, `#remoteRead`, `#remoteSearch`); opt-in **Full SSH Access** mode per connection for server administration |
 | **Multi-OS** | Per-connection OS setting — Linux, macOS, Windows (PowerShell) |
 | **Localization** | 12 languages: EN, CS, DE, FR, ES, PL, HU, SK, UK, ZH-CN, KO, JA |
 
@@ -48,12 +48,14 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 - **Multi-select** connections for bulk **delete** or **Move to Folder**
 - **Duplicate**, **edit**, and **delete** connections from the sidebar
 - **Import** from:
+  - Remote Bridge JSON export
   - `~/.ssh/config`
   - WinSCP (including encrypted passwords with master password)
   - SSH FS VS Code extension
   - FileZilla Site Manager (FTP, SFTP, FTPS; Base64 passwords decoded)
   - PuTTY (Windows registry or `~/.putty/sessions/`; SSH only)
   - Total Commander FTP plugin (`wcx_ftp.ini`; FTP and FTPS)
+- Every importer opens a **preview** where you can review and uncheck individual entries before anything is written. Duplicate targets are flagged and unchecked by default.
 - **Export** to JSON (all connections, re-importable; optional password inclusion) or SSH Config (SSH/SFTP connections)
 
 ### 🔐 Security
@@ -139,7 +141,7 @@ code --install-extension remote-bridge-<version>.vsix
 2. Fill in the connection details — see [Connection Form](#connection-form) below
 3. Open the command palette → **"Remote Bridge: Show Connections"** to open the sidebar
 4. Click **Connect** — the remote directory opens as a named workspace and the server name appears in the status bar
-5. Right-click → **Open SSH Terminal** for an interactive shell
+5. If you connected over SSH or SFTP, right-click → **Open SSH Terminal** for an interactive shell
 
 > **Tip:** If your activity bar is visible (left edge of VS Code), you'll also see a **Remote Bridge** icon there for quick access to the sidebar.
 
@@ -197,6 +199,7 @@ The Remote Bridge sidebar has two sections:
 | ➕ | Add Connection |
 | 📁 | Add Folder |
 | 🔄 | Refresh |
+| 🔍 | Search saved connections and live-filter the tree |
 | ⋯ (overflow menu) | Import, Export, Set/Change/Remove Master Password, Lock/Unlock Connections, Backup/Restore |
 
 ### Working with Connections
@@ -242,7 +245,7 @@ The Remote Bridge status bar item (bottom-left) shows:
 - `$(plug) example.com` — the name of the currently connected server
 - `$(plug) server1.example.com, server2.example.com` — multiple active connections, comma-separated
 
-Click the status bar item to open a quick-pick with all configured connections and their current status.
+Click the status bar item to open a quick-pick grouped into **Connected**, **Recent**, and **All** connections. The **Recent** group keeps the last 5 successfully connected entries on the current machine and is not synced across devices.
 
 ### SSH Terminal
 
@@ -275,7 +278,7 @@ All commands are accessible via `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac):
 | Command | Description |
 |---------|-------------|
 | Remote Bridge: Add Connection | Open the connection form |
-| Remote Bridge: Import Connections | Import from SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, or Total Commander |
+| Remote Bridge: Import Connections | Import from Remote Bridge JSON, SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, or Total Commander |
 | Remote Bridge: Export Connections | Export connections to JSON (re-importable) or SSH Config format |
 | Remote Bridge: Set Master Password | Encrypt all connections with a master password (shown when encryption is off) |
 | Remote Bridge: Change Master Password | Change the current master password (shown when encryption is on) |
@@ -285,11 +288,17 @@ All commands are accessible via `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac):
 | Remote Bridge: Restore from Backup | Restore connections from an encrypted local backup |
 | Remote Bridge: Create Backup | Manually create an encrypted backup of current connections |
 | Remote Bridge: Show Connections | Focus the Remote Bridge sidebar |
+| Remote Bridge: Search Connections | Open a small search box and live-filter the saved connections tree |
 | Remote Bridge: Change Permissions | Set file or folder permissions in octal format (active when a remote file or folder is selected in the Explorer) |
 
 ## Importing Connections
 
 All importers are accessible via: command palette → **Remote Bridge: Import Connections** (or the `⋯` overflow menu in the sidebar).
+
+Every import flow first opens an **import preview** where you can review and uncheck individual entries. Connections that already match an existing protocol/host/port/user combination are flagged as duplicates and start unchecked by default.
+
+### JSON (Remote Bridge)
+Reads `.json` files previously exported by **Remote Bridge: Export Connections**. Folder hierarchy is restored automatically. If the export included secrets, connection passwords, key passphrases, and proxy passwords are restored as well.
 
 ### SSH Config
 Reads `~/.ssh/config` and imports all named hosts.

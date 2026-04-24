@@ -9,6 +9,7 @@ import {
     ImportResult,
 } from '../types/connection';
 import { parseIni } from '../utils/iniParser';
+import { readImportFileSync } from '../utils/importerFile';
 import { deobfuscateTotalCmdPassword } from '../utils/totalCmdCrypto';
 
 /**
@@ -77,11 +78,9 @@ export class TotalCmdImporter {
 
         let content: string;
         try {
-            content = fs.readFileSync(filePath, 'utf-8');
+            content = readImportFileSync(filePath);
         } catch (err) {
-            result.errors.push(
-                vscode.l10n.t('Failed to read Total Commander FTP config: {0}', String(err))
-            );
+            result.errors.push(err instanceof Error ? err.message : vscode.l10n.t('Failed to read Total Commander FTP config: {0}', String(err)));
             return result;
         }
 

@@ -15,6 +15,7 @@ import {
     hasMasterPassword,
 } from '../utils/winscpCrypto';
 import { parseIni } from '../utils/iniParser';
+import { readImportFileSync } from '../utils/importerFile';
 
 /**
  * Imports connections from WinSCP configuration (INI file or registry).
@@ -80,11 +81,9 @@ export class WinSCPImporter {
 
         let content: string;
         try {
-            content = fs.readFileSync(filePath, 'utf-8');
+            content = readImportFileSync(filePath);
         } catch (err) {
-            result.errors.push(
-                vscode.l10n.t('Failed to read WinSCP config: {0}', String(err))
-            );
+            result.errors.push(err instanceof Error ? err.message : vscode.l10n.t('Failed to read WinSCP config: {0}', String(err)));
             return result;
         }
 
@@ -163,28 +162,46 @@ export class WinSCPImporter {
                     continue;
                 }
 
-                const fsProtocol = parseInt(values['FSProtocol'] || '5', 10);
+                const rawFsProtocol = values['FSProtocol'];
+                const fsProtocol = parseInt(rawFsProtocol || '1', 10);
                 const ftps = parseInt(values['Ftps'] || '0', 10);
-                const protocol = mapWinSCPProtocol(fsProtocol, ftps);
+                const protocol = Number.isNaN(fsProtocol)
+                    ? null
+                    : mapWinSCPProtocol(fsProtocol, ftps);
 
                 if (!protocol) {
+                    result.warnings?.push(
+                        vscode.l10n.t(
+                            'Session "{0}" uses unsupported WinSCP protocol and was skipped.',
+                            sessionName
+                        )
+                    );
                     result.skipped++;
                     continue;
                 }
 
                 const username = values['UserName'] || '';
-                const port = parseInt(values['PortNumber'] || String(DEFAULT_PORTS[protocol]), 10);
+                const parsedPort = parseInt(values['PortNumber'] || '', 10);
+                const defaultPort = this._getDefaultPort(protocol, ftps);
+                const port = Number.isNaN(parsedPort) ? defaultPort : parsedPort;
                 const pingInterval = parseInt(values['PingIntervalSecs'] || '10', 10);
                 const useAgent = this._truthy(values['TryAgent']);
                 const hasPublicKey = Boolean(values['PublicKeyFile']);
+                const authMethod = protocol === 'ssh' || protocol === 'sftp'
+                    ? hasPublicKey
+                        ? 'key'
+                        : useAgent
+                            ? 'agent'
+                            : 'password'
+                    : 'password';
 
                 const connection: Omit<ConnectionConfig, 'id' | 'sortOrder'> = {
                     name: sessionName,
                     protocol,
                     host: hostname,
-                    port: isNaN(port) ? DEFAULT_PORTS[protocol] : port,
+                    port,
                     username,
-                    authMethod: hasPublicKey ? 'key' : useAgent ? 'agent' : 'password',
+                    authMethod,
                     remotePath: values['RemoteDirectory'] || '/',
                     keepaliveInterval: Number.isNaN(pingInterval) ? 10 : Math.max(0, pingInterval),
                     os: 'linux',
@@ -198,7 +215,7 @@ export class WinSCPImporter {
                     connection.secure = true;
                 }
 
-                if (hasPublicKey) {
+                if ((protocol === 'ssh' || protocol === 'sftp') && hasPublicKey) {
                     connection.privateKeyPath = values['PublicKeyFile'];
                 }
 
@@ -242,7 +259,7 @@ export class WinSCPImporter {
                             }
 
                             if (decryptedProxyPassword) {
-                                const importKey = `${connection.folderId ?? ''}::${sessionName}`;
+                                const importKey = this._buildImportKey(connection.folderId, sessionName);
                                 proxyPasswords.set(importKey, decryptedProxyPassword);
                             }
                         }
@@ -276,7 +293,7 @@ export class WinSCPImporter {
                     }
 
                     if (decryptedPassword) {
-                        const importKey = `${connection.folderId ?? ''}::${sessionName}`;
+                        const importKey = this._buildImportKey(connection.folderId, sessionName);
                         passwords.set(importKey, decryptedPassword);
                     }
                 }
@@ -291,20 +308,8 @@ export class WinSCPImporter {
         }
 
         result.folders = Array.from(folderMap.values());
-
-        // Attach passwords to result for caller to store in SecretStorage
-        (
-            result as ImportResult & {
-                passwords?: Map<string, string>;
-                proxyPasswords?: Map<string, string>;
-            }
-        ).passwords = passwords;
-        (
-            result as ImportResult & {
-                passwords?: Map<string, string>;
-                proxyPasswords?: Map<string, string>;
-            }
-        ).proxyPasswords = proxyPasswords;
+        result.passwords = passwords;
+        result.proxyPasswords = proxyPasswords;
 
         return result;
     }
@@ -318,6 +323,18 @@ export class WinSCPImporter {
         } catch {
             return encoded;
         }
+    }
+
+    private _buildImportKey(folderPath: string | undefined, name: string): string {
+        return `${folderPath ?? ''}::${name}`;
+    }
+
+    private _getDefaultPort(protocol: ConnectionConfig['protocol'], ftps: number): number {
+        if (protocol !== 'ftps') {
+            return DEFAULT_PORTS[protocol];
+        }
+
+        return ftps === 1 ? DEFAULT_PORTS.ftps : DEFAULT_PORTS.ftp;
     }
 
     private _truthy(value: string | undefined): boolean {

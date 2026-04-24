@@ -23,6 +23,21 @@ interface ConnectionNode {
     connection: ConnectionConfig;
 }
 
+/**
+ * Escape characters that are meaningful in MarkdownString tooltips so values
+ * pulled from user-entered config cannot inject markup, links, or commands.
+ */
+function escapeMarkdown(text: string): string {
+    if (!text) { return ''; }
+    return text.replace(/[\\`*_{}\[\]()#+\-!<>|]/g, '\\$&');
+}
+
+/** Escape a value for embedding inside a Markdown inline-code span. */
+function escapeMarkdownCode(text: string): string {
+    if (!text) { return ''; }
+    return text.replace(/`/g, '\\`');
+}
+
 // ─── Protocol Icon Map ──────────────────────────────────────────────
 
 function getProtocolIcon(protocol: ConnectionProtocol, status: ConnectionStatus): vscode.ThemeIcon {
@@ -71,6 +86,7 @@ export class ConnectionTreeProvider
     readonly dragMimeTypes = ['application/vnd.code.tree.remoteBridge.connections'];
 
     private readonly _disposables: vscode.Disposable[] = [];
+    private _filterQuery = '';
 
     constructor(
         private readonly _connectionManager: ConnectionManager,
@@ -81,13 +97,30 @@ export class ConnectionTreeProvider
         this._disposables.push(
             this._connectionManager.onDidChange(() => this.refresh()),
             this._pool.onDidChangeStatus(() => this.refresh()),
-            this._encryptionService.onDidLock(() => this.refresh()),
+            this._encryptionService.onDidLock(() => this.clearFilter()),
             this._encryptionService.onDidUnlock(() => this.refresh())
         );
     }
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
+    }
+
+    setFilterQuery(query: string): void {
+        const normalized = query.trim().toLowerCase();
+        if (this._filterQuery === normalized) {
+            return;
+        }
+        this._filterQuery = normalized;
+        this.refresh();
+    }
+
+    clearFilter(): void {
+        if (!this._filterQuery) {
+            return;
+        }
+        this._filterQuery = '';
+        this.refresh();
     }
 
     // ─── getTreeItem ────────────────────────────────────────────
@@ -109,18 +142,20 @@ export class ConnectionTreeProvider
         }
 
         const parentId = element?.type === 'folder' ? element.folder.id : undefined;
+        const allFolders = this._connectionManager.getFolders();
+        const allConnections = this._connectionManager.getConnections();
 
         // Get folders at this level
-        const folders = this._connectionManager
-            .getFolders()
+        const folders = allFolders
             .filter((f) => f.parentId === parentId)
+            .filter((f) => !this._isFiltering() || this._folderHasMatchingDescendant(f.id, allFolders, allConnections))
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((folder): FolderNode => ({ type: 'folder', folder }));
 
         // Get connections at this level
-        const connections = this._connectionManager
-            .getConnections()
+        const connections = allConnections
             .filter((c) => c.folderId === parentId)
+            .filter((c) => !this._isFiltering() || this._matchesConnection(c))
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((connection): ConnectionNode => ({ type: 'connection', connection }));
 
@@ -171,8 +206,24 @@ export class ConnectionTreeProvider
         const targetFolderId =
             target?.type === 'folder' ? target.folder.id : undefined;
 
+        // Defensive validation: drop payloads come from the tree view and are
+        // already trusted, but a malformed transferItem (or a future external
+        // drag source) shouldn't be able to inject arbitrary IDs that bypass
+        // the manager. Validate against the current store before mutating.
+        const knownConnectionIds = new Set(
+            this._connectionManager.getConnections().map((c) => c.id)
+        );
+        const knownFolderIds = new Set(
+            this._connectionManager.getFolders().map((f) => f.id)
+        );
+
         for (const item of items) {
+            if (!item || typeof item.id !== 'string' || typeof item.type !== 'string') {
+                continue;
+            }
             if (item.type === 'connection') {
+                if (!knownConnectionIds.has(item.id)) { continue; }
+                if (targetFolderId !== undefined && !knownFolderIds.has(targetFolderId)) { continue; }
                 await this._connectionManager.moveToFolder(item.id, targetFolderId);
             }
             // Folder move could be added here in the future
@@ -184,7 +235,9 @@ export class ConnectionTreeProvider
     private _createFolderItem(folder: ConnectionFolder): vscode.TreeItem {
         const item = new vscode.TreeItem(
             folder.name,
-            vscode.TreeItemCollapsibleState.Collapsed
+            this._isFiltering()
+                ? vscode.TreeItemCollapsibleState.Expanded
+                : vscode.TreeItemCollapsibleState.Collapsed
         );
         item.id = `folder:${folder.id}`;
         item.contextValue = 'folder';
@@ -217,14 +270,47 @@ export class ConnectionTreeProvider
             : `${connection.host}:${connection.port}`;
 
         item.tooltip = new vscode.MarkdownString(
-            `**${connection.name}**\n\n` +
-            `$(server) \`${connection.host}:${connection.port}\`\n\n` +
-            `$(key) ${connection.protocol.toUpperCase()} · ${connection.username}\n\n` +
-            `$(folder) ${connection.remotePath}`
+            `**${escapeMarkdown(connection.name)}**\n\n` +
+            `$(server) \`${escapeMarkdownCode(connection.host)}:${connection.port}\`\n\n` +
+            `$(key) ${connection.protocol.toUpperCase()} · ${escapeMarkdown(connection.username)}\n\n` +
+            `$(folder) ${escapeMarkdown(connection.remotePath)}`
         );
         item.tooltip.supportThemeIcons = true;
 
         return item;
+    }
+
+    private _isFiltering(): boolean {
+        return this._filterQuery.length > 0;
+    }
+
+    private _matchesConnection(connection: ConnectionConfig): boolean {
+        if (!this._isFiltering()) {
+            return true;
+        }
+
+        return connection.name.toLowerCase().includes(this._filterQuery)
+            || connection.host.toLowerCase().includes(this._filterQuery);
+    }
+
+    private _folderHasMatchingDescendant(
+        folderId: string,
+        folders: readonly ConnectionFolder[],
+        connections: readonly ConnectionConfig[],
+        visited = new Set<string>()
+    ): boolean {
+        if (visited.has(folderId)) {
+            return false;
+        }
+        visited.add(folderId);
+
+        if (connections.some((connection) => connection.folderId === folderId && this._matchesConnection(connection))) {
+            return true;
+        }
+
+        return folders
+            .filter((folder) => folder.parentId === folderId)
+            .some((folder) => this._folderHasMatchingDescendant(folder.id, folders, connections, visited));
     }
 
     dispose(): void {

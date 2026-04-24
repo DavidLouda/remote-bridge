@@ -4,7 +4,13 @@ import { connectForPassiveTransfer, enterPassiveModeIPv6, parsePasvResponse } fr
 import { ipIsPrivateV4Address } from 'basic-ftp/dist/netUtils';
 import type { FTPContext, FTPResponse } from 'basic-ftp/dist/FtpContext';
 import { Writable, Readable } from 'stream';
-import { RemoteAdapter, RemoteOperationOptions, RemoteOperationSource } from './adapter';
+import {
+    RemoteAdapter,
+    RemoteOperationOptions,
+    RemoteOperationSource,
+    RemoteConnectionLostError,
+    looksLikeConnectionLost,
+} from './adapter';
 import {
     RemoteFileInfo,
     RemoteFileStat,
@@ -193,16 +199,46 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     async disconnect(): Promise<void> {
+        const wasConnected = this._connected;
         this._connected = false;
         this._stopKeepalive();
+        // Drain pending queued operations with a clear error so callers don't
+        // hang waiting for an FTP response we can no longer deliver.
+        this._rejectQueuedOperations(new Error(vscode.l10n.t('FTP connection closed')));
         if (this._client) {
-            this._client.close();
+            try {
+                this._client.close();
+            } catch (err) {
+                this._logPerf(`disconnect close failed: ${this._perf?.formatError(err) ?? String(err)}`);
+            }
             this._client = null;
+        }
+        if (wasConnected) {
+            this._onDidDisconnect.fire();
         }
     }
 
     isConnected(): boolean {
         return this._connected && this._client !== null;
+    }
+
+    /** Drop everything still waiting in the FTP queues with an explicit reason. */
+    private _rejectQueuedOperations(reason: Error): void {
+        const drain = (queue: QueuedOperation[]): void => {
+            while (queue.length > 0) {
+                const task = queue.shift();
+                if (task) {
+                    try {
+                        task.reject(reason);
+                    } catch {
+                        // Receiver already settled — ignore.
+                    }
+                }
+            }
+        };
+        drain(this._highPriorityQueue);
+        drain(this._normalPriorityQueue);
+        drain(this._lowPriorityQueue);
     }
 
     // ─── File System Operations ──────────────────────────────────
@@ -214,6 +250,16 @@ export class FtpAdapter implements RemoteAdapter {
      */
     private _enqueue<T>(operation: string, fn: (client: FTPClient) => Promise<T>, options?: RemoteOperationOptions): Promise<T> {
         const client = this._requireClient();
+        // Preflight: if the underlying socket is already torn down (e.g. server
+        // sent FIN while we were idle), fail fast with a typed error so the
+        // FileSystemProvider can transparently reconnect and retry instead of
+        // propagating an opaque "Client is closed" save failure to VS Code.
+        if (!this._connected || this._isClientClosed(client)) {
+            this._handleConnectionLost();
+            return Promise.reject(new RemoteConnectionLostError(
+                vscode.l10n.t('FTP connection lost')
+            ));
+        }
         const priority = this._inferQueuePriority(operation, options?.source);
 
         return new Promise<T>((resolve, reject) => {
@@ -229,6 +275,35 @@ export class FtpAdapter implements RemoteAdapter {
             });
             this._scheduleQueueDrain();
         });
+    }
+
+    private _isClientClosed(client: FTPClient): boolean {
+        try {
+            if ((client as unknown as { closed?: boolean }).closed === true) {
+                return true;
+            }
+            const socket = client.ftp?.socket;
+            if (socket && (socket.destroyed || socket.readyState === 'closed')) {
+                return true;
+            }
+        } catch {
+            // Defensive: any access failure means we should treat it as closed.
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Mark the adapter as disconnected and notify the pool. Idempotent — safe
+     * to call multiple times for the same underlying connection loss.
+     */
+    private _handleConnectionLost(): void {
+        const wasConnected = this._connected;
+        this._connected = false;
+        this._stopKeepalive();
+        if (wasConnected) {
+            this._onDidDisconnect.fire();
+        }
     }
 
     private _pushQueuedOperation(task: QueuedOperation): void {
@@ -321,6 +396,18 @@ export class FtpAdapter implements RemoteAdapter {
             return result;
         } catch (err) {
             this._logPerf(`${operation} -> priority ${priority}, queue ${waitMs}ms, failed after ${Date.now() - start}ms: ${this._perf?.formatError(err) ?? String(err)}`);
+            // Translate transport-level failures (server FIN, RST, broken pipe,
+            // basic-ftp's "Client is closed ...") into a typed error and mark the
+            // adapter disconnected so the pool reconnects on the next access.
+            if (looksLikeConnectionLost(err)) {
+                this._handleConnectionLost();
+                throw err instanceof RemoteConnectionLostError
+                    ? err
+                    : new RemoteConnectionLostError(
+                        err instanceof Error ? err.message : String(err),
+                        err
+                    );
+            }
             throw err;
         } finally {
             if (this._connected) {
@@ -532,11 +619,21 @@ export class FtpAdapter implements RemoteAdapter {
                 }
             }
 
-            // Auto-create parent directories (FTP doesn't do this implicitly)
+            // Auto-create parent directories (FTP doesn't do this implicitly).
+            // basic-ftp's ensureDir() walks the tree by changing CWD; if any step
+            // fails we MUST reset CWD back to root, otherwise the next queued op
+            // inherits an unpredictable working directory and breaks relative paths.
             const parentDir = remotePath.substring(0, remotePath.lastIndexOf('/')) || '/';
             if (parentDir !== '/') {
-                await client.ensureDir(parentDir);
-                await client.cd('/');
+                try {
+                    await client.ensureDir(parentDir);
+                } finally {
+                    try {
+                        await client.cd('/');
+                    } catch (cdErr) {
+                        this._logPerf(`writeFile ${remotePath} -> failed to reset CWD to /: ${this._perf?.formatError(cdErr) ?? String(cdErr)}`);
+                    }
+                }
             }
 
             try {
@@ -576,7 +673,7 @@ export class FtpAdapter implements RemoteAdapter {
                     await this._deleteDirectoryRaw(client, remotePath, options);
                     return;
                 }
-                throw err;
+                throw this._mapFtpFsError(err, remotePath);
             }
         });
     }
@@ -590,17 +687,48 @@ export class FtpAdapter implements RemoteAdapter {
                 }
             }
 
-            await client.rename(oldPath, newPath);
+            try {
+                await client.rename(oldPath, newPath);
+            } catch (err) {
+                // If the rename collides on the target, surface the target path.
+                if (this._isExistingPathError(err)) {
+                    throw vscode.FileSystemError.FileExists(newPath);
+                }
+                throw this._mapFtpFsError(err, oldPath);
+            }
         });
     }
 
     async mkdir(remotePath: string): Promise<void> {
         return this._enqueue(`mkdir ${remotePath}`, async (client) => {
-            // Use direct MKD — single control command, does not change CWD.
-            await client.send('MKD ' + remotePath);
-            if (this._config.newDirectoryMode !== undefined) {
-                const modeStr = this._config.newDirectoryMode.toString(8).padStart(3, '0');
-                await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${remotePath}`);
+            // Create parent directories as needed (mkdir -p semantics).
+            // FTP MKD does not create intermediate directories — many servers
+            // simply return 550 if a parent is missing. Walk the path and MKD
+            // each segment, ignoring "already exists" responses (550/521).
+            const segments = remotePath.split('/').filter(Boolean);
+            if (segments.length === 0) {
+                return;
+            }
+
+            let current = '';
+            for (const segment of segments) {
+                current += '/' + segment;
+                let createdNow = false;
+                try {
+                    await client.send('MKD ' + current);
+                    createdNow = true;
+                } catch (err) {
+                    if (this._isExistingPathError(err)) {
+                        // Directory (or file) already exists at this segment — keep walking.
+                        continue;
+                    }
+                    throw this._mapFtpFsError(err, current);
+                }
+
+                if (createdNow && this._config.newDirectoryMode !== undefined) {
+                    const modeStr = this._config.newDirectoryMode.toString(8).padStart(3, '0');
+                    await client.sendIgnoringError(`SITE CHMOD ${modeStr} ${current}`);
+                }
             }
         });
     }
@@ -769,7 +897,12 @@ export class FtpAdapter implements RemoteAdapter {
     private async _deleteDirectoryRaw(client: FTPClient, remotePath: string, options: { recursive: boolean }): Promise<void> {
         if (!options.recursive) {
             // basic-ftp removeDir is always recursive, so we check if empty first.
-            const entries = await client.list(remotePath);
+            let entries: FileInfo[];
+            try {
+                entries = await client.list(remotePath);
+            } catch (err) {
+                throw this._mapFtpFsError(err, remotePath);
+            }
             const filtered = entries.filter((entry) => entry.name !== '.' && entry.name !== '..');
             if (filtered.length > 0) {
                 throw vscode.FileSystemError.NoPermissions(
@@ -782,8 +915,12 @@ export class FtpAdapter implements RemoteAdapter {
         // saves the current CWD and tries to cd back to it in finally.
         // If CWD is the directory being deleted, that cd fails with 550.
         // Move to root first so _exitAtCurrentDirectory restores to '/'.
-        await client.cd('/');
-        await client.removeDir(remotePath);
+        try {
+            await client.cd('/');
+            await client.removeDir(remotePath);
+        } catch (err) {
+            throw this._mapFtpFsError(err, remotePath);
+        }
     }
 
     private async _tryStatFromParentListingRaw(client: FTPClient, remotePath: string): Promise<RemoteFileStat | undefined> {
@@ -909,13 +1046,52 @@ export class FtpAdapter implements RemoteAdapter {
     }
 
     private _isMissingPathError(error: unknown): boolean {
+        const code = this._extractFtpResponseCode(error);
+        if (code === 550) {
+            return true;
+        }
+        // Some servers return 451/452 for inaccessible paths — keep substring fallback.
         const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-
         return message.includes('no such file or directory')
             || message.includes("can't open")
             || message.includes('cannot open')
             || message.includes("can't check for file existence")
-            || message.includes('not found');
+            || message.includes('550 file not found')
+            || message.includes('550 not found')
+            || message.includes('file not found')
+            || message.includes('directory not found');
+    }
+
+    private _isExistingPathError(error: unknown): boolean {
+        const code = this._extractFtpResponseCode(error);
+        // 521: "Pathname already exists" (RFC 1123 / many servers).
+        // Some implementations use 550 with a clear message instead.
+        if (code === 521) {
+            return true;
+        }
+        const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+        return message.includes('already exists')
+            || message.includes('file exists')
+            || message.includes('directory exists');
+    }
+
+    /** Extract the numeric FTP response code from a basic-ftp error if available. */
+    private _extractFtpResponseCode(error: unknown): number | undefined {
+        if (error && typeof error === 'object') {
+            const codeProp = (error as { code?: unknown }).code;
+            if (typeof codeProp === 'number') {
+                return codeProp;
+            }
+            if (typeof codeProp === 'string') {
+                const parsed = parseInt(codeProp, 10);
+                if (!Number.isNaN(parsed)) {
+                    return parsed;
+                }
+            }
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const match = message.match(/^\s*(\d{3})[\s-]/);
+        return match ? parseInt(match[1], 10) : undefined;
     }
 
     private _logPerf(message: string): void {

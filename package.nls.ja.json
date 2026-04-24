@@ -39,6 +39,7 @@
   "command.exportConnections.title": "接続をエクスポート",
   "command.syncNow.title": "今すぐ接続を同期 (Beta)",
   "command.showConnections.title": "接続を表示",
+  "command.filterConnections.title": "接続を検索",
   "command.changePermissions.title": "権限を変更",
 
   "submenu.import.label": "インポート",
@@ -49,6 +50,7 @@
   "config.pool.maxConnections.description": "同時接続の最大数",
   "config.security.syncConnections.description": "(Beta) シークレットを暗号化されたストアにバンドルして、VS Code の設定同期を通じてデバイス間で接続（パスワードを含む）を同期します。マスターパスワード暗号化が有効である必要があります。すべてのデバイスで同じマスターパスワードを設定する必要があります。注意：この機能はすべてのシナリオで信頼性高く動作するとは限らず、VS Code 設定同期が有効で正常に機能していることに依存します。",
   "config.watch.pollInterval.description": "ファイルシステムウォッチャーのポーリング間隔（秒）",
+  "config.watch.largeDirThreshold.description": "この数を超えるディレクトリエントリがある場合、ウォッチャーは大規模一覧での CPU と帯域幅の使用を減らすために 4× 低い頻度でポーリングします",
   "config.files.temporaryWritePermission.description": "有効にすると、拡張機能は保存前に読み取り専用のリモートファイルに一時的に書き込み権限を追加し、保存後に元の権限を復元します。SSH/SFTP および FTP/FTPS でサポートされています。",
 
   "chat.command.connect.description": "名前でリモートサーバーに接続",

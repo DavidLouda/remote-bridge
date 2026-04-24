@@ -85,7 +85,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
             if (adapter.supportsExec && adapter.exec) {
                 const os = config.os ?? 'linux';
                 const grepCommand = shell.grepSearch(pattern, remotePath, namePattern, os, ctx, isCaseSensitive, limit, excludePattern);
-                const result = await adapter.exec(grepCommand);
+                const result = await this._withTimeout(adapter.exec(grepCommand), undefined, `grep ${remotePath}`);
 
                 if (result.exitCode === 1) {
                     return new vscode.LanguageModelToolResult([
@@ -101,16 +101,24 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                         ),
                     ]);
                 }
+                const cleaned = shell.filterGrepBinaryNotices(result.stdout);
                 return new vscode.LanguageModelToolResult([
-                    new vscode.LanguageModelTextPart(result.stdout || vscode.l10n.t('No matches found')),
+                    new vscode.LanguageModelTextPart(cleaned || vscode.l10n.t('No matches found')),
                 ]);
             }
 
             // FTP fallback: recursive readDirectory + local regex match
             const results: string[] = [];
+            // ReDoS guard: long or pathological patterns are downgraded to a
+            // literal substring search via RegExp escape — LLM-supplied patterns
+            // like (a+)+x can otherwise pin a worker for seconds.
+            const REDOS_PATTERN_LIMIT = 200;
             let regex: RegExp;
             try {
-                regex = new RegExp(pattern, isCaseSensitive ? 'g' : 'gi');
+                const safe = pattern.length <= REDOS_PATTERN_LIMIT
+                    ? pattern
+                    : pattern.slice(0, REDOS_PATTERN_LIMIT).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                regex = new RegExp(safe, isCaseSensitive ? 'g' : 'gi');
             } catch {
                 return new vscode.LanguageModelToolResult([
                     new vscode.LanguageModelTextPart(
@@ -123,8 +131,24 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
             const globRegex = namePattern ? this._globToRegex(namePattern) : null;
             const excludeRegex = excludePattern ? this._globToRegex(excludePattern) : null;
 
-            const searchDir = async (dirPath: string): Promise<void> => {
+            // Defensive caps for the FTP recursion — protect against pathological
+            // (or symlink-cyclic) trees on misbehaving servers.
+            const FTP_MAX_DEPTH = 16;
+            const FTP_MAX_DIRS = 5000;
+            let dirsScanned = 0;
+            let truncated: 'depth' | 'dirs' | null = null;
+
+            const searchDir = async (dirPath: string, depth: number): Promise<void> => {
                 if (matchCount >= maxMatches || token.isCancellationRequested) { return; }
+                if (depth > FTP_MAX_DEPTH) {
+                    truncated = truncated ?? 'depth';
+                    return;
+                }
+                if (dirsScanned >= FTP_MAX_DIRS) {
+                    truncated = truncated ?? 'dirs';
+                    return;
+                }
+                dirsScanned++;
                 let entries;
                 try { entries = await adapter.readDirectory(dirPath); } catch { return; }
 
@@ -132,7 +156,11 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                     if (matchCount >= maxMatches || token.isCancellationRequested) { break; }
                     const fullPath = dirPath === '/' ? `/${entry.name}` : `${dirPath}/${entry.name}`;
                     if (excludeRegex && excludeRegex.test(fullPath)) { continue; }
-                    if (entry.type === vscode.FileType.Directory) { await searchDir(fullPath); continue; }
+                    // Skip symlinks — prevents traversal cycles when servers report
+                    // them via readdir.
+                    const isSymlink = (entry.type & vscode.FileType.SymbolicLink) !== 0;
+                    if (isSymlink) { continue; }
+                    if (entry.type === vscode.FileType.Directory) { await searchDir(fullPath, depth + 1); continue; }
                     if (entry.type !== vscode.FileType.File) { continue; }
                     if (globRegex && !globRegex.test(entry.name)) { continue; }
                     if (entry.size > 1024 * 1024) { continue; } // skip >1 MB
@@ -161,7 +189,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                 }
             };
 
-            await searchDir(remotePath);
+            await searchDir(remotePath, 0);
 
             if (results.length === 0) {
                 return new vscode.LanguageModelToolResult([
@@ -170,8 +198,16 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                     ),
                 ]);
             }
+            // Surface truncation so the model can suggest narrowing the search
+            // instead of trusting an incomplete result set.
+            const parts: string[] = [results.join('\n')];
+            if (truncated === 'depth') {
+                parts.push(vscode.l10n.t('⚠️ Search truncated: maximum directory depth ({0}) reached. Narrow the path or refine the pattern.', String(FTP_MAX_DEPTH)));
+            } else if (truncated === 'dirs') {
+                parts.push(vscode.l10n.t('⚠️ Search truncated: maximum directory count ({0}) reached. Narrow the path or refine the pattern.', String(FTP_MAX_DIRS)));
+            }
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(results.join('\n')),
+                new vscode.LanguageModelTextPart(parts.join('\n\n')),
             ]);
         }
 
@@ -182,7 +218,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
         if (adapter.supportsExec && adapter.exec) {
             const os = config.os ?? 'linux';
             const cmd = shell.findCmd(remotePath, namePattern!, limit, os, typeFilter, excludePattern);
-            const result = await adapter.exec(cmd);
+            const result = await this._withTimeout(adapter.exec(cmd), undefined, `find ${remotePath}`);
 
             if (result.exitCode !== 0 && !result.stdout.trim()) {
                 return new vscode.LanguageModelToolResult([
@@ -211,7 +247,8 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
         // FTP fallback: recursive readDirectory with glob matching
         const matches: string[] = [];
         const excludeRegex = excludePattern ? this._globToRegex(excludePattern) : null;
-        await this._findRecursive(adapter, remotePath, namePattern!, matches, limit, 0, 10, typeFilter, excludeRegex);
+        // Hard caps consistent with the FTP grep fallback above.
+        await this._findRecursive(adapter, remotePath, namePattern!, matches, limit, 0, 16, typeFilter, excludeRegex);
 
         if (matches.length === 0) {
             return new vscode.LanguageModelToolResult([
@@ -237,9 +274,12 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
         depth: number,
         maxDepth: number,
         typeFilter?: 'file' | 'directory',
-        excludeRegex?: RegExp | null
+        excludeRegex?: RegExp | null,
+        state: { dirsScanned: number; maxDirs: number } = { dirsScanned: 0, maxDirs: 5000 }
     ): Promise<void> {
         if (depth > maxDepth || matches.length >= limit) { return; }
+        if (state.dirsScanned >= state.maxDirs) { return; }
+        state.dirsScanned++;
         let entries;
         try { entries = await adapter.readDirectory(dir); } catch { return; }
 
@@ -249,6 +289,8 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
             if (matches.length >= limit) { break; }
             const fullPath = dir === '/' ? `/${entry.name}` : `${dir}/${entry.name}`;
             if (excludeRegex && excludeRegex.test(fullPath)) { continue; }
+            // Skip symlinks to avoid traversal cycles on broken servers.
+            if ((entry.type & vscode.FileType.SymbolicLink) !== 0) { continue; }
 
             if (regex.test(entry.name)) {
                 const isFile = entry.type === vscode.FileType.File;
@@ -258,7 +300,7 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                 }
             }
             if (entry.type === vscode.FileType.Directory) {
-                await this._findRecursive(adapter, fullPath, pattern, matches, limit, depth + 1, maxDepth, typeFilter, excludeRegex);
+                await this._findRecursive(adapter, fullPath, pattern, matches, limit, depth + 1, maxDepth, typeFilter, excludeRegex, state);
             }
         }
     }

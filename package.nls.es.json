@@ -39,6 +39,7 @@
   "command.exportConnections.title": "Exportar conexiones",
   "command.syncNow.title": "Sincronizar conexiones ahora (Beta)",
   "command.showConnections.title": "Mostrar conexiones",
+  "command.filterConnections.title": "Buscar conexiones",
   "command.changePermissions.title": "Cambiar permisos",
 
   "submenu.import.label": "Importar",
@@ -49,6 +50,7 @@
   "config.pool.maxConnections.description": "Número máximo de conexiones simultáneas",
   "config.security.syncConnections.description": "(Beta) Incluye las credenciales en el almacén cifrado para que las conexiones (incluidas las contraseñas) se sincronicen entre dispositivos mediante la sincronización de configuración de VS Code. Requiere que el cifrado con contraseña maestra esté habilitado. La misma contraseña maestra debe configurarse en todos los dispositivos. Nota: Esta función puede no funcionar de manera confiable en todos los escenarios y depende de que la sincronización de VS Code esté activa y funcionando correctamente.",
   "config.watch.pollInterval.description": "Intervalo de sondeo para los observadores del sistema de archivos (en segundos)",
+  "config.watch.largeDirThreshold.description": "Número de entradas de directorio por encima del cual el observador consulta 4× menos a menudo para reducir el uso de CPU y ancho de banda en listados grandes",
   "config.files.temporaryWritePermission.description": "Cuando está habilitado, la extensión agrega temporalmente permisos de escritura a los archivos remotos de solo lectura antes de guardarlos y luego restaura los permisos originales. Compatible con SSH/SFTP y FTP/FTPS.",
 
   "chat.command.connect.description": "Conectarse a un servidor remoto por nombre",

@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import SSHConfig from 'ssh-config';
+import { readImportFileSync } from '../utils/importerFile';
+import { normalizePrivateKeyPath, isOutsideHome } from '../utils/keyPath';
 import {
     ConnectionConfig,
     ConnectionProtocol,
@@ -43,11 +45,9 @@ export class SshConfigImporter {
 
         let content: string;
         try {
-            content = fs.readFileSync(filePath, 'utf-8');
+            content = readImportFileSync(filePath);
         } catch (err) {
-            result.errors.push(
-                vscode.l10n.t('Failed to read SSH config: {0}', String(err))
-            );
+            result.errors.push(err instanceof Error ? err.message : vscode.l10n.t('Failed to read SSH config: {0}', String(err)));
             return result;
         }
 
@@ -101,7 +101,13 @@ export class SshConfigImporter {
                 if (identityFile) {
                     // SSH config can have multiple IdentityFile; take the first one
                     const keyPath = Array.isArray(identityFile) ? identityFile[0] : identityFile;
-                    connection.privateKeyPath = String(keyPath).replace(/^~/, os.homedir());
+                    const normalizedKey = normalizePrivateKeyPath(String(keyPath));
+                    connection.privateKeyPath = normalizedKey;
+                    if (isOutsideHome(normalizedKey)) {
+                        result.errors.push(
+                            vscode.l10n.t('SSH config host "{0}" references key outside home: {1}', connection.name, normalizedKey)
+                        );
+                    }
                 }
 
                 // Handle ProxyJump — parse and map to jumpHost config.

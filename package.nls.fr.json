@@ -39,6 +39,7 @@
   "command.exportConnections.title": "Exporter des connexions",
   "command.syncNow.title": "Synchroniser les connexions maintenant (Beta)",
   "command.showConnections.title": "Afficher les connexions",
+  "command.filterConnections.title": "Rechercher des connexions",
   "command.changePermissions.title": "Modifier les permissions",
 
   "submenu.import.label": "Import",
@@ -49,6 +50,7 @@
   "config.pool.maxConnections.description": "Nombre maximum de connexions simultanées",
   "config.security.syncConnections.description": "(Beta) Intègre les secrets dans le magasin chiffré afin que les connexions (y compris les mots de passe) se synchronisent entre les appareils via la synchronisation des paramètres VS Code. Nécessite un mot de passe maître activé. Le même mot de passe maître doit être défini sur tous les appareils. Remarque : Cette fonctionnalité peut ne pas fonctionner de manière fiable dans tous les scénarios et dépend de la synchronisation VS Code active et fonctionnant correctement.",
   "config.watch.pollInterval.description": "Intervalle de sondage pour les observateurs du système de fichiers (en secondes)",
+  "config.watch.largeDirThreshold.description": "Nombre d'entrées de répertoire au-dessus duquel l'observateur interroge 4× moins souvent afin de réduire l'utilisation du processeur et de la bande passante sur les grands listings",
   "config.files.temporaryWritePermission.description": "Lorsque cette option est activée, l'extension ajoute temporairement l'autorisation d'écriture aux fichiers distants en lecture seule avant de les enregistrer, puis restaure les autorisations d'origine. Pris en charge pour SSH/SFTP et FTP/FTPS.",
 
   "chat.command.connect.description": "Se connecter à un serveur distant par nom",

@@ -61,11 +61,17 @@ function createHttpConnectSocket(
     targetPort: number
 ): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
+        // Strip CR/LF/NUL from credentials before they enter the Basic auth
+        // header. Without this, an attacker who can edit a proxy config could
+        // smuggle additional HTTP headers into the CONNECT request via a
+        // password containing "\r\nX-Injected: ...".
+        const safeUser = (proxy.username ?? '').replace(/[\r\n\0]/g, '');
+        const safePass = (proxyPassword ?? '').replace(/[\r\n\0]/g, '');
         const authHeader =
-            proxy.username && proxyPassword
-                ? 'Basic ' + Buffer.from(`${proxy.username}:${proxyPassword}`).toString('base64')
-                : proxy.username
-                ? 'Basic ' + Buffer.from(`${proxy.username}:`).toString('base64')
+            safeUser && safePass
+                ? 'Basic ' + Buffer.from(`${safeUser}:${safePass}`).toString('base64')
+                : safeUser
+                ? 'Basic ' + Buffer.from(`${safeUser}:`).toString('base64')
                 : undefined;
 
         const req = http.request({
