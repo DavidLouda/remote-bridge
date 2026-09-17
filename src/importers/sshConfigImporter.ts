@@ -13,6 +13,73 @@ import {
     JumpHostConfig,
 } from '../types/connection';
 
+type SshConfigSection = {
+    type?: unknown;
+    param?: unknown;
+    value?: unknown;
+    config?: SshConfigSection[];
+};
+
+/**
+ * Match an SSH config host pattern. SSH patterns use '*' and '?' as wildcards.
+ */
+function matchesHostPattern(pattern: string, host: string): boolean {
+    const expression = pattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.');
+
+    return new RegExp(`^${expression}$`).test(host);
+}
+
+/**
+ * Resolve the options that OpenSSH would use for a host.
+ *
+ * ssh-config.parse() returns an array-like configuration, not an object with a
+ * compute() method. OpenSSH applies matching sections in file order and uses
+ * the first value found for each option, so wildcard defaults must be applied
+ * before a later, more-specific Host section.
+ */
+function computeEffectiveConfig(config: SshConfigSection[], host: string): Record<string, unknown> {
+    const effective: Record<string, unknown> = {};
+
+    const apply = (section: SshConfigSection): void => {
+        const key = String(section.param ?? '');
+        if (key && effective[key] === undefined) {
+            effective[key] = section.value;
+        }
+    };
+
+    for (const section of config) {
+        if (section.type !== SSHConfig.DIRECTIVE) {
+            continue;
+        }
+
+        if (String(section.param) === 'Host') {
+            const patterns = String(section.value ?? '').split(/\s+/).filter(Boolean);
+            const isExcluded = patterns.some((pattern) =>
+                pattern.startsWith('!') && matchesHostPattern(pattern.slice(1), host)
+            );
+            const isIncluded = patterns.some((pattern) =>
+                !pattern.startsWith('!') && matchesHostPattern(pattern, host)
+            );
+
+            if (!isExcluded && isIncluded) {
+                for (const option of section.config ?? []) {
+                    if (option.type === SSHConfig.DIRECTIVE && String(option.param) !== 'Host') {
+                        apply(option);
+                    }
+                }
+            }
+        } else {
+            // Directives before the first Host section are global defaults.
+            apply(section);
+        }
+    }
+
+    return effective;
+}
+
 /**
  * Imports connections from the standard SSH config file (~/.ssh/config).
  */
@@ -79,8 +146,9 @@ export class SshConfigImporter {
             }
 
             try {
-                // Compute effective config for this host
-                const computed = config.compute(hostPattern);
+                // ssh-config.parse() returns an array-like config and does not
+                // expose config.compute(); resolve the effective options locally.
+                const computed = computeEffectiveConfig(config as unknown as SshConfigSection[], hostPattern);
                 const hostname = computed['HostName'] || hostPattern;
                 const user = computed['User'] || process.env.USER || process.env.USERNAME || 'root';
                 const port = computed['Port'] ? parseInt(String(computed['Port']), 10) : 22;
