@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import * as fs from 'fs';
-import { ExecStreamResult, RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
+import { ExecStreamOptions, ExecStreamResult, RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
 import { PerfLogger } from '../services/perfLogger';
@@ -17,6 +17,9 @@ import { formatAlgorithmProblems } from '../utils/sshAlgorithmMessages';
  * SSH/SFTP adapter using the ssh2 library.
  * Provides full file system access plus command execution and interactive shell.
  */
+/** How long a cancelled execStream waits for the command to exit on stdin EOF. */
+const EXEC_STREAM_CLOSE_TIMEOUT_MS = 5000;
+
 export class SshAdapter implements RemoteAdapter {
     private _client: Client | null = null;
     private _sftp: SFTPWrapper | null = null;
@@ -172,12 +175,10 @@ export class SshAdapter implements RemoteAdapter {
                 client.removeAllListeners('error');
                 // An EventEmitter 'error' without a listener throws, so a later
                 // transport error (e.g. ECONNRESET when the server goes away)
-                // would surface as an uncaught exception. 'close' follows and
-                // reports the disconnect.
+                // would surface as an uncaught exception.
                 client.on('error', (err) => {
-                    this._connected = false;
-                    this._sftp = null;
                     this._logPerf(`connection error: ${this._perf?.formatError(err) ?? String(err)}`);
+                    markDisconnected();
                 });
             };
 
@@ -223,19 +224,20 @@ export class SshAdapter implements RemoteAdapter {
                 settleReject(err);
             });
 
-            client.on('close', () => {
+            // 'error' and 'end' can precede 'close'; whichever comes first
+            // reports an unexpected disconnect (disconnect() clears
+            // _connected first, so an intentional one is not reported).
+            const markDisconnected = (): void => {
                 const wasConnected = this._connected;
                 this._connected = false;
                 this._sftp = null;
                 if (wasConnected) {
                     this._onDidDisconnect.fire();
                 }
-            });
+            };
 
-            client.on('end', () => {
-                this._connected = false;
-                this._sftp = null;
-            });
+            client.on('close', markDisconnected);
+            client.on('end', markDisconnected);
 
             client.connect(connectConfig);
         });
@@ -643,17 +645,19 @@ export class SshAdapter implements RemoteAdapter {
 
     /**
      * Run a command and hand stdout chunks to `onStdout` as they arrive.
-     * Cancelling the token ends stdin, sends KILL (if the server supports
-     * signals) and closes the channel; commands meant to be cancellable
-     * should watch stdin and stop on EOF (see remoteSearchShell). stderr is
-     * capped at `maxStderrBytes`.
+     * `options.stdin` is written without closing stdin, so a script fed to
+     * `sh -s` can watch stdin for EOF. Cancelling the token ends stdin — the
+     * command is expected to stop on EOF — and closes the channel if it is
+     * still open a few seconds later. No SSH signal is sent: it would only
+     * kill the shell and orphan its background processes.
+     * stderr is capped at `options.maxStderrBytes`.
      */
     execStream(
         command: string,
         onStdout: (chunk: Buffer) => void,
-        token?: vscode.CancellationToken,
-        maxStderrBytes = 64 * 1024
+        options: ExecStreamOptions = {}
     ): Promise<ExecStreamResult> {
+        const { token, stdin, maxStderrBytes = 64 * 1024 } = options;
         const client = this._requireClient();
         return new Promise((resolve, reject) => {
             if (token?.isCancellationRequested) {
@@ -673,16 +677,31 @@ export class SshAdapter implements RemoteAdapter {
                 const stderr: Buffer[] = [];
                 let stderrBytes = 0;
                 let cancelled = false;
-                const cancellation = token?.onCancellationRequested(() => {
+                let forceClose: ReturnType<typeof setTimeout> | undefined;
+                const cancel = (): void => {
+                    if (cancelled) {
+                        return;
+                    }
                     cancelled = true;
                     try {
                         stream.end();
-                        stream.signal('KILL');
-                        stream.close();
                     } catch {
                         // Channel already closed
                     }
-                });
+                    forceClose = setTimeout(() => {
+                        try {
+                            stream.close();
+                        } catch {
+                            // Channel already closed
+                        }
+                    }, EXEC_STREAM_CLOSE_TIMEOUT_MS);
+                };
+                const cancellation = token?.onCancellationRequested(cancel);
+                if (token?.isCancellationRequested) {
+                    cancel();
+                } else if (stdin !== undefined) {
+                    stream.write(stdin);
+                }
 
                 stream.on('data', (data: Buffer) => {
                     if (!cancelled) {
@@ -698,6 +717,7 @@ export class SshAdapter implements RemoteAdapter {
                 });
                 stream.on('close', (code: number | null | undefined) => {
                     cancellation?.dispose();
+                    clearTimeout(forceClose);
                     resolve({
                         exitCode: code ?? null,
                         stderr: Buffer.concat(stderr).toString('utf8'),
@@ -706,6 +726,7 @@ export class SshAdapter implements RemoteAdapter {
                 });
                 stream.on('error', (err: Error) => {
                     cancellation?.dispose();
+                    clearTimeout(forceClose);
                     reject(this._classifyTransportError(err));
                 });
             });

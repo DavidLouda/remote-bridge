@@ -3,6 +3,14 @@ import { RemoteFileInfo, RemoteFileStat, ExecResult } from '../types/connection'
 
 export type RemoteOperationSource = 'user' | 'probe' | 'watch' | 'keepalive';
 
+export interface ExecStreamOptions {
+    token?: vscode.CancellationToken;
+    /** Written to stdin right away; stdin stays open until cancellation. */
+    stdin?: string;
+    /** stderr is truncated to this many bytes (default 64 KiB). */
+    maxStderrBytes?: number;
+}
+
 export interface ExecStreamResult {
     /** Exit code, or null when the process ended by a signal or the channel was closed. */
     exitCode: number | null;
@@ -74,8 +82,7 @@ export interface RemoteAdapter extends vscode.Disposable {
     execStream?(
         command: string,
         onStdout: (chunk: Buffer) => void,
-        token?: vscode.CancellationToken,
-        maxStderrBytes?: number
+        options?: ExecStreamOptions
     ): Promise<ExecStreamResult>;
 
     /** Get an interactive shell stream (SSH only). Returns null if not supported. */

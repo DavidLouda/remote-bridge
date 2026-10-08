@@ -8,8 +8,9 @@ import {
     SearchMatch,
     SearchTool,
     buildHighlightRegExp,
+    SEARCH_SHELL_COMMAND,
     buildProbeCommand,
-    buildSearchCommand,
+    buildSearchScript,
     createPathFilter,
     parseGrepNullLine,
     parseGrepPlainLine,
@@ -120,11 +121,15 @@ export class RemoteSearchService {
 
         try {
             const result = await adapter.execStream(
-                buildSearchCommand(tool, query, rootPath),
+                SEARCH_SHELL_COMMAND,
                 (chunk) => deliver(splitter.push(chunk)),
-                limit.token
+                { token: limit.token, stdin: buildSearchScript(tool, query, rootPath) }
             );
-            deliver(splitter.end());
+            // After cancellation the last line may be cut off; a truncated
+            // grep line would still parse as a (wrong) match.
+            if (!limit.token.isCancellationRequested) {
+                deliver(splitter.end());
+            }
 
             const outcome: RemoteSearchOutcome = {
                 tool,

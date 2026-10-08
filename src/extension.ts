@@ -175,23 +175,31 @@ async function pruneManualDisconnectIds(
     }
 }
 
+/**
+ * Remove every workspace folder of a connection. A leftover folder would make
+ * the next window load treat the connection as reconnected on purpose.
+ * Folders are removed from the highest index down: removing the first folder
+ * restarts the extension host, so that happens last.
+ */
 async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders) {
-        return;
+    const folders = (vscode.workspace.workspaceFolders ?? [])
+        .filter((workspaceFolder) => isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId))
+        .sort((a, b) => b.index - a.index);
+    for (const folder of folders) {
+        await removeWorkspaceFolder(folder);
     }
+}
 
-    const folder = folders.find((workspaceFolder) =>
-        isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
-    );
-    if (!folder) {
-        return;
-    }
-
+async function removeWorkspaceFolder(folder: vscode.WorkspaceFolder): Promise<void> {
+    const connectionId = folder.uri.authority;
+    const isFolder = (workspaceFolder: vscode.WorkspaceFolder): boolean =>
+        workspaceFolder.uri.toString() === folder.uri.toString();
     const hasFolder = (): boolean =>
-        (vscode.workspace.workspaceFolders ?? []).some((workspaceFolder) =>
-            isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
-        );
+        (vscode.workspace.workspaceFolders ?? []).some(isFolder);
+    const index = (vscode.workspace.workspaceFolders ?? []).findIndex(isFolder);
+    if (index < 0) {
+        return;
+    }
 
     await new Promise<void>((resolve, reject) => {
         let settled = false;
@@ -207,12 +215,7 @@ async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> 
         };
 
         const changeDisposable = vscode.workspace.onDidChangeWorkspaceFolders((event) => {
-            if (
-                event.removed.some((workspaceFolder) =>
-                    isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
-                ) ||
-                !hasFolder()
-            ) {
+            if (event.removed.some(isFolder) || !hasFolder()) {
                 finish(resolve);
             }
         });
@@ -235,7 +238,7 @@ async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> 
             });
         }, WORKSPACE_FOLDER_CHANGE_TIMEOUT_MS);
 
-        const started = vscode.workspace.updateWorkspaceFolders(folder.index, 1);
+        const started = vscode.workspace.updateWorkspaceFolders(index, 1);
         if (!started) {
             finish(() => {
                 reject(

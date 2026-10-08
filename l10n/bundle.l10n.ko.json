@@ -369,7 +369,7 @@
   "Key exchange": "키 교환",
   "Match Case: {0} · Regular Expression: {1} · Whole Word: {2}": "대/소문자 구분: {0} · 정규식: {1} · 단어 단위: {2}",
   "Message authentication": "메시지 인증",
-  "Multi-line search is not supported.": "여러 줄 검색은 지원되지 않습니다.",
+  "Line breaks and tabs are not supported in the search text.": "검색 텍스트에서는 줄 바꿈과 탭이 지원되지 않습니다.",
   "No results found.": "결과가 없습니다.",
   "Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: \"+name\" adds to the defaults, \"-name\" removes (wildcards allowed), \"^name\" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.": "기본적으로 제공되지 않는 알고리즘이 필요한 오래된 서버 전용입니다. OpenSSH 구문: \"+이름\"은 기본값에 추가, \"-이름\"은 제거(와일드카드 허용), \"^이름\"은 맨 앞으로 이동, 쉼표로 구분된 목록은 기본값을 대체합니다. 빈 필드는 기본값을 유지합니다. 점프 호스트에는 적용되지 않습니다.",
   "Only the first {0} results are shown; refine the search.": "처음 {0}개 결과만 표시됩니다. 검색을 구체화하세요.",

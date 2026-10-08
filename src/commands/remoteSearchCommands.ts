@@ -76,7 +76,11 @@ export function registerRemoteSearch(
                     target.rootPath,
                     query,
                     Math.max(1, Math.trunc(maxResults) || 5000),
-                    (matches) => provider.add(matches),
+                    (matches) => {
+                        if (running === cts) {
+                            provider.add(matches);
+                        }
+                    },
                     cts.token
                 )
             );
@@ -131,6 +135,8 @@ export function registerRemoteSearch(
         }),
         vscode.commands.registerCommand('remoteBridge.searchClear', () => {
             running?.cancel();
+            running = undefined;
+            setRunning(false);
             last = undefined;
             provider.clear();
             view.message = undefined;
@@ -275,8 +281,8 @@ async function promptQuery(context: vscode.ExtensionContext, target: SearchTarge
                 input.validationMessage = vscode.l10n.t('Enter text to search for.');
                 return;
             }
-            if (/[\r\n\0]/.test(value)) {
-                input.validationMessage = vscode.l10n.t('Multi-line search is not supported.');
+            if (/[\x00-\x1f\x7f]/.test(value)) {
+                input.validationMessage = vscode.l10n.t('Line breaks and tabs are not supported in the search text.');
                 return;
             }
             resolve(value);
@@ -320,8 +326,9 @@ function selectedText(): string | undefined {
     if (!editor || editor.selection.isEmpty) {
         return undefined;
     }
-    const text = editor.document.getText(editor.selection);
-    return text && !/[\r\n]/.test(text) ? text : undefined;
+    // Indentation around a selected line is not part of what to search for.
+    const text = editor.document.getText(editor.selection).trim();
+    return text && !/[\x00-\x1f\x7f]/.test(text) ? text : undefined;
 }
 
 /** `files.exclude` and `search.exclude` globs that are switched on. */
@@ -388,10 +395,14 @@ async function fallbackToBuiltInSearch(
     vscode.window.showInformationMessage(
         vscode.l10n.t('{0} Using the VS Code search instead.', describeUnavailable(reason))
     );
-    // asRelativePath prefixes the folder name in multi-root workspaces, which
-    // is what filesToInclude expects there.
-    const relative = vscode.workspace.asRelativePath(target.uri).replace(/\/+$/, '');
-    const base = relative && relative !== target.uri.toString() ? `./${relative}` : '.';
+    // filesToInclude paths are relative to the workspace folder, prefixed
+    // with the folder name in multi-root workspaces. (asRelativePath cannot
+    // be used: for a folder root it returns the absolute path.)
+    const folder = vscode.workspace.getWorkspaceFolder(target.uri)!;
+    const folderPath = folder.uri.path.replace(/\/+$/, '');
+    const inFolder = target.uri.path.startsWith(`${folderPath}/`) ? target.uri.path.slice(folderPath.length + 1) : '';
+    const multiRoot = (vscode.workspace.workspaceFolders?.length ?? 0) > 1;
+    const base = ['.', multiRoot ? folder.name : '', inFolder.replace(/\/+$/, '')].filter(Boolean).join('/');
     const includes = query.include.length > 0
         ? query.include.map((glob) => glob.includes('/') ? `${base}/${glob.replace(/^\.\//, '')}` : `${base}/**/${glob}`)
         : [base];

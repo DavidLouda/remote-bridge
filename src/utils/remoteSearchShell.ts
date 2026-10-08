@@ -73,13 +73,17 @@ export function parseProbeOutput(stdout: string): SearchTool | undefined {
 export function parseGlobList(input: string): { include: string[]; exclude: string[] } {
     const include: string[] = [];
     const exclude: string[] = [];
+    // Globs are relative to the searched folder; ripgrep matches nothing
+    // for a leading `./`.
+    const relative = (glob: string) => glob.replace(/^(\.\/)+/, '');
     for (const raw of splitGlobs(input)) {
         if (raw.startsWith('!')) {
-            if (raw.length > 1) {
-                exclude.push(raw.slice(1));
+            const glob = relative(raw.slice(1));
+            if (glob) {
+                exclude.push(glob);
             }
-        } else {
-            include.push(raw);
+        } else if (relative(raw)) {
+            include.push(relative(raw));
         }
     }
     return { include, exclude };
@@ -114,14 +118,22 @@ export function resolveResultPath(resultPath: string, searchPath: string): strin
 }
 
 /**
- * Build the search command for `tool`, wrapped so that it is killed when the
- * SSH channel's stdin reaches EOF (cancellation or a dropped connection):
- * closing a channel without a PTY does not stop the remote process, and
- * not every server supports SSH signals.
+ * Command that runs a search script: the script is written to stdin (see
+ * {@link buildSearchScript}) instead of being quoted into the command line,
+ * so it does not depend on how the user's login shell (bash, csh, fish…)
+ * parses nested quotes.
  */
-export function buildSearchCommand(tool: SearchTool, query: RemoteSearchQuery, searchPath: string): string {
-    if (/[\r\n\0]/.test(query.pattern)) {
-        throw new Error('multiline');
+export const SEARCH_SHELL_COMMAND = 'sh -s';
+
+/**
+ * Build the shell script for `tool`, to be fed to {@link SEARCH_SHELL_COMMAND}
+ * on stdin. The search is killed when stdin reaches EOF (cancellation or a
+ * dropped connection): closing a channel without a PTY does not stop the
+ * remote process, and not every server supports SSH signals.
+ */
+export function buildSearchScript(tool: SearchTool, query: RemoteSearchQuery, searchPath: string): string {
+    if (/[\x00-\x1f\x7f]/.test(query.pattern)) {
+        throw new Error('control characters');
     }
     const args: string[] = [];
     if (tool === 'rg') {
@@ -177,7 +189,9 @@ export function buildSearchCommand(tool: SearchTool, query: RemoteSearchQuery, s
         'kill $w 2>/dev/null',
         'exit $s',
     ].join('; ');
-    return `sh -c ${esc(script)}`;
+    // One line: sh reads and runs it, and `cat` then waits on the rest of
+    // stdin, which only ends on cancellation or when the channel closes.
+    return `${script}\n`;
 }
 
 /**

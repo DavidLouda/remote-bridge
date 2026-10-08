@@ -369,7 +369,7 @@
   "Key exchange": "Échange de clés",
   "Match Case: {0} · Regular Expression: {1} · Whole Word: {2}": "Respecter la casse : {0} · Expression régulière : {1} · Mot entier : {2}",
   "Message authentication": "Authentification des messages",
-  "Multi-line search is not supported.": "La recherche sur plusieurs lignes n'est pas prise en charge.",
+  "Line breaks and tabs are not supported in the search text.": "Les sauts de ligne et les tabulations ne sont pas pris en charge dans le texte recherché.",
   "No results found.": "Aucun résultat trouvé.",
   "Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: \"+name\" adds to the defaults, \"-name\" removes (wildcards allowed), \"^name\" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.": "Uniquement pour les anciens serveurs qui nécessitent des algorithmes non proposés par défaut. Syntaxe OpenSSH : « +nom » ajoute aux valeurs par défaut, « -nom » retire (caractères génériques autorisés), « ^nom » place en tête, une simple liste séparée par des virgules remplace les valeurs par défaut. Les champs vides conservent les valeurs par défaut. Non appliqué à l'hôte de rebond.",
   "Only the first {0} results are shown; refine the search.": "Seuls les {0} premiers résultats sont affichés ; affinez la recherche.",

@@ -430,7 +430,7 @@
         },
         {
           "command": "remoteBridge.searchRemote",
-          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\.(ssh|sftp)\\./ && !listMultiSelection",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\.(ssh|sftp)\\.connected$/ && !listMultiSelection",
           "group": "0_workspace@2"
         },
         {

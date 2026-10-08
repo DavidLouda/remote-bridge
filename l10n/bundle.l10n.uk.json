@@ -369,7 +369,7 @@
   "Key exchange": "Обмін ключами",
   "Match Case: {0} · Regular Expression: {1} · Whole Word: {2}": "Враховувати регістр: {0} · Регулярний вираз: {1} · Ціле слово: {2}",
   "Message authentication": "Автентифікація повідомлень",
-  "Multi-line search is not supported.": "Багаторядковий пошук не підтримується.",
+  "Line breaks and tabs are not supported in the search text.": "Розриви рядків і табуляції не підтримуються в тексті пошуку.",
   "No results found.": "Нічого не знайдено.",
   "Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: \"+name\" adds to the defaults, \"-name\" removes (wildcards allowed), \"^name\" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.": "Лише для застарілих серверів, яким потрібні алгоритми, що не пропонуються за замовчуванням. Синтаксис OpenSSH: \"+назва\" додає до типових, \"-назва\" вилучає (дозволено шаблони), \"^назва\" переміщує на початок, простий список через кому замінює типові. Порожні поля залишають типові значення. Не застосовується до jump-хоста.",
   "Only the first {0} results are shown; refine the search.": "Показано лише перші {0} результатів; уточніть пошук.",

@@ -369,7 +369,7 @@
   "Key exchange": "Výmena kľúčov",
   "Match Case: {0} · Regular Expression: {1} · Whole Word: {2}": "Rozlišovať veľkosť písmen: {0} · Regulárny výraz: {1} · Celé slová: {2}",
   "Message authentication": "Overovanie správ",
-  "Multi-line search is not supported.": "Viacriadkové hľadanie nie je podporované.",
+  "Line breaks and tabs are not supported in the search text.": "Zalomenia riadkov a tabulátory nie sú v hľadanom texte podporované.",
   "No results found.": "Nič sa nenašlo.",
   "Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: \"+name\" adds to the defaults, \"-name\" removes (wildcards allowed), \"^name\" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.": "Len pre staršie servery, ktoré vyžadujú algoritmy neponúkané v predvolenom stave. Syntax OpenSSH: „+názov“ pridá k predvoleným, „-názov“ odoberie (možno použiť zástupné znaky), „^názov“ presunie na začiatok, obyčajný zoznam oddelený čiarkami nahradí predvolené. Prázdne polia ponechajú predvolené hodnoty. Na jump host sa nepoužije.",
   "Only the first {0} results are shown; refine the search.": "Zobrazených je len prvých {0} výsledkov; spresnite hľadanie.",

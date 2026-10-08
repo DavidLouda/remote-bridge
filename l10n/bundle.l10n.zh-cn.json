@@ -369,7 +369,7 @@
   "Key exchange": "密钥交换",
   "Match Case: {0} · Regular Expression: {1} · Whole Word: {2}": "区分大小写：{0} · 正则表达式：{1} · 全字匹配：{2}",
   "Message authentication": "消息认证",
-  "Multi-line search is not supported.": "不支持多行搜索。",
+  "Line breaks and tabs are not supported in the search text.": "搜索文本中不支持换行符和制表符。",
   "No results found.": "未找到结果。",
   "Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: \"+name\" adds to the defaults, \"-name\" removes (wildcards allowed), \"^name\" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.": "仅适用于需要默认未提供的算法的旧服务器。OpenSSH 语法：\"+名称\" 追加到默认列表，\"-名称\" 移除（允许通配符），\"^名称\" 移到最前，普通的逗号分隔列表替换默认列表。留空的字段保持默认值。不应用于跳板主机。",
   "Only the first {0} results are shown; refine the search.": "仅显示前 {0} 个结果；请缩小搜索范围。",

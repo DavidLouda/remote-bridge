@@ -369,7 +369,7 @@
   "Key exchange": "鍵交換",
   "Match Case: {0} · Regular Expression: {1} · Whole Word: {2}": "大文字と小文字を区別: {0} · 正規表現: {1} · 単語単位: {2}",
   "Message authentication": "メッセージ認証",
-  "Multi-line search is not supported.": "複数行の検索はサポートされていません。",
+  "Line breaks and tabs are not supported in the search text.": "検索テキストでは改行とタブはサポートされていません。",
   "No results found.": "結果が見つかりませんでした。",
   "Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: \"+name\" adds to the defaults, \"-name\" removes (wildcards allowed), \"^name\" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.": "既定では提供されないアルゴリズムを必要とする古いサーバー専用です。OpenSSH 構文: \"+名前\" は既定に追加、\"-名前\" は削除 (ワイルドカード可)、\"^名前\" は先頭に移動、カンマ区切りのリストは既定を置き換えます。空欄の項目は既定のままです。ジャンプホストには適用されません。",
   "Only the first {0} results are shown; refine the search.": "最初の {0} 件の結果のみ表示しています。検索条件を絞り込んでください。",
