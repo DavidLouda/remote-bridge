@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import * as fs from 'fs';
-import { RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
+import { ExecStreamResult, RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
 import { PerfLogger } from '../services/perfLogger';
@@ -592,6 +592,16 @@ export class SshAdapter implements RemoteAdapter {
     }
 
     async exec(command: string): Promise<ExecResult> {
+        // stdin is closed right away: a command that reads it (or a server
+        // whose ForceCommand ignores the command) gets EOF instead of hanging.
+        return this._execCollect(command, '');
+    }
+
+    async execWithStdin(command: string, stdinData: string): Promise<ExecResult> {
+        return this._execCollect(command, stdinData);
+    }
+
+    private _execCollect(command: string, stdinData: string): Promise<ExecResult> {
         const client = this._requireClient();
         return new Promise((resolve, reject) => {
             client.exec(command, (err, stream) => {
@@ -604,28 +614,52 @@ export class SshAdapter implements RemoteAdapter {
                     return;
                 }
 
-                let stdout = '';
-                let stderr = '';
+                // Collect raw chunks and decode once: a multi-byte UTF-8
+                // character can be split across chunk boundaries.
+                const stdout: Buffer[] = [];
+                const stderr: Buffer[] = [];
 
                 stream.on('data', (data: Buffer) => {
-                    stdout += data.toString();
+                    stdout.push(data);
                 });
                 stream.stderr.on('data', (data: Buffer) => {
-                    stderr += data.toString();
+                    stderr.push(data);
                 });
                 stream.on('close', (code: number) => {
-                    resolve({ stdout, stderr, exitCode: code ?? 0 });
+                    resolve({
+                        stdout: Buffer.concat(stdout).toString('utf8'),
+                        stderr: Buffer.concat(stderr).toString('utf8'),
+                        exitCode: code ?? 0,
+                    });
                 });
                 stream.on('error', (err: Error) => {
                     reject(this._classifyTransportError(err));
                 });
+
+                stream.end(stdinData);
             });
         });
     }
 
-    async execWithStdin(command: string, stdinData: string): Promise<ExecResult> {
+    /**
+     * Run a command and hand stdout chunks to `onStdout` as they arrive.
+     * Cancelling the token ends stdin, sends KILL (if the server supports
+     * signals) and closes the channel; commands meant to be cancellable
+     * should watch stdin and stop on EOF (see remoteSearchShell). stderr is
+     * capped at `maxStderrBytes`.
+     */
+    execStream(
+        command: string,
+        onStdout: (chunk: Buffer) => void,
+        token?: vscode.CancellationToken,
+        maxStderrBytes = 64 * 1024
+    ): Promise<ExecStreamResult> {
         const client = this._requireClient();
         return new Promise((resolve, reject) => {
+            if (token?.isCancellationRequested) {
+                resolve({ exitCode: null, stderr: '', cancelled: true });
+                return;
+            }
             client.exec(command, (err, stream) => {
                 if (err) {
                     reject(this._classifyTransportError(err));
@@ -636,24 +670,44 @@ export class SshAdapter implements RemoteAdapter {
                     return;
                 }
 
-                let stdout = '';
-                let stderr = '';
+                const stderr: Buffer[] = [];
+                let stderrBytes = 0;
+                let cancelled = false;
+                const cancellation = token?.onCancellationRequested(() => {
+                    cancelled = true;
+                    try {
+                        stream.end();
+                        stream.signal('KILL');
+                        stream.close();
+                    } catch {
+                        // Channel already closed
+                    }
+                });
 
                 stream.on('data', (data: Buffer) => {
-                    stdout += data.toString();
+                    if (!cancelled) {
+                        onStdout(data);
+                    }
                 });
                 stream.stderr.on('data', (data: Buffer) => {
-                    stderr += data.toString();
+                    if (stderrBytes < maxStderrBytes) {
+                        const part = data.subarray(0, maxStderrBytes - stderrBytes);
+                        stderr.push(part);
+                        stderrBytes += part.length;
+                    }
                 });
-                stream.on('close', (code: number) => {
-                    resolve({ stdout, stderr, exitCode: code ?? 0 });
+                stream.on('close', (code: number | null | undefined) => {
+                    cancellation?.dispose();
+                    resolve({
+                        exitCode: code ?? null,
+                        stderr: Buffer.concat(stderr).toString('utf8'),
+                        cancelled,
+                    });
                 });
                 stream.on('error', (err: Error) => {
+                    cancellation?.dispose();
                     reject(this._classifyTransportError(err));
                 });
-
-                // Write data to stdin and close
-                stream.end(stdinData);
             });
         });
     }

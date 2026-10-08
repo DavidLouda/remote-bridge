@@ -21,6 +21,7 @@ import { ReadFileTool } from './chat/tools/readFileTool';
 import { SearchFilesTool } from './chat/tools/searchFilesTool';
 import { RunCommandTool } from './chat/tools/runCommandTool';
 import { StatusBarService } from './statusBar/statusBarService';
+import { registerRemoteSearch } from './commands/remoteSearchCommands';
 import { TransferTracker } from './services/transferTracker';
 import { BackupService } from './services/backupService';
 import { SyncService } from './services/syncService';
@@ -607,6 +608,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             new ReadFileTool(connectionManager, connectionPool, cacheService)
         )
     );
+
+    // ─── Remote Search (server-side grep / ripgrep) ────────────
+    registerRemoteSearch(context, connectionManager, connectionPool);
 
     // ─── Chat Participant (always registered) ──────────────────
     context.subscriptions.push(registerChatParticipant(context, connectionManager, connectionPool));

@@ -5,9 +5,11 @@
   "viewContainer.title": "Remote Bridge",
   "view.connections.name": "Connections",
   "view.activeSessions.name": "Active Sessions",
+  "view.searchResults.name": "Remote Search",
 
   "welcome.noConnections": "No connections configured.\n[Add Connection](command:remoteBridge.addConnection)\n[Import Connections](command:remoteBridge.import)",
   "welcome.connectionsLocked": "Connections are locked.\n[Unlock](command:remoteBridge.unlockMasterPassword)",
+  "welcome.searchResults": "Search file contents directly on the server (ripgrep or grep over SSH) — fast even for folders that were never opened.\n[Search Remote Files](command:remoteBridge.searchRemote)",
 
   "command.addConnection.title": "Add Connection",
   "command.editConnection.title": "Edit Connection",
@@ -16,6 +18,11 @@
   "command.disconnect.title": "Disconnect",
   "command.openWorkspace.title": "Open as Workspace",
   "command.addToWorkspace.title": "Add to Current Workspace",
+  "command.searchRemote.title": "Search Remote Files",
+  "command.searchInFolder.title": "Search in Remote Folder (Server-Side)",
+  "command.searchRefresh.title": "Search Again",
+  "command.searchCancel.title": "Cancel Search",
+  "command.searchClear.title": "Clear Search Results",
   "command.openTerminal.title": "Open SSH Terminal",
   "command.addFolder.title": "Add Folder",
   "command.renameFolder.title": "Rename Folder",
@@ -55,6 +62,7 @@
   "config.workspace.connectBehavior.description": "What Connect does with the server's folder when the current window is not a Remote Bridge workspace.",
   "config.workspace.connectBehavior.openRemoteBridgeWorkspace": "Open a Remote Bridge workspace for the server (reloads the window).",
   "config.workspace.connectBehavior.addToCurrentWorkspace": "Add the server's folder to the current workspace, next to the folders already open.",
+  "config.search.maxResults.description": "Maximum number of matches a server-side search (Search Remote Files) shows before it stops.",
   "config.files.temporaryWritePermission.description": "When enabled, the extension temporarily adds write permission to read-only remote files before saving, then restores the original permissions. Supported for SSH/SFTP and FTP/FTPS.",
 
   "chat.participant.description": "Work with remote servers — read files, search, and run commands (SSH/SFTP/FTP)",

@@ -3,6 +3,15 @@ import { RemoteFileInfo, RemoteFileStat, ExecResult } from '../types/connection'
 
 export type RemoteOperationSource = 'user' | 'probe' | 'watch' | 'keepalive';
 
+export interface ExecStreamResult {
+    /** Exit code, or null when the process ended by a signal or the channel was closed. */
+    exitCode: number | null;
+    /** stderr output, truncated to the requested limit. */
+    stderr: string;
+    /** True when the token was cancelled before the command finished. */
+    cancelled: boolean;
+}
+
 export interface RemoteOperationOptions {
     source?: RemoteOperationSource;
 }
@@ -60,6 +69,14 @@ export interface RemoteAdapter extends vscode.Disposable {
 
     /** Execute a command and pipe data to its stdin (SSH only). */
     execWithStdin?(command: string, stdinData: string): Promise<ExecResult>;
+
+    /** Execute a command, streaming stdout as it arrives; cancellable (SSH only). */
+    execStream?(
+        command: string,
+        onStdout: (chunk: Buffer) => void,
+        token?: vscode.CancellationToken,
+        maxStderrBytes?: number
+    ): Promise<ExecStreamResult>;
 
     /** Get an interactive shell stream (SSH only). Returns null if not supported. */
     shell?(): Promise<NodeJS.ReadWriteStream>;
