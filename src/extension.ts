@@ -725,6 +725,64 @@ function registerCommands(
         })
     );
 
+    // Connect each selected server; returns the ones that connected.
+    const connectItems = async (items: readonly TreeConnectionNode[]): Promise<TreeConnectionNode[]> => {
+        const connected: TreeConnectionNode[] = [];
+        for (const item of items) {
+            const conn = item.connection;
+            const restoreManualDisconnect = manualDisconnectIds.has(conn.id);
+            fsProvider.resumeAutoConnect(conn.id);
+            try {
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: vscode.l10n.t('Connecting to {0}...', conn.name),
+                        cancellable: false,
+                    },
+                    async () => {
+                        await connectionPool.getAdapter(conn);
+                    }
+                );
+
+                if (restoreManualDisconnect) {
+                    manualDisconnectIds.delete(conn.id);
+                    await persistManualDisconnectIds(context, manualDisconnectIds);
+                }
+                recentConnections?.touch(conn.id);
+                connected.push(item);
+            } catch (err) {
+                if (restoreManualDisconnect) {
+                    fsProvider.suspendAutoConnect(conn.id);
+                }
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(
+                    vscode.l10n.t('Connection to {0} failed: {1}', conn.name, message)
+                );
+            }
+        }
+        return connected;
+    };
+
+    // Add workspace folders for connected servers to the current window.
+    // Servers already present only get the Explorer refreshed (it may still
+    // show errors from while the connection was down).
+    const addConnectedToCurrentWorkspace = async (connected: readonly TreeConnectionNode[]): Promise<void> => {
+        const toAdd = connected.filter(item =>
+            !vscode.workspace.workspaceFolders?.some(
+                wf => isRemoteBridgeWorkspaceFolder(wf, item.connection.id)
+            )
+        );
+        if (toAdd.length === 0) {
+            await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
+        } else if (!addRemoteWorkspaceFolders(toAdd.map(item => item.connection))) {
+            vscode.window.showErrorMessage(
+                vscode.l10n.t('Could not add the folder to the workspace. Please try again.')
+            );
+            return;
+        }
+        await vscode.commands.executeCommand('workbench.view.explorer');
+    };
+
     // Connect — adds workspace folder, manages .code-workspace file, reveals Explorer
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.connect', async (node: TreeNode, selectedNodes?: readonly TreeNode[]) => {
@@ -733,57 +791,12 @@ function registerCommands(
                 return;
             }
 
-            // Connect each server (collect successes)
-            const connected: typeof items = [];
-            for (const item of items) {
-                const conn = item.connection;
-                const restoreManualDisconnect = manualDisconnectIds.has(conn.id);
-                fsProvider.resumeAutoConnect(conn.id);
-                try {
-                    await vscode.window.withProgress(
-                        {
-                            location: vscode.ProgressLocation.Notification,
-                            title: vscode.l10n.t('Connecting to {0}...', conn.name),
-                            cancellable: false,
-                        },
-                        async () => {
-                            await connectionPool.getAdapter(conn);
-                        }
-                    );
-
-                    if (restoreManualDisconnect) {
-                        manualDisconnectIds.delete(conn.id);
-                        await persistManualDisconnectIds(context, manualDisconnectIds);
-                    }
-                    recentConnections?.touch(conn.id);
-                    connected.push(item);
-                } catch (err) {
-                    if (restoreManualDisconnect) {
-                        fsProvider.suspendAutoConnect(conn.id);
-                    }
-                    const message = err instanceof Error ? err.message : String(err);
-                    vscode.window.showErrorMessage(
-                        vscode.l10n.t('Connection to {0} failed: {1}', conn.name, message)
-                    );
-                }
-            }
-
+            const connected = await connectItems(items);
             if (connected.length === 0) { return; }
 
-            // Filter to servers not yet present as workspace folders
-            const toAdd = connected.filter(item =>
-                !vscode.workspace.workspaceFolders?.some(
-                    wf => wf.uri.scheme === 'remote-bridge' && wf.uri.authority === item.connection.id
-                )
+            const allPresent = connected.every(item =>
+                vscode.workspace.workspaceFolders?.some(wf => isRemoteBridgeWorkspaceFolder(wf, item.connection.id))
             );
-
-            if (toAdd.length === 0) {
-                // All already in workspace — refresh the tree (it may still show
-                // errors from while the connection was down) and reveal Explorer.
-                await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
-                await vscode.commands.executeCommand('workbench.view.explorer');
-                return;
-            }
 
             // True only when our workspace file is open AND still has remote-bridge folders.
             // After a disconnect removes all folders the workspace is "empty" — treat it
@@ -791,21 +804,42 @@ function registerCommands(
             const hasActiveFolders = vscode.workspace.workspaceFolders?.some(
                 wf => wf.uri.scheme === 'remote-bridge'
             ) ?? false;
+            const addToCurrent = vscode.workspace
+                .getConfiguration('remoteBridge.workspace')
+                .get<string>('connectBehavior') === 'addToCurrentWorkspace';
 
-            if (isOurWorkspaceFile(context.globalStorageUri) && hasActiveFolders) {
-                // Already inside one of our .code-workspace files: add new folder(s)
-                // in-place (no reload needed). VS Code persists the change to the
+            if (allPresent || addToCurrent || (isOurWorkspaceFile(context.globalStorageUri) && hasActiveFolders)) {
+                // Add new folder(s) in-place. VS Code persists the change to an
                 // open .code-workspace file itself.
-                addRemoteWorkspaceFolders(toAdd.map(item => item.connection));
-                await vscode.commands.executeCommand('workbench.view.explorer');
+                await addConnectedToCurrentWorkspace(connected);
             } else {
                 // Not yet in our workspace: create a .code-workspace file and open it.
                 // This triggers a window reload — code after this call will not run.
                 const wsFileUri = await createWorkspaceFile(
                     context.globalStorageUri,
-                    toAdd.map(i => i.connection)
+                    connected
+                        .filter(item => !vscode.workspace.workspaceFolders?.some(
+                            wf => isRemoteBridgeWorkspaceFolder(wf, item.connection.id)
+                        ))
+                        .map(item => item.connection)
                 );
                 await openWorkspaceFile(wsFileUri);
+            }
+        })
+    );
+
+    // Add to Workspace — connect and add the folder to the current window's
+    // workspace (any folder, untitled or .code-workspace) instead of opening
+    // a Remote Bridge workspace.
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.addToWorkspace', async (node: TreeNode, selectedNodes?: readonly TreeNode[]) => {
+            const items = getSelectedConnections(node, selectedNodes);
+            if (items.length === 0) {
+                return;
+            }
+            const connected = await connectItems(items);
+            if (connected.length > 0) {
+                await addConnectedToCurrentWorkspace(connected);
             }
         })
     );

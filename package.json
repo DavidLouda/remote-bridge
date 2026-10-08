@@ -119,6 +119,12 @@
         "category": "Remote Bridge"
       },
       {
+        "command": "remoteBridge.addToWorkspace",
+        "title": "%command.addToWorkspace.title%",
+        "icon": "$(root-folder-opened)",
+        "category": "Remote Bridge"
+      },
+      {
         "command": "remoteBridge.openTerminal",
         "title": "%command.openTerminal.title%",
         "icon": "$(terminal)",
@@ -360,6 +366,11 @@
           "group": "inline@2"
         },
         {
+          "command": "remoteBridge.addToWorkspace",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/",
+          "group": "0_workspace@1"
+        },
+        {
           "command": "remoteBridge.editConnection",
           "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/ && !listMultiSelection",
           "group": "1_manage@1"
@@ -432,6 +443,10 @@
         },
         {
           "command": "remoteBridge.openWorkspace",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.addToWorkspace",
           "when": "false"
         },
         {
@@ -528,6 +543,19 @@
           "type": "boolean",
           "default": false,
           "description": "%config.files.temporaryWritePermission.description%"
+        },
+        "remoteBridge.workspace.connectBehavior": {
+          "type": "string",
+          "enum": [
+            "openRemoteBridgeWorkspace",
+            "addToCurrentWorkspace"
+          ],
+          "enumDescriptions": [
+            "%config.workspace.connectBehavior.openRemoteBridgeWorkspace%",
+            "%config.workspace.connectBehavior.addToCurrentWorkspace%"
+          ],
+          "default": "openRemoteBridgeWorkspace",
+          "description": "%config.workspace.connectBehavior.description%"
         },
         "remoteBridge.debug": {
           "type": "boolean",
