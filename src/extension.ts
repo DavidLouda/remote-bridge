@@ -29,10 +29,10 @@ import { PerfLogger } from './services/perfLogger';
 import { buildRemoteUri, parseRemoteUri } from './utils/uriParser';
 import {
     createWorkspaceFile,
-    addFolderToWorkspaceFile,
     isOurWorkspaceFile,
     openWorkspaceFile,
     deleteWorkspaceFileForConnection,
+    workspaceFolderName,
 } from './utils/workspaceFileManager';
 import { ConnectionFormPanel } from './webview/connectionFormPanel';
 import { ImportPreviewPanel } from './webview/importPreviewPanel';
@@ -81,6 +81,27 @@ function getSelectedConnections(node: TreeNode | undefined, selectedNodes?: read
         result.push(candidate);
     }
     return result;
+}
+
+/**
+ * Append workspace folders for the given connections in a single
+ * updateWorkspaceFolders call (the API does not support a second call before
+ * the first one has fired onDidChangeWorkspaceFolders). Adding the first
+ * folder of a window restarts the extension host, so callers must finish any
+ * state writes before calling this and must not rely on code running after it.
+ */
+function addRemoteWorkspaceFolders(connections: readonly ConnectionConfig[]): boolean {
+    if (connections.length === 0) {
+        return true;
+    }
+    return vscode.workspace.updateWorkspaceFolders(
+        vscode.workspace.workspaceFolders?.length ?? 0,
+        null,
+        ...connections.map(conn => ({
+            uri: buildRemoteUri(conn.id, conn.remotePath),
+            name: workspaceFolderName(conn),
+        }))
+    );
 }
 
 function buildFolderPath(folderId: string, foldersById: Map<string, { id: string; name: string; parentId?: string }>): string {
@@ -379,26 +400,72 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const manualDisconnectIds = new Set<string>(
         context.workspaceState.get<string[]>(MANUAL_DISCONNECT_IDS_KEY) ?? []
     );
-    await pruneManualDisconnectIds(
-        context,
-        manualDisconnectIds,
-        new Set(connectionManager.getConnections().map((connection) => connection.id))
+    // While the encrypted store is locked the connection list is empty, so
+    // pruning against it would wipe every manual-disconnect flag.
+    const isConnectionStoreLocked = (): boolean =>
+        encryptionService.isEnabled() && !encryptionService.isUnlocked();
+    if (!isConnectionStoreLocked()) {
+        await pruneManualDisconnectIds(
+            context,
+            manualDisconnectIds,
+            new Set(connectionManager.getConnections().map((connection) => connection.id))
+        );
+    }
+
+    // A successful Disconnect always removes the connection's workspace folder.
+    // If the folder is present again, it was re-added on purpose — e.g. Connect
+    // in another window reopened this workspace, or the user added the folder —
+    // so the stale flag must not keep the connection blocked.
+    const presentRemoteFolderIds = new Set(
+        (vscode.workspace.workspaceFolders ?? [])
+            .filter((folder) => folder.uri.scheme === 'remote-bridge')
+            .map((folder) => folder.uri.authority)
     );
+    let clearedStaleFlags = false;
+    for (const connectionId of Array.from(manualDisconnectIds)) {
+        if (presentRemoteFolderIds.has(connectionId)) {
+            manualDisconnectIds.delete(connectionId);
+            clearedStaleFlags = true;
+        }
+    }
+    if (clearedStaleFlags) {
+        await persistManualDisconnectIds(context, manualDisconnectIds);
+    }
+
     for (const connectionId of manualDisconnectIds) {
         fsProvider.suspendAutoConnect(connectionId);
     }
     context.subscriptions.push(
         connectionManager.onDidChange(() => {
+            if (isConnectionStoreLocked()) {
+                return;
+            }
             void pruneManualDisconnectIds(
                 context,
                 manualDisconnectIds,
                 new Set(connectionManager.getConnections().map((connection) => connection.id))
             );
+        }),
+        vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+            let changed = false;
+            for (const folder of event.added) {
+                const connectionId = folder.uri.authority;
+                if (folder.uri.scheme === 'remote-bridge' && manualDisconnectIds.delete(connectionId)) {
+                    fsProvider.resumeAutoConnect(connectionId);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                void persistManualDisconnectIds(context, manualDisconnectIds);
+            }
         })
     );
 
     // ─── Workspace Folder Label Sync ────────────────────────────
-    // Ensure remote-bridge workspace folders always show the connection name
+    // Ensure remote-bridge workspace folders always show the connection name.
+    // updateWorkspaceFolders must not be called again before the previous call
+    // has fired onDidChangeWorkspaceFolders, so rename one folder per pass and
+    // let the change event trigger the next pass.
     const syncWorkspaceFolderNames = (): void => {
         const folders = vscode.workspace.workspaceFolders;
         if (!folders) {
@@ -411,17 +478,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const connId = wf.uri.authority;
             const conn = connectionManager.getConnections().find(c => c.id === connId);
             if (conn) {
-                const expectedName = `${conn.name} (${conn.host})`;
+                const expectedName = workspaceFolderName(conn);
                 if (wf.name !== expectedName) {
                     vscode.workspace.updateWorkspaceFolders(wf.index, 1, {
                         uri: wf.uri,
                         name: expectedName,
                     });
+                    return;
                 }
             }
         }
     };
-    context.subscriptions.push(connectionManager.onDidChange(syncWorkspaceFolderNames));
+    context.subscriptions.push(
+        connectionManager.onDidChange(syncWorkspaceFolderNames),
+        vscode.workspace.onDidChangeWorkspaceFolders(syncWorkspaceFolderNames)
+    );
     syncWorkspaceFolderNames();
 
     // ─── Master Password Hint ──────────────────────────────────
@@ -707,7 +778,9 @@ function registerCommands(
             );
 
             if (toAdd.length === 0) {
-                // All already in workspace — just reveal Explorer
+                // All already in workspace — refresh the tree (it may still show
+                // errors from while the connection was down) and reveal Explorer.
+                await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
                 await vscode.commands.executeCommand('workbench.view.explorer');
                 return;
             }
@@ -720,19 +793,10 @@ function registerCommands(
             ) ?? false;
 
             if (isOurWorkspaceFile(context.globalStorageUri) && hasActiveFolders) {
-                // Already inside one of our .code-workspace files:
-                // add new folder(s) in-place (no reload needed).
-                const wsFile = vscode.workspace.workspaceFile!;
-                for (const item of toAdd) {
-                    const conn = item.connection;
-                    const uri = buildRemoteUri(conn.id, conn.remotePath);
-                    vscode.workspace.updateWorkspaceFolders(
-                        vscode.workspace.workspaceFolders?.length ?? 0,
-                        null,
-                        { uri, name: `${conn.name} (${conn.host})` }
-                    );
-                    await addFolderToWorkspaceFile(wsFile, conn);
-                }
+                // Already inside one of our .code-workspace files: add new folder(s)
+                // in-place (no reload needed). VS Code persists the change to the
+                // open .code-workspace file itself.
+                addRemoteWorkspaceFolders(toAdd.map(item => item.connection));
                 await vscode.commands.executeCommand('workbench.view.explorer');
             } else {
                 // Not yet in our workspace: create a .code-workspace file and open it.
