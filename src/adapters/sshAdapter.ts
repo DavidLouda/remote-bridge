@@ -8,7 +8,8 @@ import { PerfLogger } from '../services/perfLogger';
 import * as shell from '../utils/shellCommands';
 import { createProxySocket } from '../utils/proxyTunnel';
 import { createJumpSocket } from '../utils/jumpTunnel';
-import { readPrivateKeySync } from '../utils/privateKeyLoader';
+import { agentNotFoundMessage, readPrivateKeySync } from '../utils/privateKeyLoader';
+import { expandUserPath, resolveAgentPath } from '../utils/keyPath';
 
 /**
  * SSH/SFTP adapter using the ssh2 library.
@@ -72,13 +73,13 @@ export class SshAdapter implements RemoteAdapter {
             }
             case 'key': {
                 if (this._config.privateKeyPath) {
-                    const keyPath = this._config.privateKeyPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+                    const configuredPath = this._config.privateKeyPath;
                     try {
-                        connectConfig.privateKey = readPrivateKeySync(keyPath);
+                        connectConfig.privateKey = readPrivateKeySync(expandUserPath(configuredPath), configuredPath);
                     } catch (err) {
                         throw err instanceof Error
                             ? err
-                            : new Error(vscode.l10n.t('Failed to read private key: {0}', keyPath));
+                            : new Error(vscode.l10n.t('Failed to read private key: {0}', configuredPath));
                     }
                 }
                 if (this._config.hasPassphrase) {
@@ -89,9 +90,14 @@ export class SshAdapter implements RemoteAdapter {
                 }
                 break;
             }
-            case 'agent':
-                connectConfig.agent = this._config.agent || process.env.SSH_AUTH_SOCK;
+            case 'agent': {
+                const agent = resolveAgentPath(this._config.agent);
+                if (!agent) {
+                    throw new Error(agentNotFoundMessage(this._config.agent));
+                }
+                connectConfig.agent = agent;
                 break;
+            }
             case 'keyboard-interactive':
                 connectConfig.tryKeyboard = true;
                 break;

@@ -606,7 +606,7 @@ export class ConnectionFormPanel {
 
             hintRemotePath: vscode.l10n.t('Default directory opened when connecting'),
             hintRemotePathSsh: vscode.l10n.t('Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.'),
-            hintAgent: vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows'),
+            hintAgent: vscode.l10n.t('Path to SSH agent socket (empty = $SSH_AUTH_SOCK; environment variables such as $VAR are expanded), or "pageant" on Windows'),
             hintPassword: vscode.l10n.t('Stored securely in VS Code SecretStorage'),
             hintOs: vscode.l10n.t('Determines which shell commands are used for remote operations'),
 
@@ -700,7 +700,7 @@ export class ConnectionFormPanel {
 
             hintRemotePath: escapeHtml(vscode.l10n.t('Default directory opened when connecting')),
             hintRemotePathSsh: escapeHtml(vscode.l10n.t('Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.')),
-            hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows')),
+            hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket (empty = $SSH_AUTH_SOCK; environment variables such as $VAR are expanded), or "pageant" on Windows')),
             hintPassword: escapeHtml(vscode.l10n.t('Stored securely in VS Code SecretStorage')),
             hintOs: escapeHtml(vscode.l10n.t('Determines which shell commands are used for remote operations')),
 
@@ -715,7 +715,7 @@ export class ConnectionFormPanel {
 
             phName: escapeHtml(vscode.l10n.t('My Server')),
             phHost: escapeHtml(vscode.l10n.t('192.168.1.1 or example.com')),
-            phAgent: escapeHtml(vscode.l10n.t('pageant')),
+            phAgent: escapeHtml(process.platform === 'win32' ? 'pageant' : '$SSH_AUTH_SOCK'),
             phKey: escapeHtml(vscode.l10n.t('~/.ssh/id_rsa')),
             phProxy: escapeHtml(vscode.l10n.t('proxy.example.com')),
         };
