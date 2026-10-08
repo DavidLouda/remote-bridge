@@ -5,6 +5,31 @@ All notable changes to the **Remote Bridge** extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-10-08
+
+### Added
+- **Search Remote Files (server-side search)** — a new command and **Remote Search** view run the search directly on the server over SSH: `rg` (ripgrep) when it is installed, otherwise `grep` (GNU/BSD, with a BusyBox fallback). Results stream in grouped by file with highlighted matches, and clicking a line opens the file at the match. Supports match case, regular expressions, whole word, include/exclude globs (`*.yml, src/**, !vendor/**`) and honours `files.exclude`, `search.exclude` and `search.useIgnoreFiles`. Available from the Command Palette, the view, a connection's context menu and **Search in Remote Folder (Server-Side)** in the Explorer. Cancelling stops the process on the server; `remoteBridge.search.maxResults` (default 5000) limits long searches. FTP, SFTP-only servers and Windows servers fall back to VS Code's built-in search. Requested in [#22](https://github.com/DavidLouda/remote-bridge/issues/22).
+- **Add to Current Workspace** — connect and add a server's folder to the workspace of the current window (a folder, an untitled workspace or your own `.code-workspace`) instead of opening a Remote Bridge workspace, so several websites can live in one workspace. Available in the connection context menu and the status-bar quick pick; the new `remoteBridge.workspace.connectBehavior` setting makes it the default for **Connect**. Requested in [#21](https://github.com/DavidLouda/remote-bridge/issues/21).
+- **Custom SSH algorithms per connection** — a new SSH-only section in the connection form (Advanced) for key exchange, ciphers, host key types and MACs in OpenSSH syntax (`+name` add, `-name` remove, `^name` prefer, or an exact list), e.g. `+diffie-hellman-group-exchange-sha1` and `+3des-cbc` for legacy servers. Values are validated against the algorithms ssh2 supports in the running VS Code. Also imported from Remote Bridge JSON, SSH FS and `~/.ssh/config`, and exported to SSH config. Requested in [#19](https://github.com/DavidLouda/remote-bridge/issues/19).
+- **SSH config import follows `Include`** — included files are read like OpenSSH does (several paths per directive, `~` and `${VAR}`, relative paths against `~/.ssh`, wildcards, nesting up to 16 levels; loops and non-regular files are reported). Requested in [#23](https://github.com/DavidLouda/remote-bridge/issues/23) — thanks to [@pledou](https://github.com/pledou) for the first implementation in [#24](https://github.com/DavidLouda/remote-bridge/pull/24) / [#25](https://github.com/DavidLouda/remote-bridge/pull/25).
+- **SSH config import maps more options** — `IdentityAgent` (agent authentication), `ProxyJump` aliases resolved against the same config (host, user, port and key of the jump host; `ProxyJump none` is ignored) and the algorithm options above. Related to [#2](https://github.com/DavidLouda/remote-bridge/issues/2).
+
+### Fixed
+- **Connection stayed "disconnected" after Disconnect → restart → Connect** — the manual-disconnect flag was stored for the workspace in which Disconnect ran, and Connect from another window reopened that workspace with the old flag still applied, so every file and folder failed with *Connection is disconnected*. A connection whose folder is present in the workspace again is now treated as reconnected on purpose, and the Explorer is refreshed after Connect. Reported in [#20](https://github.com/DavidLouda/remote-bridge/issues/20).
+- **`$SSH_AUTH_SOCK` in the agent field** — agent socket and private key paths now expand `$VAR`, `${VAR}`, `%VAR%` (Windows) and `~` when connecting, so values imported from SSH FS work. An empty agent field uses `$SSH_AUTH_SOCK` and, on Windows, falls back to the OpenSSH agent pipe; a missing agent now gives a clear error. Reported in [#17](https://github.com/DavidLouda/remote-bridge/issues/17).
+- **Connection options could not be cleared when editing** — unticking *Full SSH Access*, removing the proxy or jump host, switching the OS back to Linux, or changing the auth method away from key/agent kept the old value.
+- **Uncaught SSH errors after connecting** — a transport error after a successful connect (e.g. `ECONNRESET` when the server drops the connection), also on the jump host, was an unhandled error event in the extension host.
+- **Manual-disconnect flags were wiped while the connection store was locked** — pruning ran against the empty list of a locked master-password store.
+- **SSH config import** — `Host` lines with several patterns (`Host prod prod.example.com`, `Host * !x`) were imported as `[object Object],…`; one connection per block is now created. Directive names are matched case-insensitively.
+- **Remote command output with multi-byte characters** — UTF-8 characters split across SSH data chunks were garbled; commands that read stdin no longer hang.
+- **`#remoteSearch` hid grep errors** — an invalid pattern was reported as *No matches* because the exit code came from `head`.
+- **Workspace folder updates** — several folders are added in a single `updateWorkspaceFolders` call (multi-select Connect), and folder renames no longer issue overlapping calls.
+
+### Security
+- **SSH config import no longer runs commands** — `Match exec` blocks (executed through a shell by the `ssh-config` library while computing host options) and `CanonicalizeHostName` (DNS lookups) are ignored with a warning.
+- **PowerShell quoting** — typographic single quotes (U+2018–U+201B), which PowerShell treats like `'`, are now escaped in commands for Windows servers.
+- **Importers refuse non-regular files** — device files or FIFOs (e.g. `/dev/zero`) can no longer stall an import.
+
 ## [3.5.0] - 2026-04-24
 
 ### Added
