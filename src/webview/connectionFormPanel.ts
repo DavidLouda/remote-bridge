@@ -423,6 +423,9 @@ export class ConnectionFormPanel {
             ? Math.trunc(keepaliveRaw)
             : 10;
 
+        // Every option the form controls is listed explicitly (undefined when
+        // not set): updateConnection merges into the stored connection, so a
+        // missing key would keep the previous value instead of clearing it.
         const config: Omit<ConnectionConfig, 'id' | 'sortOrder'> = {
             name: (data.name as string).trim(),
             protocol,
@@ -432,6 +435,15 @@ export class ConnectionFormPanel {
             authMethod: data.authMethod as ConnectionConfig['authMethod'],
             remotePath: (data.remotePath as string) || '/',
             keepaliveInterval,
+            privateKeyPath: undefined,
+            hasPassphrase: undefined,
+            agent: undefined,
+            secure: undefined,
+            allowSelfSigned: undefined,
+            fullSshAccess: undefined,
+            os: undefined,
+            proxy: undefined,
+            jumpHost: undefined,
         };
 
         // Auth-specific
@@ -462,7 +474,7 @@ export class ConnectionFormPanel {
         // Operating system
         const os = data.os as string;
         if (os === 'macos' || os === 'windows') {
-            (config as Record<string, unknown>).os = os;
+            config.os = os;
         }
         // 'linux' is the default — no need to store explicitly
 
