@@ -103,6 +103,11 @@ export async function createJumpSocket(
         jumpClient.connect(connectConfig);
     });
 
+    // Keep an error listener for the tunnel's lifetime: an 'error' event
+    // without one throws. The forwarded stream closes with the jump
+    // connection, and the target connection reports the disconnect.
+    jumpClient.on('error', () => undefined);
+
     // Phase 2: Open a forwarded TCP channel to the target
     const stream = await new Promise<NodeJS.ReadableStream & NodeJS.WritableStream>((resolve, reject) => {
         jumpClient.forwardOut(

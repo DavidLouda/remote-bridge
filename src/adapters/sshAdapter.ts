@@ -170,6 +170,15 @@ export class SshAdapter implements RemoteAdapter {
                 client.removeAllListeners('keyboard-interactive');
                 client.removeAllListeners('ready');
                 client.removeAllListeners('error');
+                // An EventEmitter 'error' without a listener throws, so a later
+                // transport error (e.g. ECONNRESET when the server goes away)
+                // would surface as an uncaught exception. 'close' follows and
+                // reports the disconnect.
+                client.on('error', (err) => {
+                    this._connected = false;
+                    this._sftp = null;
+                    this._logPerf(`connection error: ${this._perf?.formatError(err) ?? String(err)}`);
+                });
             };
 
             // Handle keyboard-interactive authentication prompts
