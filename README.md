@@ -15,7 +15,8 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 | **Auth** | Password, private key (PPK/PEM), SSH agent, FTPS/TLS |
 | **Proxy** | SOCKS4, SOCKS5, HTTP CONNECT — per-connection, credentials in SecretStorage |
 | **Jump Host (Beta)** | SSH ProxyJump / bastion host — per-connection, supports Password / Private Key / SSH Agent auth |
-| **File system** | Native VS Code Explorer integration — open remote folders as workspace folders |
+| **File system** | Native VS Code Explorer integration — open remote folders as workspace folders, or add them to your current workspace |
+| **Remote search** | Server-side full-text search (ripgrep or grep over SSH) with streamed results — no need to browse or cache folders first |
 | **Terminal** | Interactive SSH shell with full PTY and window resize support |
 | **Connection manager** | Folders, drag & drop, multi-select, duplicate, import preview with per-entry selection, import from Remote Bridge JSON / `~/.ssh/config` / WinSCP / SSH FS / FileZilla / PuTTY / Total Commander, export to JSON / SSH Config |
 | **Security** | Passwords in VS Code SecretStorage; optional AES-256-GCM master password encryption; optional cross-device sync via VS Code Settings Sync |
@@ -38,10 +39,18 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 ### 📂 Native VS Code Integration
 - Open remote directories as **workspace folders** — use the built-in Explorer, Search, and Editor
 - Connecting to a server automatically creates a named **`.code-workspace` file** and opens it — the window title shows the server hostname (e.g. `example.com (Workspace)`)
+- Or use **Add to Current Workspace** to add the server's folder next to the folders you already have open (several websites in one workspace, like SSH FS) — set `remoteBridge.workspace.connectBehavior` to `addToCurrentWorkspace` to make it the default for **Connect**
 - When VS Code reopens the workspace file, **auto-reconnect** re-establishes the connection transparently
 - `FileSystemProvider` on the `remote-bridge://` scheme — transparent to all VS Code features
 - File content and directory listing **cache** with configurable TTL
 - **Connection pooling** with idle timeout for optimal performance
+
+### 🔎 Remote Search
+- **Search Remote Files** runs the search **on the server** — `rg` (ripgrep) when installed, otherwise `grep` — so it is fast even for folders that were never opened or cached
+- Results stream into the **Remote Search** view, grouped by file with highlighted matches; click a line to open the file at the match
+- Match case, regular expression and whole word toggles; include/exclude globs such as `*.yml, src/**, !vendor/**`; `files.exclude`, `search.exclude` and `search.useIgnoreFiles` are honoured
+- Start it from the Command Palette, the Remote Search view, a connection's context menu, or right-click a remote folder in the Explorer → **Search in Remote Folder (Server-Side)**
+- Cancelling stops the process on the server. FTP, SFTP-only servers (no shell) and Windows servers fall back to VS Code's built-in search
 
 ### 🗂 Connection Manager
 - Organize connections into **folders** with drag-and-drop support
@@ -49,7 +58,7 @@ Work with remote file systems over **SSH**, **SFTP**, **FTP**, and **FTPS** dire
 - **Duplicate**, **edit**, and **delete** connections from the sidebar
 - **Import** from:
   - Remote Bridge JSON export
-  - `~/.ssh/config`
+  - `~/.ssh/config` (including `Include` directives)
   - WinSCP (including encrypted passwords with master password)
   - SSH FS VS Code extension
   - FileZilla Site Manager (FTP, SFTP, FTPS; Base64 passwords decoded)
@@ -169,7 +178,7 @@ When adding or editing a connection, you'll see a form with these sections:
 |--------|-------------|
 | Password | Enter password manually (stored in VS Code SecretStorage) |
 | Private Key | Path to your SSH private key file (with optional passphrase) |
-| SSH Agent | Uses `ssh-agent` / Pageant for key management |
+| SSH Agent | Uses `ssh-agent` / Pageant for key management. Leave the socket field empty to use `$SSH_AUTH_SOCK`; environment variables such as `$SSH_AUTH_SOCK`, `${XDG_RUNTIME_DIR}/ssh-agent.socket` (or `%VAR%` on Windows) and a leading `~` are expanded when connecting — in agent and private key paths alike |
 
 **Advanced (optional):**
 - **Proxy** — route the connection through a SOCKS4, SOCKS5, or HTTP CONNECT proxy; set host, port, and optional credentials
@@ -177,6 +186,7 @@ When adding or editing a connection, you'll see a form with these sections:
 - TLS/FTPS toggle (for FTP connections)
 - **Allow self-signed TLS certificates** (FTPS only) — disables certificate verification; use only for servers with self-signed or invalid certs. The default is strict verification.
 - **Jump Host (ProxyJump)** (SSH/SFTP only, Beta) — connect through a bastion / jump host using SSH port forwarding. Supports Password, Private Key, and SSH Agent authentication on the jump host. Cannot be combined with Proxy.
+- **Custom SSH algorithms** (SSH/SFTP only) — for legacy servers that need key exchange, cipher, host key or MAC algorithms that are not offered by default. Uses OpenSSH syntax: `+name` adds to the defaults, `-name` removes (wildcards allowed), `^name` moves to the front, and a plain comma-separated list replaces the defaults. Example: key exchange `+diffie-hellman-group-exchange-sha1`, ciphers `+3des-cbc`. Not applied to the jump host.
 - **Full SSH Access** (SSH/SFTP only) — allows the AI agent (`@bridge`) to read, search, and run commands outside the configured workspace root. Useful for server administration tasks: installing packages, editing system config files, managing services. Destructive commands remain blocked.
 - **Default permissions** — configure per-connection Unix permissions for newly created files and directories using a checkbox matrix. Leave all boxes unchecked to use the server default (`umask`).
 
@@ -186,10 +196,11 @@ When adding or editing a connection, you'll see a form with these sections:
 
 ### Sidebar Overview
 
-The Remote Bridge sidebar has two sections:
+The Remote Bridge sidebar has three sections:
 
 - **Connections** — All your saved connections, optionally organized in folders
 - **Active Sessions** — Currently open connections with transfer statistics
+- **Remote Search** — Results of server-side searches (**Search Remote Files**)
 
 ![Connection Manager](https://raw.githubusercontent.com/DavidLouda/remote-bridge/master/resources/screen_connections.png)
 
@@ -208,7 +219,9 @@ The Remote Bridge sidebar has two sections:
 
 | Action | Description |
 |--------|-------------|
-| **Connect** | Connect and open the remote directory as a named workspace |
+| **Connect** | Connect and open the remote directory as a named workspace (or add it to the current one, see `remoteBridge.workspace.connectBehavior`) |
+| **Add to Current Workspace** | Connect and add the remote directory to the workspace of the current window |
+| **Search Remote Files** | Search file contents on the server (SSH/SFTP only) |
 | **Disconnect** | Close the connection |
 | **Open SSH Terminal** | Open an interactive SSH shell (SSH/SFTP only) |
 | **Edit Connection** | Modify connection settings |
@@ -234,7 +247,7 @@ The remote server appears as a folder in VS Code's Explorer. You can:
 - **Apply default permissions on create** — newly created files and directories use the per-connection defaults from the connection form when configured; otherwise the server default (`umask`) is used.
 - **Temporary write permission on save** — when `remoteBridge.files.temporaryWritePermission` is enabled, saving a read-only remote file temporarily adds owner write permission and restores the original mode afterward. Supported on SSH/SFTP and FTP/FTPS.
 - **Drag & drop** files (upload/download is handled transparently)
-- **Search** across remote files using VS Code's built-in search (`Ctrl+Shift+F`)
+- **Search** across remote files on the server with **Search Remote Files** (see [Remote Search](#-remote-search)), or with VS Code's built-in search (`Ctrl+Shift+F`), which reads the files through the file system provider
 
 All files are accessed via the `remote-bridge://` URI scheme, so they work seamlessly with VS Code extensions, syntax highlighting, IntelliSense, and Git diff.
 
@@ -290,6 +303,7 @@ All commands are accessible via `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac):
 | Remote Bridge: Show Connections | Focus the Remote Bridge sidebar |
 | Remote Bridge: Search Connections | Open a small search box and live-filter the saved connections tree |
 | Remote Bridge: Change Permissions | Set file or folder permissions in octal format (active when a remote file or folder is selected in the Explorer) |
+| Remote Bridge: Search Remote Files | Search file contents on the server (ripgrep / grep over SSH); results appear in the **Remote Search** view |
 
 ## Importing Connections
 
@@ -301,7 +315,7 @@ Every import flow first opens an **import preview** where you can review and unc
 Reads `.json` files previously exported by **Remote Bridge: Export Connections**. Folder hierarchy is restored automatically. If the export included secrets, connection passwords, key passphrases, and proxy passwords are restored as well.
 
 ### SSH Config
-Reads `~/.ssh/config` and imports all named hosts.
+Reads `~/.ssh/config` and imports one connection per named `Host` block (wildcard-only blocks such as `Host *` are applied as defaults). `Include` directives are followed — relative paths resolve against `~/.ssh`, wildcards are expanded, and nesting is limited to 16 levels. `IdentityFile`, `IdentityAgent`, `ProxyJump` (first hop; aliases are resolved against the same config) and `KexAlgorithms` / `Ciphers` / `HostKeyAlgorithms` / `MACs` are mapped. For safety, `Match exec` blocks and `CanonicalizeHostName` are ignored — they would run commands or DNS lookups during the import.
 
 ### WinSCP
 Reads `WinSCP.ini` (auto-detected at `%APPDATA%\WinSCP.ini` or manually selected). Supports master-password-protected configurations.
@@ -328,7 +342,7 @@ Choose the export format:
 Exports all connections and folder structure to a `.json` file that can be re-imported into Remote Bridge. You will be asked whether to include passwords — if included, they are stored as plain text in the file, so keep it secure.
 
 ### SSH Config
-Exports SSH and SFTP connections to a standard `~/.ssh/config`-compatible file. FTP/FTPS connections are automatically skipped (they are not supported by the SSH Config format). The output can be appended to or used as your SSH config file.
+Exports SSH and SFTP connections to a standard `~/.ssh/config`-compatible file, including `ProxyJump` and custom algorithms. FTP/FTPS connections are automatically skipped (they are not supported by the SSH Config format). The output can be appended to or used as your SSH config file.
 
 ## Master Password
 
@@ -396,6 +410,8 @@ If the backup was created with a different master password (e.g., after a passwo
 | `remoteBridge.security.syncConnections` | `false` | Sync encrypted connections across devices via VS Code Settings Sync (requires master password) |
 | `remoteBridge.watch.pollInterval` | `5` | File system watcher polling interval (seconds) |
 | `remoteBridge.files.temporaryWritePermission` | `false` | Temporarily adds write permission to read-only remote files before saving, then restores the original permissions |
+| `remoteBridge.workspace.connectBehavior` | `openRemoteBridgeWorkspace` | What **Connect** does when the window is not a Remote Bridge workspace: open a Remote Bridge workspace for the server, or `addToCurrentWorkspace` |
+| `remoteBridge.search.maxResults` | `5000` | Maximum number of matches a server-side search shows before it stops |
 | `remoteBridge.debug` | `false` | Enable debug logging to the **Remote Bridge** Output Channel (performance, sync, cache diagnostics, FTP protocol dialogue) |
 
 ## Architecture
@@ -404,9 +420,10 @@ If the backup was created with a different master password (e.g., after a passwo
 src/
 ├── adapters/          # Protocol adapters (SSH, FTP)
 ├── chat/              # GitHub Copilot chat participant & LM tools
+├── commands/          # Remote search commands
 ├── exporters/         # Connection exporters (JSON, SSH Config)
 ├── importers/         # Connection importers (SSH Config, WinSCP, SSH FS, FileZilla, PuTTY, Total Commander)
-├── providers/         # FileSystemProvider, TreeView providers
+├── providers/         # FileSystemProvider, TreeView providers (connections, sessions, search results)
 ├── services/          # Connection manager, pool, cache, encryption
 ├── statusBar/         # Status bar integration
 ├── terminal/          # SSH terminal (PTY pseudoterminal)

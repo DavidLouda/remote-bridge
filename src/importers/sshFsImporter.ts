@@ -5,6 +5,7 @@ import {
     DEFAULT_PORTS,
     ImportResult,
 } from '../types/connection';
+import { sanitizeAlgorithmSettings } from '../utils/sshAlgorithms';
 
 /**
  * SSH FS extension configuration interface (from Kelvin.vscode-sshfs).
@@ -31,6 +32,8 @@ interface SshFsConfig {
     putty?: string | boolean;
     sftpCommand?: string;
     sftpSudo?: string | boolean;
+    /** ssh2 `algorithms` option (arrays or { append | prepend | remove }) */
+    algorithms?: unknown;
 }
 
 /**
@@ -89,6 +92,17 @@ export class SshFsImporter {
                 // Agent
                 if (config.agent) {
                     connection.agent = config.agent;
+                }
+
+                // Algorithms (passed to ssh2 by SSH FS as-is)
+                if (config.algorithms !== undefined) {
+                    const { algorithms, dropped } = sanitizeAlgorithmSettings(config.algorithms);
+                    connection.algorithms = algorithms;
+                    if (dropped.length > 0) {
+                        result.errors.push(
+                            vscode.l10n.t('Connection "{0}": ignored unsupported SSH algorithm settings: {1}', connection.name, dropped.join('; '))
+                        );
+                    }
                 }
 
                 // Password (if stored as string — SSH FS may store `true` meaning "prompt")

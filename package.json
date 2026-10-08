@@ -2,7 +2,7 @@
   "name": "remote-bridge",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "publisher": "DavidLouda",
   "author": {
     "name": "David Louda"
@@ -66,6 +66,11 @@
           "id": "remoteBridge.activeSessions",
           "name": "%view.activeSessions.name%",
           "icon": "$(plug)"
+        },
+        {
+          "id": "remoteBridge.searchResults",
+          "name": "%view.searchResults.name%",
+          "icon": "$(search)"
         }
       ]
     },
@@ -79,6 +84,10 @@
         "view": "remoteBridge.connections",
         "contents": "%welcome.connectionsLocked%",
         "when": "remoteBridge.encryptionEnabled && !remoteBridge.encryptionUnlocked"
+      },
+      {
+        "view": "remoteBridge.searchResults",
+        "contents": "%welcome.searchResults%"
       }
     ],
     "commands": [
@@ -116,6 +125,12 @@
         "command": "remoteBridge.openWorkspace",
         "title": "%command.openWorkspace.title%",
         "icon": "$(folder-opened)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.addToWorkspace",
+        "title": "%command.addToWorkspace.title%",
+        "icon": "$(root-folder-opened)",
         "category": "Remote Bridge"
       },
       {
@@ -273,6 +288,35 @@
         "title": "%command.changePermissions.title%",
         "icon": "$(shield)",
         "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.searchRemote",
+        "title": "%command.searchRemote.title%",
+        "icon": "$(search)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.searchInFolder",
+        "title": "%command.searchInFolder.title%",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.searchRefresh",
+        "title": "%command.searchRefresh.title%",
+        "icon": "$(refresh)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.searchCancel",
+        "title": "%command.searchCancel.title%",
+        "icon": "$(debug-stop)",
+        "category": "Remote Bridge"
+      },
+      {
+        "command": "remoteBridge.searchClear",
+        "title": "%command.searchClear.title%",
+        "icon": "$(clear-all)",
+        "category": "Remote Bridge"
       }
     ],
     "menus": {
@@ -341,6 +385,26 @@
           "command": "remoteBridge.createBackup",
           "when": "view == remoteBridge.connections",
           "group": "overflow@7"
+        },
+        {
+          "command": "remoteBridge.searchRemote",
+          "when": "view == remoteBridge.searchResults",
+          "group": "navigation@1"
+        },
+        {
+          "command": "remoteBridge.searchRefresh",
+          "when": "view == remoteBridge.searchResults && remoteBridge.hasSearchResults && !remoteBridge.searchRunning",
+          "group": "navigation@2"
+        },
+        {
+          "command": "remoteBridge.searchCancel",
+          "when": "view == remoteBridge.searchResults && remoteBridge.searchRunning",
+          "group": "navigation@2"
+        },
+        {
+          "command": "remoteBridge.searchClear",
+          "when": "view == remoteBridge.searchResults && remoteBridge.hasSearchResults",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -358,6 +422,16 @@
           "command": "remoteBridge.openTerminal",
           "when": "view == remoteBridge.connections && viewItem =~ /^connection\\.(ssh|sftp)\\.connected$/ && !listMultiSelection",
           "group": "inline@2"
+        },
+        {
+          "command": "remoteBridge.addToWorkspace",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\..+/",
+          "group": "0_workspace@1"
+        },
+        {
+          "command": "remoteBridge.searchRemote",
+          "when": "view == remoteBridge.connections && viewItem =~ /^connection\\.(ssh|sftp)\\.connected$/ && !listMultiSelection",
+          "group": "0_workspace@2"
         },
         {
           "command": "remoteBridge.editConnection",
@@ -391,6 +465,11 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "remoteBridge.searchInFolder",
+          "when": "resourceScheme == remote-bridge && explorerResourceIsFolder",
+          "group": "4_search@10"
+        },
         {
           "command": "remoteBridge.changePermissions",
           "when": "resourceScheme == remote-bridge",
@@ -435,6 +514,10 @@
           "when": "false"
         },
         {
+          "command": "remoteBridge.addToWorkspace",
+          "when": "false"
+        },
+        {
           "command": "remoteBridge.renameFolder",
           "when": "false"
         },
@@ -465,6 +548,22 @@
         {
           "command": "remoteBridge.changeMasterPassword",
           "when": "remoteBridge.encryptionEnabled"
+        },
+        {
+          "command": "remoteBridge.searchInFolder",
+          "when": "false"
+        },
+        {
+          "command": "remoteBridge.searchRefresh",
+          "when": "remoteBridge.hasSearchResults"
+        },
+        {
+          "command": "remoteBridge.searchCancel",
+          "when": "remoteBridge.searchRunning"
+        },
+        {
+          "command": "remoteBridge.searchClear",
+          "when": "remoteBridge.hasSearchResults"
         }
       ]
     },
@@ -528,6 +627,26 @@
           "type": "boolean",
           "default": false,
           "description": "%config.files.temporaryWritePermission.description%"
+        },
+        "remoteBridge.workspace.connectBehavior": {
+          "type": "string",
+          "enum": [
+            "openRemoteBridgeWorkspace",
+            "addToCurrentWorkspace"
+          ],
+          "enumDescriptions": [
+            "%config.workspace.connectBehavior.openRemoteBridgeWorkspace%",
+            "%config.workspace.connectBehavior.addToCurrentWorkspace%"
+          ],
+          "default": "openRemoteBridgeWorkspace",
+          "description": "%config.workspace.connectBehavior.description%"
+        },
+        "remoteBridge.search.maxResults": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 100,
+          "maximum": 100000,
+          "description": "%config.search.maxResults.description%"
         },
         "remoteBridge.debug": {
           "type": "boolean",

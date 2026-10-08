@@ -21,6 +21,7 @@ import { ReadFileTool } from './chat/tools/readFileTool';
 import { SearchFilesTool } from './chat/tools/searchFilesTool';
 import { RunCommandTool } from './chat/tools/runCommandTool';
 import { StatusBarService } from './statusBar/statusBarService';
+import { registerRemoteSearch } from './commands/remoteSearchCommands';
 import { TransferTracker } from './services/transferTracker';
 import { BackupService } from './services/backupService';
 import { SyncService } from './services/syncService';
@@ -29,10 +30,10 @@ import { PerfLogger } from './services/perfLogger';
 import { buildRemoteUri, parseRemoteUri } from './utils/uriParser';
 import {
     createWorkspaceFile,
-    addFolderToWorkspaceFile,
     isOurWorkspaceFile,
     openWorkspaceFile,
     deleteWorkspaceFileForConnection,
+    workspaceFolderName,
 } from './utils/workspaceFileManager';
 import { ConnectionFormPanel } from './webview/connectionFormPanel';
 import { ImportPreviewPanel } from './webview/importPreviewPanel';
@@ -81,6 +82,27 @@ function getSelectedConnections(node: TreeNode | undefined, selectedNodes?: read
         result.push(candidate);
     }
     return result;
+}
+
+/**
+ * Append workspace folders for the given connections in a single
+ * updateWorkspaceFolders call (the API does not support a second call before
+ * the first one has fired onDidChangeWorkspaceFolders). Adding the first
+ * folder of a window restarts the extension host, so callers must finish any
+ * state writes before calling this and must not rely on code running after it.
+ */
+function addRemoteWorkspaceFolders(connections: readonly ConnectionConfig[]): boolean {
+    if (connections.length === 0) {
+        return true;
+    }
+    return vscode.workspace.updateWorkspaceFolders(
+        vscode.workspace.workspaceFolders?.length ?? 0,
+        null,
+        ...connections.map(conn => ({
+            uri: buildRemoteUri(conn.id, conn.remotePath),
+            name: workspaceFolderName(conn),
+        }))
+    );
 }
 
 function buildFolderPath(folderId: string, foldersById: Map<string, { id: string; name: string; parentId?: string }>): string {
@@ -153,23 +175,31 @@ async function pruneManualDisconnectIds(
     }
 }
 
+/**
+ * Remove every workspace folder of a connection. A leftover folder would make
+ * the next window load treat the connection as reconnected on purpose.
+ * Folders are removed from the highest index down: removing the first folder
+ * restarts the extension host, so that happens last.
+ */
 async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders) {
-        return;
+    const folders = (vscode.workspace.workspaceFolders ?? [])
+        .filter((workspaceFolder) => isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId))
+        .sort((a, b) => b.index - a.index);
+    for (const folder of folders) {
+        await removeWorkspaceFolder(folder);
     }
+}
 
-    const folder = folders.find((workspaceFolder) =>
-        isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
-    );
-    if (!folder) {
-        return;
-    }
-
+async function removeWorkspaceFolder(folder: vscode.WorkspaceFolder): Promise<void> {
+    const connectionId = folder.uri.authority;
+    const isFolder = (workspaceFolder: vscode.WorkspaceFolder): boolean =>
+        workspaceFolder.uri.toString() === folder.uri.toString();
     const hasFolder = (): boolean =>
-        (vscode.workspace.workspaceFolders ?? []).some((workspaceFolder) =>
-            isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
-        );
+        (vscode.workspace.workspaceFolders ?? []).some(isFolder);
+    const index = (vscode.workspace.workspaceFolders ?? []).findIndex(isFolder);
+    if (index < 0) {
+        return;
+    }
 
     await new Promise<void>((resolve, reject) => {
         let settled = false;
@@ -185,12 +215,7 @@ async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> 
         };
 
         const changeDisposable = vscode.workspace.onDidChangeWorkspaceFolders((event) => {
-            if (
-                event.removed.some((workspaceFolder) =>
-                    isRemoteBridgeWorkspaceFolder(workspaceFolder, connectionId)
-                ) ||
-                !hasFolder()
-            ) {
+            if (event.removed.some(isFolder) || !hasFolder()) {
                 finish(resolve);
             }
         });
@@ -213,7 +238,7 @@ async function removeRemoteWorkspaceFolder(connectionId: string): Promise<void> 
             });
         }, WORKSPACE_FOLDER_CHANGE_TIMEOUT_MS);
 
-        const started = vscode.workspace.updateWorkspaceFolders(folder.index, 1);
+        const started = vscode.workspace.updateWorkspaceFolders(index, 1);
         if (!started) {
             finish(() => {
                 reject(
@@ -379,26 +404,75 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const manualDisconnectIds = new Set<string>(
         context.workspaceState.get<string[]>(MANUAL_DISCONNECT_IDS_KEY) ?? []
     );
-    await pruneManualDisconnectIds(
-        context,
-        manualDisconnectIds,
-        new Set(connectionManager.getConnections().map((connection) => connection.id))
+    // While the encrypted store is locked the connection list is empty, so
+    // pruning against it would wipe every manual-disconnect flag.
+    const isConnectionStoreLocked = (): boolean =>
+        encryptionService.isEnabled() && !encryptionService.isUnlocked();
+    if (!isConnectionStoreLocked()) {
+        await pruneManualDisconnectIds(
+            context,
+            manualDisconnectIds,
+            new Set(connectionManager.getConnections().map((connection) => connection.id))
+        );
+    }
+
+    // A successful Disconnect always removes the connection's workspace folder.
+    // If the folder is present again, it was re-added on purpose — e.g. Connect
+    // in another window reopened this workspace, or the user added the folder —
+    // so the stale flag must not keep the connection blocked.
+    const presentRemoteFolderIds = new Set(
+        (vscode.workspace.workspaceFolders ?? [])
+            .filter((folder) => folder.uri.scheme === 'remote-bridge')
+            .map((folder) => folder.uri.authority)
     );
+    let clearedStaleFlags = false;
+    for (const connectionId of Array.from(manualDisconnectIds)) {
+        if (presentRemoteFolderIds.has(connectionId)) {
+            manualDisconnectIds.delete(connectionId);
+            clearedStaleFlags = true;
+        }
+    }
+    if (clearedStaleFlags) {
+        await persistManualDisconnectIds(context, manualDisconnectIds);
+    }
+
     for (const connectionId of manualDisconnectIds) {
         fsProvider.suspendAutoConnect(connectionId);
     }
     context.subscriptions.push(
         connectionManager.onDidChange(() => {
+            if (isConnectionStoreLocked()) {
+                return;
+            }
             void pruneManualDisconnectIds(
                 context,
                 manualDisconnectIds,
                 new Set(connectionManager.getConnections().map((connection) => connection.id))
             );
+        }),
+        vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+            let changed = false;
+            for (const folder of event.added) {
+                const connectionId = folder.uri.authority;
+                if (folder.uri.scheme === 'remote-bridge' && manualDisconnectIds.delete(connectionId)) {
+                    fsProvider.resumeAutoConnect(connectionId);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                void persistManualDisconnectIds(context, manualDisconnectIds);
+            }
         })
     );
 
     // ─── Workspace Folder Label Sync ────────────────────────────
-    // Ensure remote-bridge workspace folders always show the connection name
+    // Ensure remote-bridge workspace folders always show the connection name.
+    // updateWorkspaceFolders must not be called again before the previous call
+    // has fired onDidChangeWorkspaceFolders, so rename one folder per pass and
+    // let the change event trigger the next pass. Each rename is attempted
+    // once until the connections change, so a name VS Code does not apply
+    // cannot cause a loop.
+    const attemptedFolderRenames = new Set<string>();
     const syncWorkspaceFolderNames = (): void => {
         const folders = vscode.workspace.workspaceFolders;
         if (!folders) {
@@ -411,17 +485,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const connId = wf.uri.authority;
             const conn = connectionManager.getConnections().find(c => c.id === connId);
             if (conn) {
-                const expectedName = `${conn.name} (${conn.host})`;
-                if (wf.name !== expectedName) {
+                const expectedName = workspaceFolderName(conn);
+                const renameKey = `${wf.uri.toString()}\n${expectedName}`;
+                if (wf.name !== expectedName && !attemptedFolderRenames.has(renameKey)) {
+                    attemptedFolderRenames.add(renameKey);
                     vscode.workspace.updateWorkspaceFolders(wf.index, 1, {
                         uri: wf.uri,
                         name: expectedName,
                     });
+                    return;
                 }
             }
         }
     };
-    context.subscriptions.push(connectionManager.onDidChange(syncWorkspaceFolderNames));
+    context.subscriptions.push(
+        connectionManager.onDidChange(() => {
+            attemptedFolderRenames.clear();
+            syncWorkspaceFolderNames();
+        }),
+        vscode.workspace.onDidChangeWorkspaceFolders(syncWorkspaceFolderNames)
+    );
     syncWorkspaceFolderNames();
 
     // ─── Master Password Hint ──────────────────────────────────
@@ -536,6 +619,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             new ReadFileTool(connectionManager, connectionPool, cacheService)
         )
     );
+
+    // ─── Remote Search (server-side grep / ripgrep) ────────────
+    registerRemoteSearch(context, connectionManager, connectionPool);
 
     // ─── Chat Participant (always registered) ──────────────────
     context.subscriptions.push(registerChatParticipant(context, connectionManager, connectionPool));
@@ -654,6 +740,64 @@ function registerCommands(
         })
     );
 
+    // Connect each selected server; returns the ones that connected.
+    const connectItems = async (items: readonly TreeConnectionNode[]): Promise<TreeConnectionNode[]> => {
+        const connected: TreeConnectionNode[] = [];
+        for (const item of items) {
+            const conn = item.connection;
+            const restoreManualDisconnect = manualDisconnectIds.has(conn.id);
+            fsProvider.resumeAutoConnect(conn.id);
+            try {
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: vscode.l10n.t('Connecting to {0}...', conn.name),
+                        cancellable: false,
+                    },
+                    async () => {
+                        await connectionPool.getAdapter(conn);
+                    }
+                );
+
+                if (restoreManualDisconnect) {
+                    manualDisconnectIds.delete(conn.id);
+                    await persistManualDisconnectIds(context, manualDisconnectIds);
+                }
+                recentConnections?.touch(conn.id);
+                connected.push(item);
+            } catch (err) {
+                if (restoreManualDisconnect) {
+                    fsProvider.suspendAutoConnect(conn.id);
+                }
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(
+                    vscode.l10n.t('Connection to {0} failed: {1}', conn.name, message)
+                );
+            }
+        }
+        return connected;
+    };
+
+    // Add workspace folders for connected servers to the current window.
+    // Servers already present only get the Explorer refreshed (it may still
+    // show errors from while the connection was down).
+    const addConnectedToCurrentWorkspace = async (connected: readonly TreeConnectionNode[]): Promise<void> => {
+        const toAdd = connected.filter(item =>
+            !vscode.workspace.workspaceFolders?.some(
+                wf => isRemoteBridgeWorkspaceFolder(wf, item.connection.id)
+            )
+        );
+        if (toAdd.length === 0) {
+            await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
+        } else if (!addRemoteWorkspaceFolders(toAdd.map(item => item.connection))) {
+            vscode.window.showErrorMessage(
+                vscode.l10n.t('Could not add the folder to the workspace. Please try again.')
+            );
+            return;
+        }
+        await vscode.commands.executeCommand('workbench.view.explorer');
+    };
+
     // Connect — adds workspace folder, manages .code-workspace file, reveals Explorer
     context.subscriptions.push(
         vscode.commands.registerCommand('remoteBridge.connect', async (node: TreeNode, selectedNodes?: readonly TreeNode[]) => {
@@ -662,55 +806,12 @@ function registerCommands(
                 return;
             }
 
-            // Connect each server (collect successes)
-            const connected: typeof items = [];
-            for (const item of items) {
-                const conn = item.connection;
-                const restoreManualDisconnect = manualDisconnectIds.has(conn.id);
-                fsProvider.resumeAutoConnect(conn.id);
-                try {
-                    await vscode.window.withProgress(
-                        {
-                            location: vscode.ProgressLocation.Notification,
-                            title: vscode.l10n.t('Connecting to {0}...', conn.name),
-                            cancellable: false,
-                        },
-                        async () => {
-                            await connectionPool.getAdapter(conn);
-                        }
-                    );
-
-                    if (restoreManualDisconnect) {
-                        manualDisconnectIds.delete(conn.id);
-                        await persistManualDisconnectIds(context, manualDisconnectIds);
-                    }
-                    recentConnections?.touch(conn.id);
-                    connected.push(item);
-                } catch (err) {
-                    if (restoreManualDisconnect) {
-                        fsProvider.suspendAutoConnect(conn.id);
-                    }
-                    const message = err instanceof Error ? err.message : String(err);
-                    vscode.window.showErrorMessage(
-                        vscode.l10n.t('Connection to {0} failed: {1}', conn.name, message)
-                    );
-                }
-            }
-
+            const connected = await connectItems(items);
             if (connected.length === 0) { return; }
 
-            // Filter to servers not yet present as workspace folders
-            const toAdd = connected.filter(item =>
-                !vscode.workspace.workspaceFolders?.some(
-                    wf => wf.uri.scheme === 'remote-bridge' && wf.uri.authority === item.connection.id
-                )
+            const allPresent = connected.every(item =>
+                vscode.workspace.workspaceFolders?.some(wf => isRemoteBridgeWorkspaceFolder(wf, item.connection.id))
             );
-
-            if (toAdd.length === 0) {
-                // All already in workspace — just reveal Explorer
-                await vscode.commands.executeCommand('workbench.view.explorer');
-                return;
-            }
 
             // True only when our workspace file is open AND still has remote-bridge folders.
             // After a disconnect removes all folders the workspace is "empty" — treat it
@@ -718,30 +819,42 @@ function registerCommands(
             const hasActiveFolders = vscode.workspace.workspaceFolders?.some(
                 wf => wf.uri.scheme === 'remote-bridge'
             ) ?? false;
+            const addToCurrent = vscode.workspace
+                .getConfiguration('remoteBridge.workspace')
+                .get<string>('connectBehavior') === 'addToCurrentWorkspace';
 
-            if (isOurWorkspaceFile(context.globalStorageUri) && hasActiveFolders) {
-                // Already inside one of our .code-workspace files:
-                // add new folder(s) in-place (no reload needed).
-                const wsFile = vscode.workspace.workspaceFile!;
-                for (const item of toAdd) {
-                    const conn = item.connection;
-                    const uri = buildRemoteUri(conn.id, conn.remotePath);
-                    vscode.workspace.updateWorkspaceFolders(
-                        vscode.workspace.workspaceFolders?.length ?? 0,
-                        null,
-                        { uri, name: `${conn.name} (${conn.host})` }
-                    );
-                    await addFolderToWorkspaceFile(wsFile, conn);
-                }
-                await vscode.commands.executeCommand('workbench.view.explorer');
+            if (allPresent || addToCurrent || (isOurWorkspaceFile(context.globalStorageUri) && hasActiveFolders)) {
+                // Add new folder(s) in-place. VS Code persists the change to an
+                // open .code-workspace file itself.
+                await addConnectedToCurrentWorkspace(connected);
             } else {
                 // Not yet in our workspace: create a .code-workspace file and open it.
                 // This triggers a window reload — code after this call will not run.
                 const wsFileUri = await createWorkspaceFile(
                     context.globalStorageUri,
-                    toAdd.map(i => i.connection)
+                    connected
+                        .filter(item => !vscode.workspace.workspaceFolders?.some(
+                            wf => isRemoteBridgeWorkspaceFolder(wf, item.connection.id)
+                        ))
+                        .map(item => item.connection)
                 );
                 await openWorkspaceFile(wsFileUri);
+            }
+        })
+    );
+
+    // Add to Workspace — connect and add the folder to the current window's
+    // workspace (any folder, untitled or .code-workspace) instead of opening
+    // a Remote Bridge workspace.
+    context.subscriptions.push(
+        vscode.commands.registerCommand('remoteBridge.addToWorkspace', async (node: TreeNode, selectedNodes?: readonly TreeNode[]) => {
+            const items = getSelectedConnections(node, selectedNodes);
+            if (items.length === 0) {
+                return;
+            }
+            const connected = await connectItems(items);
+            if (connected.length > 0) {
+                await addConnectedToCurrentWorkspace(connected);
             }
         })
     );

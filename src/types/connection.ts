@@ -30,6 +30,21 @@ export interface JumpHostConfig {
     agent?: string;
 }
 
+/**
+ * SSH algorithm overrides in OpenSSH list syntax (`a,b` exact, `+a` append,
+ * `-a` remove, `^a` prepend). Empty categories use the defaults.
+ */
+export interface SshAlgorithmSettings {
+    /** Key exchange (OpenSSH `KexAlgorithms`) */
+    kex?: string;
+    /** Ciphers (OpenSSH `Ciphers`) */
+    cipher?: string;
+    /** Server host key types (OpenSSH `HostKeyAlgorithms`) */
+    serverHostKey?: string;
+    /** Message authentication codes (OpenSSH `MACs`) */
+    hmac?: string;
+}
+
 export interface ConnectionConfig {
     /** Unique identifier (UUID v4) */
     id: string;
@@ -59,6 +74,8 @@ export interface ConnectionConfig {
     proxy?: ProxyConfig;
     /** SSH Jump Host (ProxyJump) — SSH/SFTP only. Mutually exclusive with proxy. */
     jumpHost?: JumpHostConfig;
+    /** SSH algorithm overrides for legacy servers — SSH/SFTP only, not applied to the jump host. */
+    algorithms?: SshAlgorithmSettings;
     /** Keep-alive interval in seconds (0 = disabled) */
     keepaliveInterval: number;
     /** Sort order within its folder */

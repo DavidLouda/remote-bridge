@@ -1,19 +1,25 @@
 import * as vscode from 'vscode';
 import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import * as fs from 'fs';
-import { RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
+import { ExecStreamOptions, ExecStreamResult, RemoteAdapter, RemoteOperationOptions, RemoteConnectionLostError, looksLikeConnectionLost } from './adapter';
 import { RemoteFileInfo, RemoteFileStat, ExecResult, ConnectionConfig } from '../types/connection';
 import { TransferTracker } from '../services/transferTracker';
 import { PerfLogger } from '../services/perfLogger';
 import * as shell from '../utils/shellCommands';
 import { createProxySocket } from '../utils/proxyTunnel';
 import { createJumpSocket } from '../utils/jumpTunnel';
-import { readPrivateKeySync } from '../utils/privateKeyLoader';
+import { agentNotFoundMessage, readPrivateKeySync } from '../utils/privateKeyLoader';
+import { expandUserPath, resolveAgentPath } from '../utils/keyPath';
+import { buildSsh2Algorithms } from '../utils/sshAlgorithms';
+import { formatAlgorithmProblems } from '../utils/sshAlgorithmMessages';
 
 /**
  * SSH/SFTP adapter using the ssh2 library.
  * Provides full file system access plus command execution and interactive shell.
  */
+/** How long a cancelled execStream waits for the command to exit on stdin EOF. */
+const EXEC_STREAM_CLOSE_TIMEOUT_MS = 5000;
+
 export class SshAdapter implements RemoteAdapter {
     private _client: Client | null = null;
     private _sftp: SFTPWrapper | null = null;
@@ -61,6 +67,18 @@ export class SshAdapter implements RemoteAdapter {
             readyTimeout: 30000,
         };
 
+        if (this._config.algorithms) {
+            const { algorithms, problems } = buildSsh2Algorithms(this._config.algorithms);
+            if (problems.length > 0) {
+                throw new Error(formatAlgorithmProblems(problems));
+            }
+            if (algorithms) {
+                // Exact lists resolved against ssh2's own tables; the typings
+                // only accept ssh2's literal algorithm-name unions.
+                connectConfig.algorithms = algorithms as ConnectConfig['algorithms'];
+            }
+        }
+
         // Configure authentication
         switch (this._config.authMethod) {
             case 'password': {
@@ -72,13 +90,13 @@ export class SshAdapter implements RemoteAdapter {
             }
             case 'key': {
                 if (this._config.privateKeyPath) {
-                    const keyPath = this._config.privateKeyPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+                    const configuredPath = this._config.privateKeyPath;
                     try {
-                        connectConfig.privateKey = readPrivateKeySync(keyPath);
+                        connectConfig.privateKey = readPrivateKeySync(expandUserPath(configuredPath), configuredPath);
                     } catch (err) {
                         throw err instanceof Error
                             ? err
-                            : new Error(vscode.l10n.t('Failed to read private key: {0}', keyPath));
+                            : new Error(vscode.l10n.t('Failed to read private key: {0}', configuredPath));
                     }
                 }
                 if (this._config.hasPassphrase) {
@@ -89,9 +107,14 @@ export class SshAdapter implements RemoteAdapter {
                 }
                 break;
             }
-            case 'agent':
-                connectConfig.agent = this._config.agent || process.env.SSH_AUTH_SOCK;
+            case 'agent': {
+                const agent = resolveAgentPath(this._config.agent);
+                if (!agent) {
+                    throw new Error(agentNotFoundMessage(this._config.agent));
+                }
+                connectConfig.agent = agent;
                 break;
+            }
             case 'keyboard-interactive':
                 connectConfig.tryKeyboard = true;
                 break;
@@ -150,6 +173,13 @@ export class SshAdapter implements RemoteAdapter {
                 client.removeAllListeners('keyboard-interactive');
                 client.removeAllListeners('ready');
                 client.removeAllListeners('error');
+                // An EventEmitter 'error' without a listener throws, so a later
+                // transport error (e.g. ECONNRESET when the server goes away)
+                // would surface as an uncaught exception.
+                client.on('error', (err) => {
+                    this._logPerf(`connection error: ${this._perf?.formatError(err) ?? String(err)}`);
+                    markDisconnected();
+                });
             };
 
             // Handle keyboard-interactive authentication prompts
@@ -194,19 +224,20 @@ export class SshAdapter implements RemoteAdapter {
                 settleReject(err);
             });
 
-            client.on('close', () => {
+            // 'error' and 'end' can precede 'close'; whichever comes first
+            // reports an unexpected disconnect (disconnect() clears
+            // _connected first, so an intentional one is not reported).
+            const markDisconnected = (): void => {
                 const wasConnected = this._connected;
                 this._connected = false;
                 this._sftp = null;
                 if (wasConnected) {
                     this._onDidDisconnect.fire();
                 }
-            });
+            };
 
-            client.on('end', () => {
-                this._connected = false;
-                this._sftp = null;
-            });
+            client.on('close', markDisconnected);
+            client.on('end', markDisconnected);
 
             client.connect(connectConfig);
         });
@@ -563,6 +594,16 @@ export class SshAdapter implements RemoteAdapter {
     }
 
     async exec(command: string): Promise<ExecResult> {
+        // stdin is closed right away: a command that reads it (or a server
+        // whose ForceCommand ignores the command) gets EOF instead of hanging.
+        return this._execCollect(command, '');
+    }
+
+    async execWithStdin(command: string, stdinData: string): Promise<ExecResult> {
+        return this._execCollect(command, stdinData);
+    }
+
+    private _execCollect(command: string, stdinData: string): Promise<ExecResult> {
         const client = this._requireClient();
         return new Promise((resolve, reject) => {
             client.exec(command, (err, stream) => {
@@ -575,28 +616,54 @@ export class SshAdapter implements RemoteAdapter {
                     return;
                 }
 
-                let stdout = '';
-                let stderr = '';
+                // Collect raw chunks and decode once: a multi-byte UTF-8
+                // character can be split across chunk boundaries.
+                const stdout: Buffer[] = [];
+                const stderr: Buffer[] = [];
 
                 stream.on('data', (data: Buffer) => {
-                    stdout += data.toString();
+                    stdout.push(data);
                 });
                 stream.stderr.on('data', (data: Buffer) => {
-                    stderr += data.toString();
+                    stderr.push(data);
                 });
                 stream.on('close', (code: number) => {
-                    resolve({ stdout, stderr, exitCode: code ?? 0 });
+                    resolve({
+                        stdout: Buffer.concat(stdout).toString('utf8'),
+                        stderr: Buffer.concat(stderr).toString('utf8'),
+                        exitCode: code ?? 0,
+                    });
                 });
                 stream.on('error', (err: Error) => {
                     reject(this._classifyTransportError(err));
                 });
+
+                stream.end(stdinData);
             });
         });
     }
 
-    async execWithStdin(command: string, stdinData: string): Promise<ExecResult> {
+    /**
+     * Run a command and hand stdout chunks to `onStdout` as they arrive.
+     * `options.stdin` is written without closing stdin, so a script fed to
+     * `sh -s` can watch stdin for EOF. Cancelling the token ends stdin — the
+     * command is expected to stop on EOF — and closes the channel if it is
+     * still open a few seconds later. No SSH signal is sent: it would only
+     * kill the shell and orphan its background processes.
+     * stderr is capped at `options.maxStderrBytes`.
+     */
+    execStream(
+        command: string,
+        onStdout: (chunk: Buffer) => void,
+        options: ExecStreamOptions = {}
+    ): Promise<ExecStreamResult> {
+        const { token, stdin, maxStderrBytes = 64 * 1024 } = options;
         const client = this._requireClient();
         return new Promise((resolve, reject) => {
+            if (token?.isCancellationRequested) {
+                resolve({ exitCode: null, stderr: '', cancelled: true });
+                return;
+            }
             client.exec(command, (err, stream) => {
                 if (err) {
                     reject(this._classifyTransportError(err));
@@ -607,24 +674,61 @@ export class SshAdapter implements RemoteAdapter {
                     return;
                 }
 
-                let stdout = '';
-                let stderr = '';
+                const stderr: Buffer[] = [];
+                let stderrBytes = 0;
+                let cancelled = false;
+                let forceClose: ReturnType<typeof setTimeout> | undefined;
+                const cancel = (): void => {
+                    if (cancelled) {
+                        return;
+                    }
+                    cancelled = true;
+                    try {
+                        stream.end();
+                    } catch {
+                        // Channel already closed
+                    }
+                    forceClose = setTimeout(() => {
+                        try {
+                            stream.close();
+                        } catch {
+                            // Channel already closed
+                        }
+                    }, EXEC_STREAM_CLOSE_TIMEOUT_MS);
+                };
+                const cancellation = token?.onCancellationRequested(cancel);
+                if (token?.isCancellationRequested) {
+                    cancel();
+                } else if (stdin !== undefined) {
+                    stream.write(stdin);
+                }
 
                 stream.on('data', (data: Buffer) => {
-                    stdout += data.toString();
+                    if (!cancelled) {
+                        onStdout(data);
+                    }
                 });
                 stream.stderr.on('data', (data: Buffer) => {
-                    stderr += data.toString();
+                    if (stderrBytes < maxStderrBytes) {
+                        const part = data.subarray(0, maxStderrBytes - stderrBytes);
+                        stderr.push(part);
+                        stderrBytes += part.length;
+                    }
                 });
-                stream.on('close', (code: number) => {
-                    resolve({ stdout, stderr, exitCode: code ?? 0 });
+                stream.on('close', (code: number | null | undefined) => {
+                    cancellation?.dispose();
+                    clearTimeout(forceClose);
+                    resolve({
+                        exitCode: code ?? null,
+                        stderr: Buffer.concat(stderr).toString('utf8'),
+                        cancelled,
+                    });
                 });
                 stream.on('error', (err: Error) => {
+                    cancellation?.dispose();
+                    clearTimeout(forceClose);
                     reject(this._classifyTransportError(err));
                 });
-
-                // Write data to stdin and close
-                stream.end(stdinData);
             });
         });
     }

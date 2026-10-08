@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase, secretKeyForProxyPassword, secretKeyForJumpPassword, secretKeyForJumpPassphrase } from '../types/connection';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
+import { buildSsh2Algorithms, normalizeAlgorithmSettings } from '../utils/sshAlgorithms';
+import { formatAlgorithmProblems } from '../utils/sshAlgorithmMessages';
 import { SshAdapter } from '../adapters/sshAdapter';
 import { FtpAdapter } from '../adapters/ftpAdapter';
 import { generateId } from '../utils/uriParser';
@@ -423,6 +425,9 @@ export class ConnectionFormPanel {
             ? Math.trunc(keepaliveRaw)
             : 10;
 
+        // Every option the form controls is listed explicitly (undefined when
+        // not set): updateConnection merges into the stored connection, so a
+        // missing key would keep the previous value instead of clearing it.
         const config: Omit<ConnectionConfig, 'id' | 'sortOrder'> = {
             name: (data.name as string).trim(),
             protocol,
@@ -432,6 +437,16 @@ export class ConnectionFormPanel {
             authMethod: data.authMethod as ConnectionConfig['authMethod'],
             remotePath: (data.remotePath as string) || '/',
             keepaliveInterval,
+            privateKeyPath: undefined,
+            hasPassphrase: undefined,
+            agent: undefined,
+            secure: undefined,
+            allowSelfSigned: undefined,
+            fullSshAccess: undefined,
+            os: undefined,
+            proxy: undefined,
+            jumpHost: undefined,
+            algorithms: undefined,
         };
 
         // Auth-specific
@@ -457,12 +472,20 @@ export class ConnectionFormPanel {
             if (data.fullSshAccess) {
                 config.fullSshAccess = true;
             }
+            const algorithms = normalizeAlgorithmSettings(data.algorithms);
+            if (algorithms) {
+                const { problems } = buildSsh2Algorithms(algorithms);
+                if (problems.length > 0) {
+                    throw new Error(formatAlgorithmProblems(problems));
+                }
+                config.algorithms = algorithms;
+            }
         }
 
         // Operating system
         const os = data.os as string;
         if (os === 'macos' || os === 'windows') {
-            (config as Record<string, unknown>).os = os;
+            config.os = os;
         }
         // 'linux' is the default — no need to store explicitly
 
@@ -606,7 +629,7 @@ export class ConnectionFormPanel {
 
             hintRemotePath: vscode.l10n.t('Default directory opened when connecting'),
             hintRemotePathSsh: vscode.l10n.t('Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.'),
-            hintAgent: vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows'),
+            hintAgent: vscode.l10n.t('Path to SSH agent socket (empty = $SSH_AUTH_SOCK; environment variables such as $VAR are expanded), or "pageant" on Windows'),
             hintPassword: vscode.l10n.t('Stored securely in VS Code SecretStorage'),
             hintOs: vscode.l10n.t('Determines which shell commands are used for remote operations'),
 
@@ -625,16 +648,33 @@ export class ConnectionFormPanel {
             optSocks4: 'SOCKS4',
             optSocks5: 'SOCKS5',
             optHttp: 'HTTP',
+            ...this._algorithmLabels(),
         };
 
         this._panel.webview.postMessage({ type: 'setLabels', labels });
+    }
+
+    /** Labels of the SSH algorithms section (raw, not HTML-escaped). */
+    private _algorithmLabels(): Record<string, string> {
+        return {
+            labelUseAlgorithms: vscode.l10n.t('Custom SSH algorithms (legacy servers)'),
+            hintUseAlgorithms: vscode.l10n.t('Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: "+name" adds to the defaults, "-name" removes (wildcards allowed), "^name" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.'),
+            labelAlgoKex: `${vscode.l10n.t('Key exchange')} (KexAlgorithms)`,
+            labelAlgoCipher: `${vscode.l10n.t('Ciphers')} (Ciphers)`,
+            labelAlgoHostKey: `${vscode.l10n.t('Host key types')} (HostKeyAlgorithms)`,
+            labelAlgoMac: `${vscode.l10n.t('Message authentication')} (MACs)`,
+        };
     }
 
     /**
      * Build a map of localized strings for embedding directly in HTML.
      */
     private _getLocalizedStrings(): Record<string, string> {
+        const algorithmLabels = Object.fromEntries(
+            Object.entries(this._algorithmLabels()).map(([key, value]) => [key, escapeHtml(value)])
+        );
         return {
+            ...algorithmLabels,
             formTitle: escapeHtml(this._panel.title),
             saveBtn: escapeHtml(vscode.l10n.t('Save')),
             testBtn: escapeHtml(vscode.l10n.t('Test Connection')),
@@ -700,7 +740,7 @@ export class ConnectionFormPanel {
 
             hintRemotePath: escapeHtml(vscode.l10n.t('Default directory opened when connecting')),
             hintRemotePathSsh: escapeHtml(vscode.l10n.t('Default directory opened when connecting. For SSH/SFTP, use Detect to fill the home or login directory automatically.')),
-            hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket, or "pageant" on Windows')),
+            hintAgent: escapeHtml(vscode.l10n.t('Path to SSH agent socket (empty = $SSH_AUTH_SOCK; environment variables such as $VAR are expanded), or "pageant" on Windows')),
             hintPassword: escapeHtml(vscode.l10n.t('Stored securely in VS Code SecretStorage')),
             hintOs: escapeHtml(vscode.l10n.t('Determines which shell commands are used for remote operations')),
 
@@ -715,7 +755,7 @@ export class ConnectionFormPanel {
 
             phName: escapeHtml(vscode.l10n.t('My Server')),
             phHost: escapeHtml(vscode.l10n.t('192.168.1.1 or example.com')),
-            phAgent: escapeHtml(vscode.l10n.t('pageant')),
+            phAgent: escapeHtml(process.platform === 'win32' ? 'pageant' : '$SSH_AUTH_SOCK'),
             phKey: escapeHtml(vscode.l10n.t('~/.ssh/id_rsa')),
             phProxy: escapeHtml(vscode.l10n.t('proxy.example.com')),
         };
@@ -896,6 +936,37 @@ export class ConnectionFormPanel {
             <input type="checkbox" id="fullSshAccess">
             <label id="labelFullSshAccess" for="fullSshAccess">${s.labelFullSshAccess}</label>
             <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintFullSshAccess">${s.hintFullSshAccess}</div>
+        </div>
+
+        <!-- SSH-only: custom algorithms for legacy servers -->
+        <div id="algorithmsSection" class="form-group checkbox-group full-width hidden">
+            <input type="checkbox" id="useAlgorithms">
+            <label id="labelUseAlgorithms" for="useAlgorithms">${s.labelUseAlgorithms}</label>
+            <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintUseAlgorithms">${s.hintUseAlgorithms}</div>
+        </div>
+
+        <div id="algorithmsFields" class="full-width hidden">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label id="labelAlgoKex" for="algoKex">${s.labelAlgoKex}</label>
+                    <input type="text" id="algoKex" placeholder="+diffie-hellman-group-exchange-sha1" spellcheck="false">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelAlgoCipher" for="algoCipher">${s.labelAlgoCipher}</label>
+                    <input type="text" id="algoCipher" placeholder="+3des-cbc" spellcheck="false">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelAlgoHostKey" for="algoHostKey">${s.labelAlgoHostKey}</label>
+                    <input type="text" id="algoHostKey" placeholder="+ssh-dss" spellcheck="false">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelAlgoMac" for="algoMac">${s.labelAlgoMac}</label>
+                    <input type="text" id="algoMac" placeholder="+hmac-sha1" spellcheck="false">
+                </div>
+            </div>
         </div>
 
         <!-- Proxy -->
