@@ -466,7 +466,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Ensure remote-bridge workspace folders always show the connection name.
     // updateWorkspaceFolders must not be called again before the previous call
     // has fired onDidChangeWorkspaceFolders, so rename one folder per pass and
-    // let the change event trigger the next pass.
+    // let the change event trigger the next pass. Each rename is attempted
+    // once until the connections change, so a name VS Code does not apply
+    // cannot cause a loop.
+    const attemptedFolderRenames = new Set<string>();
     const syncWorkspaceFolderNames = (): void => {
         const folders = vscode.workspace.workspaceFolders;
         if (!folders) {
@@ -480,7 +483,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const conn = connectionManager.getConnections().find(c => c.id === connId);
             if (conn) {
                 const expectedName = workspaceFolderName(conn);
-                if (wf.name !== expectedName) {
+                const renameKey = `${wf.uri.toString()}\n${expectedName}`;
+                if (wf.name !== expectedName && !attemptedFolderRenames.has(renameKey)) {
+                    attemptedFolderRenames.add(renameKey);
                     vscode.workspace.updateWorkspaceFolders(wf.index, 1, {
                         uri: wf.uri,
                         name: expectedName,
@@ -491,7 +496,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     };
     context.subscriptions.push(
-        connectionManager.onDidChange(syncWorkspaceFolderNames),
+        connectionManager.onDidChange(() => {
+            attemptedFolderRenames.clear();
+            syncWorkspaceFolderNames();
+        }),
         vscode.workspace.onDidChangeWorkspaceFolders(syncWorkspaceFolderNames)
     );
     syncWorkspaceFolderNames();
