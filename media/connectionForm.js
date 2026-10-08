@@ -85,6 +85,8 @@
         updateAuthMethodOptions(isSsh);
 
         toggleVisibility(fullSshAccessSection, isSsh);
+        toggleVisibility(algorithmsSection, isSsh);
+        toggleVisibility(algorithmsFields, isSsh && useAlgorithmsCheckbox.checked);
         toggleVisibility(jumpHostSection, isSsh);
         toggleVisibility(detectHomeBtn, isSsh);
         detectHomeBtn.title = detectHomeTitle;
@@ -145,6 +147,13 @@
     // ─── Jump Host toggle ────────────────────────────────────────
 
     const useJumpHostCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('useJumpHost'));
+    const algorithmsSection = /** @type {HTMLElement} */ (document.getElementById('algorithmsSection'));
+    const algorithmsFields = /** @type {HTMLElement} */ (document.getElementById('algorithmsFields'));
+    const useAlgorithmsCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('useAlgorithms'));
+    useAlgorithmsCheckbox.addEventListener('change', () => {
+        toggleVisibility(algorithmsFields, useAlgorithmsCheckbox.checked);
+    });
+
     const jumpHostSection = /** @type {HTMLElement} */ (document.getElementById('jumpHostSection'));
     const jumpHostFields = /** @type {HTMLElement} */ (document.getElementById('jumpHostFields'));
     const jumpAuthMethodSelect = /** @type {HTMLSelectElement} */ (document.getElementById('jumpAuthMethod'));
@@ -397,6 +406,15 @@
             // Proxy
             proxy: /** @type {any} */ (undefined),
 
+            algorithms: useAlgorithmsCheckbox.checked
+                ? {
+                    kex: getVal('algoKex').trim() || undefined,
+                    cipher: getVal('algoCipher').trim() || undefined,
+                    serverHostKey: getVal('algoHostKey').trim() || undefined,
+                    hmac: getVal('algoMac').trim() || undefined,
+                }
+                : undefined,
+
             // Jump host
             jumpHost: /** @type {any} */ (undefined),
             newFileMode: undefined,
@@ -479,6 +497,14 @@
             setVal('proxyPort', String(data.proxy.port || ''));
             setVal('proxyUsername', data.proxy.username || '');
         }
+
+        const algorithms = data.algorithms || {};
+        setVal('algoKex', algorithms.kex || '');
+        setVal('algoCipher', algorithms.cipher || '');
+        setVal('algoHostKey', algorithms.serverHostKey || '');
+        setVal('algoMac', algorithms.hmac || '');
+        useAlgorithmsCheckbox.checked = !!(algorithms.kex || algorithms.cipher || algorithms.serverHostKey || algorithms.hmac);
+        toggleVisibility(algorithmsFields, useAlgorithmsCheckbox.checked);
 
         if (data.jumpHost) {
             useJumpHostCheckbox.checked = true;

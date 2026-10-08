@@ -10,6 +10,8 @@ import { createProxySocket } from '../utils/proxyTunnel';
 import { createJumpSocket } from '../utils/jumpTunnel';
 import { agentNotFoundMessage, readPrivateKeySync } from '../utils/privateKeyLoader';
 import { expandUserPath, resolveAgentPath } from '../utils/keyPath';
+import { buildSsh2Algorithms } from '../utils/sshAlgorithms';
+import { formatAlgorithmProblems } from '../utils/sshAlgorithmMessages';
 
 /**
  * SSH/SFTP adapter using the ssh2 library.
@@ -61,6 +63,18 @@ export class SshAdapter implements RemoteAdapter {
             keepaliveCountMax: 3,
             readyTimeout: 30000,
         };
+
+        if (this._config.algorithms) {
+            const { algorithms, problems } = buildSsh2Algorithms(this._config.algorithms);
+            if (problems.length > 0) {
+                throw new Error(formatAlgorithmProblems(problems));
+            }
+            if (algorithms) {
+                // Exact lists resolved against ssh2's own tables; the typings
+                // only accept ssh2's literal algorithm-name unions.
+                connectConfig.algorithms = algorithms as ConnectConfig['algorithms'];
+            }
+        }
 
         // Configure authentication
         switch (this._config.authMethod) {

@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import { ConnectionConfig, ConnectionProtocol, DEFAULT_PORTS, secretKeyForPassword, secretKeyForPassphrase, secretKeyForProxyPassword, secretKeyForJumpPassword, secretKeyForJumpPassphrase } from '../types/connection';
 import { ConnectionManager } from '../services/connectionManager';
 import { ConnectionPool } from '../services/connectionPool';
+import { buildSsh2Algorithms, normalizeAlgorithmSettings } from '../utils/sshAlgorithms';
+import { formatAlgorithmProblems } from '../utils/sshAlgorithmMessages';
 import { SshAdapter } from '../adapters/sshAdapter';
 import { FtpAdapter } from '../adapters/ftpAdapter';
 import { generateId } from '../utils/uriParser';
@@ -444,6 +446,7 @@ export class ConnectionFormPanel {
             os: undefined,
             proxy: undefined,
             jumpHost: undefined,
+            algorithms: undefined,
         };
 
         // Auth-specific
@@ -468,6 +471,14 @@ export class ConnectionFormPanel {
         if (protocol === 'ssh' || protocol === 'sftp') {
             if (data.fullSshAccess) {
                 config.fullSshAccess = true;
+            }
+            const algorithms = normalizeAlgorithmSettings(data.algorithms);
+            if (algorithms) {
+                const { problems } = buildSsh2Algorithms(algorithms);
+                if (problems.length > 0) {
+                    throw new Error(formatAlgorithmProblems(problems));
+                }
+                config.algorithms = algorithms;
             }
         }
 
@@ -637,16 +648,33 @@ export class ConnectionFormPanel {
             optSocks4: 'SOCKS4',
             optSocks5: 'SOCKS5',
             optHttp: 'HTTP',
+            ...this._algorithmLabels(),
         };
 
         this._panel.webview.postMessage({ type: 'setLabels', labels });
+    }
+
+    /** Labels of the SSH algorithms section (raw, not HTML-escaped). */
+    private _algorithmLabels(): Record<string, string> {
+        return {
+            labelUseAlgorithms: vscode.l10n.t('Custom SSH algorithms (legacy servers)'),
+            hintUseAlgorithms: vscode.l10n.t('Only for old servers that need algorithms that are not offered by default. OpenSSH syntax: "+name" adds to the defaults, "-name" removes (wildcards allowed), "^name" moves to the front, a plain comma-separated list replaces the defaults. Empty fields keep the defaults. Not applied to the jump host.'),
+            labelAlgoKex: `${vscode.l10n.t('Key exchange')} (KexAlgorithms)`,
+            labelAlgoCipher: `${vscode.l10n.t('Ciphers')} (Ciphers)`,
+            labelAlgoHostKey: `${vscode.l10n.t('Host key types')} (HostKeyAlgorithms)`,
+            labelAlgoMac: `${vscode.l10n.t('Message authentication')} (MACs)`,
+        };
     }
 
     /**
      * Build a map of localized strings for embedding directly in HTML.
      */
     private _getLocalizedStrings(): Record<string, string> {
+        const algorithmLabels = Object.fromEntries(
+            Object.entries(this._algorithmLabels()).map(([key, value]) => [key, escapeHtml(value)])
+        );
         return {
+            ...algorithmLabels,
             formTitle: escapeHtml(this._panel.title),
             saveBtn: escapeHtml(vscode.l10n.t('Save')),
             testBtn: escapeHtml(vscode.l10n.t('Test Connection')),
@@ -908,6 +936,37 @@ export class ConnectionFormPanel {
             <input type="checkbox" id="fullSshAccess">
             <label id="labelFullSshAccess" for="fullSshAccess">${s.labelFullSshAccess}</label>
             <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintFullSshAccess">${s.hintFullSshAccess}</div>
+        </div>
+
+        <!-- SSH-only: custom algorithms for legacy servers -->
+        <div id="algorithmsSection" class="form-group checkbox-group full-width hidden">
+            <input type="checkbox" id="useAlgorithms">
+            <label id="labelUseAlgorithms" for="useAlgorithms">${s.labelUseAlgorithms}</label>
+            <div class="hint" style="grid-column: 1 / -1; margin-top: 2px;" id="hintUseAlgorithms">${s.hintUseAlgorithms}</div>
+        </div>
+
+        <div id="algorithmsFields" class="full-width hidden">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label id="labelAlgoKex" for="algoKex">${s.labelAlgoKex}</label>
+                    <input type="text" id="algoKex" placeholder="+diffie-hellman-group-exchange-sha1" spellcheck="false">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelAlgoCipher" for="algoCipher">${s.labelAlgoCipher}</label>
+                    <input type="text" id="algoCipher" placeholder="+3des-cbc" spellcheck="false">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelAlgoHostKey" for="algoHostKey">${s.labelAlgoHostKey}</label>
+                    <input type="text" id="algoHostKey" placeholder="+ssh-dss" spellcheck="false">
+                </div>
+
+                <div class="form-group">
+                    <label id="labelAlgoMac" for="algoMac">${s.labelAlgoMac}</label>
+                    <input type="text" id="algoMac" placeholder="+hmac-sha1" spellcheck="false">
+                </div>
+            </div>
         </div>
 
         <!-- Proxy -->
