@@ -20,7 +20,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run typecheck
+
       - name: Build
+        id: build
         run: npm run build
 
       - name: Publish to VS Code Marketplace
@@ -28,7 +32,10 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
+      # Runs even when the Marketplace step failed (e.g. an expired token),
+      # so one registry's credentials do not block the other.
       - name: Publish to Open VSX Registry
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: npx ovsx publish --no-dependencies
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}

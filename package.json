@@ -891,6 +891,7 @@
     "l10n:export": "npx @vscode/l10n-dev export -o ./l10n ./src",
     "l10n:pseudo": "npx @vscode/l10n-dev generate-pseudo -o ./l10n ./l10n/bundle.l10n.json ./package.nls.json",
     "compile": "tsc -p ./",
+    "typecheck": "tsc -p ./ --noEmit",
     "prepackage": "npm run build"
   },
   "devDependencies": {
