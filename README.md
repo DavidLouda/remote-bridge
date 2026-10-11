@@ -442,6 +442,9 @@ npm install
 # Build
 npm run build
 
+# Type check (esbuild does not check types; CI runs this too)
+npm run typecheck
+
 # Watch mode
 npm run watch
 
