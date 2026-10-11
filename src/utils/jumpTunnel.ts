@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import { Client, ConnectConfig } from 'ssh2';
 import { JumpHostConfig } from '../types/connection';
-import { readPrivateKeySync } from './privateKeyLoader';
+import { agentNotFoundMessage, readPrivateKeySync } from './privateKeyLoader';
+import { expandUserPath, resolveAgentPath } from './keyPath';
 
 export interface JumpSocket {
     /** The forwarded stream to use as ssh2 ConnectConfig.sock for the target connection */
@@ -49,14 +50,14 @@ export async function createJumpSocket(
         }
         case 'key': {
             if (jumpConfig.privateKeyPath) {
-                const keyPath = jumpConfig.privateKeyPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+                const configuredPath = jumpConfig.privateKeyPath;
                 try {
-                    connectConfig.privateKey = readPrivateKeySync(keyPath);
+                    connectConfig.privateKey = readPrivateKeySync(expandUserPath(configuredPath), configuredPath);
                 } catch (err) {
                     throw new Error(
                         err instanceof Error
                             ? err.message
-                            : `Failed to read jump host private key: ${keyPath}`
+                            : `Failed to read jump host private key: ${configuredPath}`
                     );
                 }
             }
@@ -68,9 +69,14 @@ export async function createJumpSocket(
             }
             break;
         }
-        case 'agent':
-            connectConfig.agent = jumpConfig.agent || process.env.SSH_AUTH_SOCK;
+        case 'agent': {
+            const agent = resolveAgentPath(jumpConfig.agent);
+            if (!agent) {
+                throw new Error(agentNotFoundMessage(jumpConfig.agent));
+            }
+            connectConfig.agent = agent;
             break;
+        }
         case 'keyboard-interactive':
             // keyboard-interactive is not supported for jump hosts in headless mode
             // (no UI available during the tunnel setup). Fall through to default.
@@ -96,6 +102,11 @@ export async function createJumpSocket(
 
         jumpClient.connect(connectConfig);
     });
+
+    // Keep an error listener for the tunnel's lifetime: an 'error' event
+    // without one throws. The forwarded stream closes with the jump
+    // connection, and the target connection reports the disconnect.
+    jumpClient.on('error', () => undefined);
 
     // Phase 2: Open a forwarded TCP channel to the target
     const stream = await new Promise<NodeJS.ReadableStream & NodeJS.WritableStream>((resolve, reject) => {

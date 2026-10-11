@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { readImportFileSync } from '../utils/importerFile';
+import { sanitizeAlgorithmSettings } from '../utils/sshAlgorithms';
 import { ConnectionExportItem, JsonExportData } from '../exporters/jsonExporter';
 import {
     AuthMethod,
@@ -305,6 +306,16 @@ export class JsonImporter {
 
         if (typeof item.fullSshAccess === 'boolean') {
             connection.fullSshAccess = item.fullSshAccess;
+        }
+
+        if (item.algorithms !== undefined && (protocol === 'ssh' || protocol === 'sftp')) {
+            const { algorithms, dropped } = sanitizeAlgorithmSettings(item.algorithms);
+            connection.algorithms = algorithms;
+            if (dropped.length > 0) {
+                result.errors.push(
+                    vscode.l10n.t('Connection "{0}": ignored unsupported SSH algorithm settings: {1}', name, dropped.join('; '))
+                );
+            }
         }
 
         if (typeof item.newFileMode === 'number' && Number.isFinite(item.newFileMode)) {

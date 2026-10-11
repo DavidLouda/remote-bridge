@@ -1,4 +1,10 @@
 import { ConnectionConfig } from '../types/connection';
+import {
+    ALGORITHM_CATEGORIES,
+    OPENSSH_ALGORITHM_KEYWORDS,
+    formatAlgorithmSpec,
+    parseAlgorithmSpec,
+} from '../utils/sshAlgorithms';
 
 export interface SshConfigExportResult {
     content: string;
@@ -49,6 +55,18 @@ export class SshConfigExporter {
                     lines.push(`    ProxyCommand nc -x ${conn.proxy.host}:${conn.proxy.port} %h %p`);
                 } else if (conn.proxy.type === 'http') {
                     lines.push(`    ProxyCommand nc -X connect -x ${conn.proxy.host}:${conn.proxy.port} %h %p`);
+                }
+            }
+
+            if (conn.jumpHost) {
+                const jumpUser = conn.jumpHost.username ? `${conn.jumpHost.username}@` : '';
+                lines.push(`    ProxyJump ${jumpUser}${conn.jumpHost.host}:${conn.jumpHost.port}`);
+            }
+
+            for (const category of ALGORITHM_CATEGORIES) {
+                const spec = parseAlgorithmSpec(conn.algorithms?.[category] ?? '');
+                if (spec) {
+                    lines.push(`    ${OPENSSH_ALGORITHM_KEYWORDS[category]} ${formatAlgorithmSpec(spec)}`);
                 }
             }
 

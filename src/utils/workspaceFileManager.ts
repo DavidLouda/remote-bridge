@@ -25,6 +25,11 @@ function sanitizeSegment(value: string): string {
         .trim();
 }
 
+/** Display name used for a connection's workspace folder. */
+export function workspaceFolderName(conn: ConnectionConfig): string {
+    return `${conn.name} (${conn.host})`;
+}
+
 /** Build the workspace filename (without extension) for a given host + remotePath. */
 export function buildWorkspaceFilename(host: string, remotePath: string): string {
     // Trim leading/trailing slashes; if nothing remains, use host name only
@@ -97,40 +102,12 @@ export async function createWorkspaceFile(
 
     const folders = connections.map(conn => ({
         uri: buildRemoteUri(conn.id, conn.remotePath).toString(),
-        name: `${conn.name} (${conn.host})`,
+        name: workspaceFolderName(conn),
     }));
 
     const content = JSON.stringify({ folders, settings: {} }, null, '\t');
     await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content, 'utf8'));
     return fileUri;
-}
-
-/**
- * Add a new folder entry to an existing .code-workspace file.
- */
-export async function addFolderToWorkspaceFile(
-    workspaceFileUri: vscode.Uri,
-    conn: ConnectionConfig
-): Promise<void> {
-    const bytes = await vscode.workspace.fs.readFile(workspaceFileUri);
-    const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as {
-        folders: { uri: string; name?: string }[];
-        settings?: Record<string, unknown>;
-    };
-
-    const folderUri = buildRemoteUri(conn.id, conn.remotePath);
-    const folderName = `${conn.name} (${conn.host})`;
-
-    // Avoid duplicates
-    const already = json.folders.some(f => f.uri.includes(`remote-bridge://${conn.id}`));
-    if (!already) {
-        json.folders.push({ uri: folderUri.toString(), name: folderName });
-    }
-
-    await vscode.workspace.fs.writeFile(
-        workspaceFileUri,
-        Buffer.from(JSON.stringify(json, null, '\t'), 'utf8')
-    );
 }
 
 /**

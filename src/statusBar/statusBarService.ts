@@ -254,6 +254,10 @@ export class StatusBarService implements vscode.Disposable {
                 action: 'connect',
             });
         }
+        actions.push({
+            label: `$(root-folder-opened) ${vscode.l10n.t('Add to Current Workspace')}`,
+            action: 'addToWorkspace',
+        });
 
         if (isSsh) {
             actions.push({
@@ -283,6 +287,9 @@ export class StatusBarService implements vscode.Disposable {
                     break;
                 case 'openWorkspace':
                     await vscode.commands.executeCommand('remoteBridge.connect', node);
+                    break;
+                case 'addToWorkspace':
+                    await vscode.commands.executeCommand('remoteBridge.addToWorkspace', node);
                     break;
                 case 'terminal':
                     openSshTerminal(conn, this._connectionPool);

@@ -22,6 +22,10 @@ export function readImportFileSync(filePath: string, maxBytes: number = DEFAULT_
     } catch (err) {
         throw new Error(vscode.l10n.t('Failed to read import file: {0}', filePath));
     }
+    // Character devices and FIFOs report size 0 and would block or never end.
+    if (!stat.isFile()) {
+        throw new Error(vscode.l10n.t('Failed to read import file: {0}', filePath));
+    }
     if (stat.size > maxBytes) {
         throw new Error(
             vscode.l10n.t('Import file too large: {0} bytes (max {1})', String(stat.size), String(maxBytes))

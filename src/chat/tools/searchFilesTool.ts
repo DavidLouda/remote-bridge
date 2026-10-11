@@ -102,6 +102,18 @@ export class SearchFilesTool extends BaseTool implements vscode.LanguageModelToo
                     ]);
                 }
                 const cleaned = shell.filterGrepBinaryNotices(result.stdout);
+                // On Linux/macOS the output is piped into `head`, so the exit
+                // code is head's: an invalid pattern only shows up on stderr.
+                const realErrors = result.stderr
+                    .split('\n')
+                    .filter((line) => line.trim() && !/Permission denied|No such file or directory/i.test(line));
+                if (!cleaned.trim() && realErrors.length > 0) {
+                    return new vscode.LanguageModelToolResult([
+                        new vscode.LanguageModelTextPart(
+                            vscode.l10n.t('Search error: {0}', realErrors.join('\n'))
+                        ),
+                    ]);
+                }
                 return new vscode.LanguageModelToolResult([
                     new vscode.LanguageModelTextPart(cleaned || vscode.l10n.t('No matches found')),
                 ]);

@@ -24,9 +24,19 @@ export function esc(path: string, os: RemoteOS = 'linux'): string {
         throw new Error(`Path contains invalid control characters: ${JSON.stringify(path)}`);
     }
     if (os === 'windows') {
-        return `'${path.replace(/'/g, "''")}'`;
+        return `'${escapePowerShellQuotes(path)}'`;
     }
     return `'${path.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * Escape text for the inside of a PowerShell single-quoted string.
+ * PowerShell treats the typographic quotes U+2018–U+201B as single quotes
+ * too, so each of them must be doubled like `'` or a value such as
+ * `a’; Remove-Item …` would end the string early.
+ */
+export function escapePowerShellQuotes(value: string): string {
+    return value.replace(/['\u2018\u2019\u201A\u201B]/g, '$&$&');
 }
 
 /**
@@ -194,7 +204,7 @@ export function grepSearch(
     maxResults = Math.max(1, Math.min(Math.trunc(maxResults) || 100, 100_000));
     contextLines = Math.max(0, Math.min(Math.trunc(contextLines) || 0, 1000));
     const escapedPattern = os === 'windows'
-        ? pattern.replace(/'/g, "''")
+        ? escapePowerShellQuotes(pattern)
         : pattern.replace(/'/g, "'\\''");
     const p = esc(path, os);
 
@@ -202,10 +212,10 @@ export function grepSearch(
         // PowerShell Select-String
         let cmd = `Get-ChildItem -LiteralPath ${p} -Recurse`;
         if (fileGlob) {
-            cmd += ` -Filter '${fileGlob.replace(/'/g, "''")}'`;
+            cmd += ` -Filter '${escapePowerShellQuotes(fileGlob)}'`;
         }
         if (excludePattern) {
-            cmd += ` -Exclude '${excludePattern.replace(/'/g, "''")}'`;
+            cmd += ` -Exclude '${escapePowerShellQuotes(excludePattern)}'`;
         }
         const csFlag = caseSensitive ? '-CaseSensitive ' : '';
         const ctxFlag = contextLines > 0 ? `-Context ${contextLines},${contextLines} ` : '';
@@ -247,7 +257,7 @@ export function grepInFile(
     maxResults = Math.max(1, Math.min(Math.trunc(maxResults) || 50, 100_000));
     contextLines = Math.max(0, Math.min(Math.trunc(contextLines) || 0, 1000));
     const escapedPattern = os === 'windows'
-        ? pattern.replace(/'/g, "''")
+        ? escapePowerShellQuotes(pattern)
         : pattern.replace(/'/g, "'\\''");
     const p = esc(path, os);
 
@@ -355,7 +365,7 @@ export function findCmd(
     limit = Math.max(1, limit);
     const p = esc(path, os);
     if (os === 'windows') {
-        const pat = namePattern.replace(/'/g, "''");
+        const pat = escapePowerShellQuotes(namePattern);
         let cmd = `Get-ChildItem -LiteralPath ${p} -Recurse -Depth 10 -Filter '${pat}' -ErrorAction SilentlyContinue`;
         if (type === 'file') {
             cmd += ' -File';
